@@ -40,28 +40,26 @@ export const StaticHtmlGenerator = () => {
     try {
       console.log('[STATIC-HTML] Chamando função generate-html...')
 
-      // Importando a constante SUPABASE_URL
-      const { SUPABASE_URL } = await import('@/integrations/supabase/client')
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/generate-html`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      )
-
-      const data = await response.json()
+      // Usar supabase.functions.invoke() para chamar a Edge Function
+      const { data, error } = await supabase.functions.invoke('generate-html')
       
-      if (!response.ok) {
-        throw new Error(data.error || `Erro HTTP: ${response.status}`)
+      if (error) {
+        throw new Error(error.message || 'Erro ao chamar função generate-html')
+      }
+
+      if (!data) {
+        throw new Error('Resposta vazia da função generate-html')
       }
 
       setResult(data)
       
       if (data.success) {
-        console.log('[STATIC-HTML] HTML gerado com sucesso para:', data.data.company_name)
+        console.log('[STATIC-HTML] HTML gerado com sucesso para:', data.data?.company_name)
+        toast({
+          title: "HTML Gerado!",
+          description: `HTML otimizado gerado para ${data.data?.company_name || 'sua empresa'}`,
+          variant: "default"
+        })
       }
 
     } catch (error) {
@@ -69,6 +67,11 @@ export const StaticHtmlGenerator = () => {
       setResult({
         success: false,
         error: error instanceof Error ? error.message : 'Erro desconhecido'
+      })
+      toast({
+        title: "Erro ao gerar HTML",
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: "destructive"
       })
     } finally {
       setIsGenerating(false)

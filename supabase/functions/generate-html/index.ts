@@ -116,7 +116,8 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  console.log(`[GENERATE-HTML] v1.3 SERVICE-ROLE-KEY - ${new Date().toISOString()}`)
+  console.log(`[GENERATE-HTML] v1.4 INVOKED - Method: ${req.method} - ${new Date().toISOString()}`)
+  console.log(`[GENERATE-HTML] Headers:`, Object.fromEntries(req.headers.entries()))
 
   try {
     // Usar SERVICE_ROLE_KEY para acessar configurações diretamente (como get-public-settings faz)
@@ -128,6 +129,8 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     )
 
+    console.log('[GENERATE-HTML] Cliente Supabase criado com sucesso')
+
     // Buscar apenas dados de branding (seguindo mesma lógica do get-public-settings)
     const { data: settings, error: settingsError } = await supabase
       .from('poupeja_settings')
@@ -135,6 +138,8 @@ serve(async (req) => {
       .eq('category', 'branding')
       .in('key', ['company_name', 'company_description', 'logo_url'])
       .eq('encrypted', false)
+
+    console.log('[GENERATE-HTML] Query executada - Settings:', settings, 'Error:', settingsError)
 
     if (settingsError) {
       console.error('[GENERATE-HTML] Erro ao buscar configurações:', settingsError)

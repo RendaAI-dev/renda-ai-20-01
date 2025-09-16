@@ -127,9 +127,13 @@ export type Database = {
           metadata: Json | null
           name: string
           price_annual: number | null
+          price_annual_original: number | null
           price_monthly: number
+          price_monthly_original: number | null
           price_quarterly: number | null
+          price_quarterly_original: number | null
           price_semiannual: number | null
+          price_semiannual_original: number | null
           slug: string
           sort_order: number | null
           stripe_price_id_annual: string | null
@@ -153,9 +157,13 @@ export type Database = {
           metadata?: Json | null
           name: string
           price_annual?: number | null
+          price_annual_original?: number | null
           price_monthly: number
+          price_monthly_original?: number | null
           price_quarterly?: number | null
+          price_quarterly_original?: number | null
           price_semiannual?: number | null
+          price_semiannual_original?: number | null
           slug: string
           sort_order?: number | null
           stripe_price_id_annual?: string | null
@@ -179,9 +187,13 @@ export type Database = {
           metadata?: Json | null
           name?: string
           price_annual?: number | null
+          price_annual_original?: number | null
           price_monthly?: number
+          price_monthly_original?: number | null
           price_quarterly?: number | null
+          price_quarterly_original?: number | null
           price_semiannual?: number | null
+          price_semiannual_original?: number | null
           slug?: string
           sort_order?: number | null
           stripe_price_id_annual?: string | null
@@ -554,6 +566,10 @@ export type Database = {
           subscription_status: string
           user_id: string
         }[]
+      }
+      calculate_discount_percentage: {
+        Args: { discounted_price: number; original_price: number }
+        Returns: number
       }
       check_user_role: {
         Args: {

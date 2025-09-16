@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Check, Star, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { usePlanConfig } from '@/hooks/usePlanConfig';
+import { useNewPlanConfig } from '@/hooks/useNewPlanConfig';
 
 const LandingPricing = () => {
-  const { config, isLoading, error } = usePlanConfig();
+  const { config, isLoading, error } = useNewPlanConfig();
 
   if (isLoading) {
     return (
@@ -34,31 +34,20 @@ const LandingPricing = () => {
     );
   }
 
-  const plans = [{
-    name: "Mensal",
-    price: config.prices.monthly.displayPrice,
-    period: "/mês",
-    description: "Para uso pessoal completo",
-    features: ["Movimentos ilimitados", "Dashboard completo", "Todos os relatórios", "Metas ilimitadas", "Agendamentos", "Suporte prioritário"],
-    limitations: [],
-    buttonText: "Assinar Agora",
+  const plans = config?.plans.map(plan => ({
+    name: plan.name,
+    price: plan.pricing.annual?.display || plan.pricing.monthly.display,
+    period: plan.pricing.annual ? "/ano" : "/mês",
+    originalPrice: plan.pricing.annual?.originalPrice,
+    savings: plan.pricing.annual?.savings,
+    description: plan.description || "Plano completo",
+    features: plan.features,
+    limitations: plan.limitations,
+    buttonText: plan.isPopular ? "Melhor Oferta" : "Assinar Agora",
     buttonVariant: "default" as const,
-    popular: false,
-    linkTo: `/register?priceId=${config.prices.monthly.priceId}&planType=monthly`
-  }, {
-    name: "Anual",
-    price: config.prices.annual.displayPrice,
-    period: "/ano",
-    originalPrice: config.prices.annual.displayOriginalPrice,
-    savings: config.prices.annual.displaySavings,
-    description: "Melhor custo-benefício",
-    features: ["Movimentos ilimitados", "Dashboard completo", "Todos os relatórios", "Metas ilimitadas", "Agendamentos", "Suporte VIP", "Backup automático", "Análises avançadas"],
-    limitations: [],
-    buttonText: "Melhor Oferta",
-    buttonVariant: "default" as const,
-    popular: true,
-    linkTo: `/register?priceId=${config.prices.annual.priceId}&planType=annual`
-  }];
+    popular: plan.isPopular,
+    linkTo: `/register?priceId=${plan.pricing.annual?.priceId || plan.pricing.monthly.priceId}&planType=${plan.pricing.annual ? 'annual' : 'monthly'}`
+  })) || [];
 
   return (
     <section className="py-20 w-full" id="planos">

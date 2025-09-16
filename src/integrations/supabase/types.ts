@@ -113,6 +113,75 @@ export type Database = {
         }
         Relationships: []
       }
+      poupeja_plans: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          features: Json | null
+          id: string
+          is_active: boolean | null
+          is_popular: boolean | null
+          limitations: Json | null
+          max_users: number | null
+          metadata: Json | null
+          name: string
+          price_annual: number | null
+          price_monthly: number
+          slug: string
+          sort_order: number | null
+          stripe_price_id_annual: string | null
+          stripe_price_id_monthly: string | null
+          trial_days: number | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          is_popular?: boolean | null
+          limitations?: Json | null
+          max_users?: number | null
+          metadata?: Json | null
+          name: string
+          price_annual?: number | null
+          price_monthly: number
+          slug: string
+          sort_order?: number | null
+          stripe_price_id_annual?: string | null
+          stripe_price_id_monthly?: string | null
+          trial_days?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          is_popular?: boolean | null
+          limitations?: Json | null
+          max_users?: number | null
+          metadata?: Json | null
+          name?: string
+          price_annual?: number | null
+          price_monthly?: number
+          slug?: string
+          sort_order?: number | null
+          stripe_price_id_annual?: string | null
+          stripe_price_id_monthly?: string | null
+          trial_days?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       poupeja_scheduled_transactions: {
         Row: {
           amount: number

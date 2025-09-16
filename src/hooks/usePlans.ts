@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 export interface Plan {
@@ -81,10 +82,21 @@ export const usePlans = (activeOnly = false) => {
           throw new Error(data?.error || 'Erro ao buscar planos');
         }
       } else {
-        // Usar edge function para todos os planos (admin)
-        const { data, error } = await supabase.functions.invoke('manage-plans');
+        // Usar edge function para todos os planos (admin) - método GET
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/manage-plans`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            'apikey': SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+        });
         
-        if (error) throw error;
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data?.error || 'Erro ao buscar planos');
+        }
         
         if (data?.success) {
           setPlans(data.plans || []);
@@ -107,11 +119,21 @@ export const usePlans = (activeOnly = false) => {
 
   const createPlan = async (planData: Omit<Plan, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      const { data, error } = await supabase.functions.invoke('manage-plans', {
-        body: planData
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/manage-plans`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'apikey': SUPABASE_PUBLISHABLE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(planData),
       });
 
-      if (error) throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao criar plano');
+      }
 
       if (data?.success) {
         await fetchPlans(); // Recarregar lista
@@ -136,11 +158,21 @@ export const usePlans = (activeOnly = false) => {
 
   const updatePlan = async (planId: string, planData: Partial<Plan>) => {
     try {
-      const { data, error } = await supabase.functions.invoke('manage-plans', {
-        body: planData
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/manage-plans?id=${planId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'apikey': SUPABASE_PUBLISHABLE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(planData),
       });
 
-      if (error) throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao atualizar plano');
+      }
 
       if (data?.success) {
         await fetchPlans(); // Recarregar lista
@@ -165,11 +197,20 @@ export const usePlans = (activeOnly = false) => {
 
   const deletePlan = async (planId: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke('manage-plans', {
-        body: null
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/manage-plans?id=${planId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'apikey': SUPABASE_PUBLISHABLE_KEY,
+          'Content-Type': 'application/json',
+        },
       });
 
-      if (error) throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao deletar plano');
+      }
 
       if (data?.success) {
         await fetchPlans(); // Recarregar lista

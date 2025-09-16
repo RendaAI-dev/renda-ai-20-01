@@ -99,7 +99,12 @@ serve(async (req) => {
 
       case 'POST':
         // Criar novo plano
-        const newPlan: Plan = await req.json();
+        let newPlan: Plan;
+        try {
+          newPlan = await req.json();
+        } catch (e) {
+          throw new Error('Body da requisição inválido para criação de plano');
+        }
         
         const { data: createdPlan, error: createError } = await supabaseClient
           .from('poupeja_plans')
@@ -123,7 +128,12 @@ serve(async (req) => {
           throw new Error('ID do plano é obrigatório para atualização');
         }
 
-        const updatedPlan: Partial<Plan> = await req.json();
+        let updatedPlan: Partial<Plan>;
+        try {
+          updatedPlan = await req.json();
+        } catch (e) {
+          throw new Error('Body da requisição inválido para atualização de plano');
+        }
         
         const { data: updated, error: updateError } = await supabaseClient
           .from('poupeja_plans')

@@ -1,7 +1,7 @@
 {
-  "name": "Poupei Já",
-  "short_name": "Poupei Já",
-  "description": "Seu assistente financeiro pessoal",
+  "name": "Renda AI",
+  "short_name": "Renda AI",
+  "description": "Gerencia suas finanças com o Renda AI.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FFFFFF",
@@ -22,4 +22,4 @@
       "purpose": "any maskable"
     }
   ]
-} 
+}

@@ -1,7 +1,7 @@
-// Service Worker para Poupei Já
-// Este arquivo será sobrescrito pelo sistema de branding
+// Service Worker para Renda AI
+// Gerado automaticamente pelo sistema de branding
 
-const CACHE_NAME = 'poupei-ja-v1.0.0';
+const CACHE_NAME = 'renda-ai-v1.0.0';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -36,4 +36,4 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-}); 
+});

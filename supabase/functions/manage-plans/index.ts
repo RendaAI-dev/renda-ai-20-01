@@ -12,8 +12,12 @@ interface Plan {
   slug: string;
   description?: string;
   price_monthly: number;
+  price_quarterly?: number;
+  price_semiannual?: number;
   price_annual?: number;
   stripe_price_id_monthly?: string;
+  stripe_price_id_quarterly?: string;
+  stripe_price_id_semiannual?: string;
   stripe_price_id_annual?: string;
   features: string[];
   limitations: string[];

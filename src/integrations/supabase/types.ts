@@ -128,10 +128,14 @@ export type Database = {
           name: string
           price_annual: number | null
           price_monthly: number
+          price_quarterly: number | null
+          price_semiannual: number | null
           slug: string
           sort_order: number | null
           stripe_price_id_annual: string | null
           stripe_price_id_monthly: string | null
+          stripe_price_id_quarterly: string | null
+          stripe_price_id_semiannual: string | null
           trial_days: number | null
           updated_at: string | null
           updated_by: string | null
@@ -150,10 +154,14 @@ export type Database = {
           name: string
           price_annual?: number | null
           price_monthly: number
+          price_quarterly?: number | null
+          price_semiannual?: number | null
           slug: string
           sort_order?: number | null
           stripe_price_id_annual?: string | null
           stripe_price_id_monthly?: string | null
+          stripe_price_id_quarterly?: string | null
+          stripe_price_id_semiannual?: string | null
           trial_days?: number | null
           updated_at?: string | null
           updated_by?: string | null
@@ -172,10 +180,14 @@ export type Database = {
           name?: string
           price_annual?: number | null
           price_monthly?: number
+          price_quarterly?: number | null
+          price_semiannual?: number | null
           slug?: string
           sort_order?: number | null
           stripe_price_id_annual?: string | null
           stripe_price_id_monthly?: string | null
+          stripe_price_id_quarterly?: string | null
+          stripe_price_id_semiannual?: string | null
           trial_days?: number | null
           updated_at?: string | null
           updated_by?: string | null

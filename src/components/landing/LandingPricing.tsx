@@ -1,14 +1,24 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Check, Star, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useNewPlanConfig } from '@/hooks/useNewPlanConfig';
+import { PeriodSelector } from '@/components/common/PeriodSelector';
+import { PeriodPricingCard } from '@/components/landing/PeriodPricingCard';
+import { PlanPeriod } from '@/utils/planPeriodUtils';
 
 const LandingPricing = () => {
   const { config, isLoading, error } = useNewPlanConfig();
+  const [selectedPeriod, setSelectedPeriod] = useState<PlanPeriod>('annual');
+
+  const handleSelectPlan = (planId: string, priceId: string) => {
+    const planSlug = config?.plans.find(p => p.id === planId)?.slug || 'unknown';
+    window.location.href = `/register?priceId=${priceId}&planType=${selectedPeriod}&planSlug=${planSlug}`;
+  };
 
   if (isLoading) {
     return (
@@ -34,20 +44,9 @@ const LandingPricing = () => {
     );
   }
 
-  const plans = config?.plans.map(plan => ({
-    name: plan.name,
-    price: plan.pricing.annual?.display || plan.pricing.monthly.display,
-    period: plan.pricing.annual ? "/ano" : "/mês",
-    originalPrice: plan.pricing.annual?.originalPrice,
-    savings: plan.pricing.annual?.savings,
-    description: plan.description || "Plano completo",
-    features: plan.features,
-    limitations: plan.limitations,
-    buttonText: plan.isPopular ? "Melhor Oferta" : "Assinar Agora",
-    buttonVariant: "default" as const,
-    popular: plan.isPopular,
-    linkTo: `/register?priceId=${plan.pricing.annual?.priceId || plan.pricing.monthly.priceId}&planType=${plan.pricing.annual ? 'annual' : 'monthly'}`
-  })) || [];
+  // Pegar o primeiro plano para calcular o preço base para o seletor
+  const basePlan = config.plans[0];
+  const monthlyPrice = basePlan?.pricing?.monthly?.amount || 29.90;
 
   return (
     <section className="py-20 w-full" id="planos">
@@ -62,76 +61,56 @@ const LandingPricing = () => {
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Escolha o plano ideal para você
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
             Transforme sua vida financeira com nossos planos completos
           </p>
+          
+          {/* Seletor de Período */}
+          <div className="mb-8">
+            <PeriodSelector
+              selectedPeriod={selectedPeriod}
+              onPeriodChange={setSelectedPeriod}
+              monthlyPrice={monthlyPrice}
+              className="justify-center"
+            />
+          </div>
         </motion.div>
         
         <motion.div 
-          className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto" 
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto" 
           initial={{ opacity: 0, y: 40 }} 
           whileInView={{ opacity: 1, y: 0 }} 
           transition={{ duration: 0.6, staggerChildren: 0.1 }} 
           viewport={{ once: true }}
         >
-          {plans.map((plan, index) => (
+          {config.plans.map((plan, index) => (
             <motion.div 
-              key={index} 
+              key={plan.id} 
               initial={{ opacity: 0, y: 20 }} 
               whileInView={{ opacity: 1, y: 0 }} 
               transition={{ duration: 0.6, delay: index * 0.1 }} 
-              viewport={{ once: true }} 
-              className="relative"
+              viewport={{ once: true }}
             >
-              <Card className={`h-full relative ${plan.popular ? 'border-primary shadow-xl scale-105' : 'hover:shadow-lg'} transition-all duration-300`}>
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                    <div className="bg-primary text-primary-foreground px-4 py-1 rounded-full text-sm font-medium flex items-center gap-1">
-                      <Star className="h-4 w-4" />
-                      Mais Popular
-                    </div>
-                  </div>
-                )}
-                
-                <CardHeader className="text-center pb-4">
-                  <CardTitle className="text-2xl font-bold">{plan.name}</CardTitle>
-                  <div className="mt-4">
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="text-4xl font-bold">{plan.price}</span>
-                      <span className="text-muted-foreground">{plan.period}</span>
-                    </div>
-                    {plan.originalPrice && (
-                      <div className="mt-2">
-                        <span className="text-sm text-muted-foreground line-through">{plan.originalPrice}</span>
-                        <span className="ml-2 text-sm font-medium text-green-600">{plan.savings}</span>
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-muted-foreground mt-2">{plan.description}</p>
-                </CardHeader>
-                
-                <CardContent className="pt-0">
-                  <ul className="space-y-3 mb-8">
-                    {plan.features.map((feature, idx) => (
-                      <li key={idx} className="flex items-center gap-3">
-                        <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
-                    {plan.limitations.map((limitation, idx) => (
-                      <li key={idx} className="flex items-center gap-3 text-muted-foreground">
-                        <span className="text-sm">{limitation}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  
-                  <Button className="w-full" variant={plan.buttonVariant} size="lg" asChild>
-                    <Link to={plan.linkTo}>{plan.buttonText}</Link>
-                  </Button>
-                </CardContent>
-              </Card>
+              <PeriodPricingCard
+                plan={plan}
+                period={selectedPeriod}
+                isPopular={plan.isPopular && selectedPeriod === 'annual'}
+                onSelectPlan={handleSelectPlan}
+              />
             </motion.div>
           ))}
+        </motion.div>
+        
+        <motion.div 
+          className="text-center mt-12"
+          initial={{ opacity: 0 }} 
+          whileInView={{ opacity: 1 }} 
+          transition={{ duration: 0.6, delay: 0.3 }} 
+          viewport={{ once: true }}
+        >
+          <p className="text-sm text-muted-foreground">
+            Todos os planos incluem suporte prioritário e atualizações gratuitas
+          </p>
         </motion.div>
       </div>
     </section>

@@ -30,8 +30,12 @@ const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
     slug: '',
     description: '',
     price_monthly: 0,
+    price_quarterly: 0,
+    price_semiannual: 0,
     price_annual: 0,
     stripe_price_id_monthly: '',
+    stripe_price_id_quarterly: '',
+    stripe_price_id_semiannual: '',
     stripe_price_id_annual: '',
     features: [],
     limitations: [],
@@ -57,8 +61,12 @@ const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
         slug: '',
         description: '',
         price_monthly: 0,
+        price_quarterly: 0,
+        price_semiannual: 0,
         price_annual: 0,
         stripe_price_id_monthly: '',
+        stripe_price_id_quarterly: '',
+        stripe_price_id_semiannual: '',
         stripe_price_id_annual: '',
         features: [],
         limitations: [],
@@ -239,67 +247,126 @@ const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Calculator className="h-5 w-5" />
-                  Configuração de Preços
+                  Configuração de Preços por Período
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="price_monthly">Preço Mensal (R$) *</Label>
-                  <Input
-                    id="price_monthly"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.price_monthly || ''}
-                    onChange={(e) => handleInputChange('price_monthly', parseFloat(e.target.value) || 0)}
-                    placeholder="29.90"
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="price_monthly">Preço Mensal (R$) *</Label>
+                    <Input
+                      id="price_monthly"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.price_monthly || ''}
+                      onChange={(e) => handleInputChange('price_monthly', parseFloat(e.target.value) || 0)}
+                      placeholder="29.90"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="price_quarterly">Preço Trimestral (R$)</Label>
+                    <Input
+                      id="price_quarterly"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.price_quarterly || ''}
+                      onChange={(e) => handleInputChange('price_quarterly', parseFloat(e.target.value) || 0)}
+                      placeholder="87.90"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <Label htmlFor="price_annual">Preço Anual (R$)</Label>
-                  <Input
-                    id="price_annual"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.price_annual || ''}
-                    onChange={(e) => handleInputChange('price_annual', parseFloat(e.target.value) || 0)}
-                    placeholder="299.90"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="price_semiannual">Preço Semestral (R$)</Label>
+                    <Input
+                      id="price_semiannual"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.price_semiannual || ''}
+                      onChange={(e) => handleInputChange('price_semiannual', parseFloat(e.target.value) || 0)}
+                      placeholder="169.90"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="price_annual">Preço Anual (R$)</Label>
+                    <Input
+                      id="price_annual"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.price_annual || ''}
+                      onChange={(e) => handleInputChange('price_annual', parseFloat(e.target.value) || 0)}
+                      placeholder="177.00"
+                    />
+                  </div>
                 </div>
 
-                {discount > 0 && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-green-800">
-                      <Calculator className="h-4 w-4" />
-                      <span className="font-medium">Desconto Anual: {discount}%</span>
+                {/* Cálculo de Descontos */}
+                {formData.price_monthly && (
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                    <h4 className="font-medium text-primary mb-2">Descontos Calculados:</h4>
+                    <div className="space-y-1 text-sm">
+                      {formData.price_quarterly && (
+                        <p>• Trimestral: -{Math.round(((Number(formData.price_monthly) * 3 - Number(formData.price_quarterly)) / (Number(formData.price_monthly) * 3)) * 100)}%</p>
+                      )}
+                      {formData.price_semiannual && (
+                        <p>• Semestral: -{Math.round(((Number(formData.price_monthly) * 6 - Number(formData.price_semiannual)) / (Number(formData.price_monthly) * 6)) * 100)}%</p>
+                      )}
+                      {formData.price_annual && (
+                        <p>• Anual: -{Math.round(((Number(formData.price_monthly) * 12 - Number(formData.price_annual)) / (Number(formData.price_monthly) * 12)) * 100)}%</p>
+                      )}
                     </div>
-                    <p className="text-sm text-green-600">
-                      Economia de R$ {((Number(formData.price_monthly) * 12) - Number(formData.price_annual)).toFixed(2).replace('.', ',')} por ano
-                    </p>
                   </div>
                 )}
 
-                <div>
-                  <Label htmlFor="stripe_price_id_monthly">Stripe Price ID (Mensal)</Label>
-                  <Input
-                    id="stripe_price_id_monthly"
-                    value={formData.stripe_price_id_monthly || ''}
-                    onChange={(e) => handleInputChange('stripe_price_id_monthly', e.target.value)}
-                    placeholder="price_xxxxxxxxxxxxx"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="stripe_price_id_annual">Stripe Price ID (Anual)</Label>
-                  <Input
-                    id="stripe_price_id_annual"
-                    value={formData.stripe_price_id_annual || ''}
-                    onChange={(e) => handleInputChange('stripe_price_id_annual', e.target.value)}
-                    placeholder="price_xxxxxxxxxxxxx"
-                  />
+                {/* Stripe Price IDs */}
+                <div className="mt-6">
+                  <h4 className="text-sm font-medium mb-3 text-muted-foreground">Stripe Price IDs</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="stripe_price_id_monthly">ID Mensal</Label>
+                      <Input
+                        id="stripe_price_id_monthly"
+                        value={formData.stripe_price_id_monthly || ''}
+                        onChange={(e) => handleInputChange('stripe_price_id_monthly', e.target.value)}
+                        placeholder="price_monthly_xxx"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="stripe_price_id_quarterly">ID Trimestral</Label>
+                      <Input
+                        id="stripe_price_id_quarterly"
+                        value={formData.stripe_price_id_quarterly || ''}
+                        onChange={(e) => handleInputChange('stripe_price_id_quarterly', e.target.value)}
+                        placeholder="price_quarterly_xxx"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <Label htmlFor="stripe_price_id_semiannual">ID Semestral</Label>
+                      <Input
+                        id="stripe_price_id_semiannual"
+                        value={formData.stripe_price_id_semiannual || ''}
+                        onChange={(e) => handleInputChange('stripe_price_id_semiannual', e.target.value)}
+                        placeholder="price_semiannual_xxx"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="stripe_price_id_annual">ID Anual</Label>
+                      <Input
+                        id="stripe_price_id_annual"
+                        value={formData.stripe_price_id_annual || ''}
+                        onChange={(e) => handleInputChange('stripe_price_id_annual', e.target.value)}
+                        placeholder="price_annual_xxx"
+                      />
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

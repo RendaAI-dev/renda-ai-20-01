@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
-export interface PlanConfig {
+export interface NewPlanConfig {
   plans: {
     id: string;
     name: string;
@@ -12,6 +12,22 @@ export interface PlanConfig {
       monthly: {
         amount: number;
         display: string;
+        priceId: string;
+      };
+      quarterly?: {
+        amount: number;
+        display: string;
+        originalPrice: string;
+        discount: string;
+        savings: string;
+        priceId: string;
+      };
+      semiannual?: {
+        amount: number;
+        display: string;
+        originalPrice: string;
+        discount: string;
+        savings: string;
         priceId: string;
       };
       annual?: {
@@ -32,8 +48,10 @@ export interface PlanConfig {
   }[];
 }
 
+export type Plan = NewPlanConfig['plans'][0];
+
 export const useNewPlanConfig = () => {
-  const [config, setConfig] = useState<PlanConfig | null>(null);
+  const [config, setConfig] = useState<NewPlanConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -50,7 +68,7 @@ export const useNewPlanConfig = () => {
       
       if (data?.success) {
         // Transformar dados para o formato esperado
-        const transformedConfig: PlanConfig = {
+        const transformedConfig: NewPlanConfig = {
           plans: data.plans.map((plan: any) => ({
             id: plan.id,
             name: plan.name,
@@ -80,7 +98,7 @@ export const useNewPlanConfig = () => {
         
         if (!legacyError && legacyData?.success) {
           // Usar configuração legacy como fallback
-          const fallbackConfig: PlanConfig = {
+          const fallbackConfig: NewPlanConfig = {
             plans: [
               {
                 id: 'monthly-legacy',

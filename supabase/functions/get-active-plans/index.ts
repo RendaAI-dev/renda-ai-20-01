@@ -26,8 +26,12 @@ serve(async (req) => {
         slug,
         description,
         price_monthly,
+        price_quarterly,
+        price_semiannual,
         price_annual,
         stripe_price_id_monthly,
+        stripe_price_id_quarterly,
+        stripe_price_id_semiannual,
         stripe_price_id_annual,
         features,
         limitations,
@@ -44,11 +48,23 @@ serve(async (req) => {
     // Processar planos para adicionar campos calculados
     const processedPlans = plans?.map(plan => {
       const monthlyPrice = plan.price_monthly;
-      const annualPrice = plan.price_annual || monthlyPrice * 12;
+      const quarterlyPrice = plan.price_quarterly;
+      const semiannualPrice = plan.price_semiannual;
+      const annualPrice = plan.price_annual;
+      
+      // Calcular preços equivalentes para comparação
+      const quarterlyEquivalent = monthlyPrice * 3;
+      const semiannualEquivalent = monthlyPrice * 6;
       const yearlyEquivalent = monthlyPrice * 12;
       
-      // Calcular desconto anual
-      const annualDiscount = plan.price_annual 
+      // Calcular descontos
+      const quarterlyDiscount = quarterlyPrice 
+        ? Math.round(((quarterlyEquivalent - quarterlyPrice) / quarterlyEquivalent) * 100)
+        : 0;
+      const semiannualDiscount = semiannualPrice 
+        ? Math.round(((semiannualEquivalent - semiannualPrice) / semiannualEquivalent) * 100)
+        : 0;
+      const annualDiscount = annualPrice 
         ? Math.round(((yearlyEquivalent - annualPrice) / yearlyEquivalent) * 100)
         : 0;
 
@@ -60,7 +76,23 @@ serve(async (req) => {
             display: `R$ ${monthlyPrice.toFixed(2).replace('.', ',')}`,
             priceId: plan.stripe_price_id_monthly
           },
-          annual: plan.price_annual ? {
+          quarterly: quarterlyPrice ? {
+            amount: quarterlyPrice,
+            display: `R$ ${quarterlyPrice.toFixed(2).replace('.', ',')}`,
+            originalPrice: `R$ ${quarterlyEquivalent.toFixed(2).replace('.', ',')}`,
+            discount: `${quarterlyDiscount}%`,
+            savings: `Economize ${quarterlyDiscount}%`,
+            priceId: plan.stripe_price_id_quarterly
+          } : null,
+          semiannual: semiannualPrice ? {
+            amount: semiannualPrice,
+            display: `R$ ${semiannualPrice.toFixed(2).replace('.', ',')}`,
+            originalPrice: `R$ ${semiannualEquivalent.toFixed(2).replace('.', ',')}`,
+            discount: `${semiannualDiscount}%`,
+            savings: `Economize ${semiannualDiscount}%`,
+            priceId: plan.stripe_price_id_semiannual
+          } : null,
+          annual: annualPrice ? {
             amount: annualPrice,
             display: `R$ ${annualPrice.toFixed(2).replace('.', ',')}`,
             originalPrice: `R$ ${yearlyEquivalent.toFixed(2).replace('.', ',')}`,

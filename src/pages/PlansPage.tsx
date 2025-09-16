@@ -56,18 +56,23 @@ const PlansPage = () => {
     );
   }
 
-  const plans = config?.plans.map(plan => ({
-    name: plan.name,
-    price: plan.pricing.annual?.display || plan.pricing.monthly.display,
-    period: plan.pricing.annual ? "/ano" : "/mês",
-    priceId: plan.pricing.annual?.priceId || plan.pricing.monthly.priceId,
-    originalPrice: plan.pricing.annual?.originalPrice,
-    savings: plan.pricing.annual?.savings,
-    description: plan.description || "Plano completo",
-    features: plan.features,
-    popular: plan.isPopular,
-    planType: plan.pricing.annual ? 'annual' as const : 'monthly' as const,
-  })) || [];
+  const plans = config?.plans.map(plan => {
+    // Para cada plano, usar o período anual preferencialmente, senão usar mensal
+    const preferredPricing = plan.pricing.annual || plan.pricing.monthly;
+    
+    return {
+      name: plan.name,
+      price: preferredPricing.display,
+      period: plan.pricing.annual ? "/ano" : "/mês",
+      priceId: preferredPricing.priceId,
+      originalPrice: preferredPricing.originalPrice,
+      savings: preferredPricing.savings,
+      description: plan.description || "Plano completo",
+      features: plan.features,
+      popular: plan.isPopular,
+      planType: plan.pricing.annual ? 'annual' as const : 'monthly' as const,
+    };
+  }) || [];
 
   return (
     <MainLayout title={t('plans.title')}>

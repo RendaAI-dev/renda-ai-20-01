@@ -16,8 +16,7 @@ const LandingPricing = () => {
   const [selectedPeriod, setSelectedPeriod] = useState<PlanPeriod>('annual');
 
   const handleSelectPlan = (planId: string, priceId: string) => {
-    const planSlug = config?.plans.find(p => p.id === planId)?.slug || 'unknown';
-    window.location.href = `/register?priceId=${priceId}&planType=${selectedPeriod}&planSlug=${planSlug}`;
+    window.location.href = `/register?priceId=${priceId}&planType=${selectedPeriod}&planSlug=${planId}`;
   };
 
   if (isLoading) {
@@ -46,7 +45,8 @@ const LandingPricing = () => {
 
   // Pegar o primeiro plano para calcular o preço base para o seletor
   const basePlan = config.plans[0];
-  const monthlyPrice = basePlan?.pricing?.monthly?.amount || 29.90;
+  const monthlyPrice = basePlan?.pricing?.monthly ? 
+    parseFloat(basePlan.pricing.monthly.display.replace('R$ ', '').replace(',', '.')) : 29.90;
 
   return (
     <section className="py-20 w-full" id="planos">
@@ -77,7 +77,7 @@ const LandingPricing = () => {
         </motion.div>
         
         <motion.div 
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto" 
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto" 
           initial={{ opacity: 0, y: 40 }} 
           whileInView={{ opacity: 1, y: 0 }} 
           transition={{ duration: 0.6, staggerChildren: 0.1 }} 
@@ -85,7 +85,7 @@ const LandingPricing = () => {
         >
           {config.plans.map((plan, index) => (
             <motion.div 
-              key={plan.id} 
+              key={`${plan.id}-${selectedPeriod}`} 
               initial={{ opacity: 0, y: 20 }} 
               whileInView={{ opacity: 1, y: 0 }} 
               transition={{ duration: 0.6, delay: index * 0.1 }} 
@@ -94,7 +94,7 @@ const LandingPricing = () => {
               <PeriodPricingCard
                 plan={plan}
                 period={selectedPeriod}
-                isPopular={plan.isPopular && selectedPeriod === 'annual'}
+                isPopular={selectedPeriod === 'quarterly'}
                 onSelectPlan={handleSelectPlan}
               />
             </motion.div>

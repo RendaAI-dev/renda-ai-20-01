@@ -20,7 +20,7 @@ export const PeriodPricingCard: React.FC<PeriodPricingCardProps> = ({
   onSelectPlan
 }) => {
   const periodInfo = PLAN_PERIODS[period];
-  const pricing = plan.pricing?.[period];
+  const pricing = plan.pricing[period];
   
   if (!pricing) return null;
 
@@ -32,11 +32,29 @@ export const PeriodPricingCard: React.FC<PeriodPricingCardProps> = ({
         </Badge>
       )}
       
-      <CardHeader className="text-center">
+      <CardHeader className="text-center pb-4">
         <CardTitle className="text-xl">{plan.name}</CardTitle>
         <p className="text-sm text-muted-foreground">{periodInfo.label}</p>
         
-        <div className="space-y-2">
+        <div className="space-y-2 relative">
+          {period === 'annual' && (
+            <Badge 
+              className="absolute -top-2 -left-2 text-xs bg-primary text-primary-foreground"
+              variant="default"
+            >
+              Melhor Valor
+            </Badge>
+          )}
+          
+          {period === 'quarterly' && (
+            <Badge 
+              className="absolute -top-2 -right-2 text-xs bg-secondary text-secondary-foreground"
+              variant="secondary"
+            >
+              Popular
+            </Badge>
+          )}
+          
           <div className="text-3xl font-bold text-primary">
             {pricing.display}
           </div>
@@ -44,13 +62,13 @@ export const PeriodPricingCard: React.FC<PeriodPricingCardProps> = ({
             por {periodInfo.shortLabel.toLowerCase()}
           </p>
           
-          {('discount' in pricing) && pricing.discount && pricing.discount !== '0%' && (
+          {pricing.discount && pricing.discount !== '0%' && (
             <div className="space-y-1">
               <p className="text-sm line-through text-muted-foreground">
-                {('originalPrice' in pricing) && pricing.originalPrice}
+                {pricing.originalPrice}
               </p>
               <Badge variant="secondary" className="bg-accent text-accent-foreground">
-                {('savings' in pricing) && pricing.savings}
+                {pricing.savings}
               </Badge>
             </div>
           )}

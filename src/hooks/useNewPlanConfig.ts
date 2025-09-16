@@ -1,158 +1,189 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { PlanPeriod, formatPrice } from '@/utils/planPeriodUtils';
 
-export interface NewPlanConfig {
-  plans: {
-    id: string;
-    name: string;
-    slug: string;
-    description?: string;
-    pricing: {
-      monthly: {
-        amount: number;
-        display: string;
-        priceId: string;
-      };
-      quarterly?: {
-        amount: number;
-        display: string;
-        originalPrice: string;
-        discount: string;
-        savings: string;
-        priceId: string;
-      };
-      semiannual?: {
-        amount: number;
-        display: string;
-        originalPrice: string;
-        discount: string;
-        savings: string;
-        priceId: string;
-      };
-      annual?: {
-        amount: number;
-        display: string;
-        originalPrice: string;
-        discount: string;
-        savings: string;
-        priceId: string;
-      };
-    };
-    features: string[];
-    limitations: string[];
-    isPopular: boolean;
-    isActive: boolean;
-    trialDays: number;
-    maxUsers?: number;
-  }[];
+// Interface para o pricing de cada período
+interface PeriodPricing {
+  priceId: string;
+  display: string;
+  originalPrice?: string;
+  discount?: string;
+  savings?: string;
 }
 
-export type Plan = NewPlanConfig['plans'][0];
+// Interface para o plano completo
+export interface Plan {
+  id: string;
+  name: string;
+  description?: string;
+  features: string[];
+  limitations?: string[];
+  isPopular?: boolean;
+  pricing: {
+    [K in PlanPeriod]: PeriodPricing;
+  };
+}
 
-export const useNewPlanConfig = () => {
-  const [config, setConfig] = useState<NewPlanConfig | null>(null);
+// Interface para a configuração completa
+export interface PlanConfig {
+  plans: Plan[];
+  contact?: {
+    phone?: string;
+  };
+}
+
+// Interface para o resultado da API
+interface PlanConfigResponse {
+  config: PlanConfig | null;
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
+
+export const useNewPlanConfig = (): PlanConfigResponse => {
+  const [config, setConfig] = useState<PlanConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
 
   const fetchConfig = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Buscar planos ativos usando a edge function
-      const { data, error } = await supabase.functions.invoke('get-active-plans');
-      
-      if (error) throw error;
-      
-      if (data?.success) {
-        // Transformar dados para o formato esperado
-        const transformedConfig: NewPlanConfig = {
-          plans: data.plans.map((plan: any) => ({
-            id: plan.id,
-            name: plan.name,
-            slug: plan.slug,
-            description: plan.description,
-            pricing: plan.pricing,
-            features: plan.features || [],
-            limitations: plan.limitations || [],
-            isPopular: plan.is_popular,
-            isActive: true, // Apenas planos ativos são retornados
-            trialDays: plan.trial_days || 0,
-            maxUsers: plan.max_users,
-          }))
-        };
-        
-        setConfig(transformedConfig);
-      } else {
-        throw new Error(data?.error || 'Erro ao buscar configurações de planos');
+      // Buscar planos ativos da tabela poupeja_plans
+      const { data: plansData, error: plansError } = await supabase
+        .from('poupeja_plans')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order');
+
+      if (plansError) {
+        throw new Error(`Erro ao carregar planos: ${plansError.message}`);
       }
-    } catch (err: any) {
-      console.error('Erro ao buscar configurações de planos:', err);
-      setError(err.message || 'Erro ao carregar configurações de planos');
+
+      if (!plansData || plansData.length === 0) {
+        throw new Error('Nenhum plano ativo encontrado');
+      }
+
+      // Buscar Price IDs do Stripe
+      const { data: stripeData, error: stripeError } = await supabase.functions.invoke('get-stripe-prices');
       
-      // Fallback para sistema antigo se o novo falhar
-      try {
-        const { data: legacyData, error: legacyError } = await supabase.functions.invoke('get-stripe-prices');
+      if (stripeError) {
+        console.warn('Aviso: Não foi possível carregar Price IDs do Stripe:', stripeError);
+      }
+
+      // Buscar configurações públicas para contato
+      const { data: settingsData, error: settingsError } = await supabase.functions.invoke('get-public-settings');
+      
+      if (settingsError) {
+        console.warn('Aviso: Não foi possível carregar configurações de contato:', settingsError);
+      }
+
+      // Processar cada plano
+      const plans: Plan[] = plansData.map(plan => {
+        // Criar estrutura de pricing para cada período
+        const periods: PlanPeriod[] = ['monthly', 'quarterly', 'semiannual', 'annual'];
+        const pricing: any = {};
         
-        if (!legacyError && legacyData?.success) {
-          // Usar configuração legacy como fallback
-          const fallbackConfig: NewPlanConfig = {
-            plans: [
-              {
-                id: 'monthly-legacy',
-                name: 'Mensal',
-                slug: 'monthly',
-                description: 'Para uso pessoal completo',
-                pricing: {
-                  monthly: {
-                    amount: 29.90,
-                    display: 'R$ 29,90',
-                    priceId: legacyData.prices.monthly
-                  }
-                },
-                features: ['Movimentos ilimitados', 'Dashboard completo', 'Todos os relatórios', 'Metas ilimitadas', 'Agendamentos', 'Suporte prioritário'],
-                limitations: [],
-                isPopular: false,
-                isActive: true,
-                trialDays: 0
-              },
-              {
-                id: 'annual-legacy',
-                name: 'Anual',
-                slug: 'annual',
-                description: 'Melhor custo-benefício',
-                pricing: {
-                  monthly: {
-                    amount: 177.00,
-                    display: 'R$ 177,00',
-                    priceId: legacyData.prices.annual
-                  },
-                  annual: {
-                    amount: 177.00,
-                    display: 'R$ 177,00',
-                    originalPrice: 'R$ 238,80',
-                    discount: '26%',
-                    savings: 'Economize 26%',
-                    priceId: legacyData.prices.annual
-                  }
-                },
-                features: ['Movimentos ilimitados', 'Dashboard completo', 'Todos os relatórios', 'Metas ilimitadas', 'Agendamentos', 'Suporte VIP', 'Backup automático', 'Análises avançadas'],
-                limitations: [],
-                isPopular: true,
-                isActive: true,
-                trialDays: 0
-              }
-            ]
-          };
+        periods.forEach(period => {
+          const priceField = `price_${period}` as keyof typeof plan;
+          const originalPriceField = `price_${period}_original` as keyof typeof plan;
+          const stripePriceIdField = `stripe_price_id_${period}` as keyof typeof plan;
           
-          setConfig(fallbackConfig);
-          setError(null);
+          const price = plan[priceField] as number || 0;
+          const originalPrice = plan[originalPriceField] as number || price;
+          const priceId = plan[stripePriceIdField] as string || stripeData?.prices?.[period] || '';
+          
+          // Calcular desconto
+          const discount = originalPrice > price ? 
+            Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
+          
+          pricing[period] = {
+            priceId,
+            display: formatPrice(price),
+            originalPrice: discount > 0 ? formatPrice(originalPrice) : undefined,
+            discount: discount > 0 ? `${discount}%` : undefined,
+            savings: discount > 0 ? `Economize ${discount}%` : undefined
+          };
+        });
+
+        return {
+          id: plan.slug || plan.id,
+          name: plan.name,
+          description: plan.description || undefined,
+          features: Array.isArray(plan.features) ? 
+            plan.features.filter((f): f is string => typeof f === 'string') : [],
+          limitations: Array.isArray(plan.limitations) && plan.limitations.length > 0 ? 
+            plan.limitations.filter((l): l is string => typeof l === 'string') : undefined,
+          isPopular: plan.is_popular || false,
+          pricing
+        };
+      });
+
+      // Montar configuração final
+      const planConfig: PlanConfig = {
+        plans,
+        contact: {
+          phone: settingsData?.settings?.contact?.contact_phone?.value || ''
         }
-      } catch (fallbackErr) {
-        console.error('Fallback também falhou:', fallbackErr);
-      }
+      };
+
+      setConfig(planConfig);
+
+    } catch (err) {
+      console.error('Erro ao carregar configuração de planos:', err);
+      setError(err instanceof Error ? err.message : 'Erro desconhecido ao carregar planos');
+      
+      // Fallback para configuração básica se falhar
+      const fallbackConfig: PlanConfig = {
+        plans: [{
+          id: 'premium',
+          name: 'Premium',
+          description: 'Plano completo com todas as funcionalidades',
+          features: [
+            'Controle financeiro completo',
+            'Metas e objetivos',
+            'Relatórios detalhados',
+            'Categorias personalizadas',
+            'Lembretes automáticos',
+            'Sincronização em nuvem',
+            'Suporte prioritário'
+          ],
+          isPopular: true,
+          pricing: {
+            monthly: {
+              priceId: '',
+              display: 'R$ 29,90'
+            },
+            quarterly: {
+              priceId: '',
+              display: 'R$ 87,90',
+              originalPrice: 'R$ 89,70',
+              discount: '2%',
+              savings: 'Economize 2%'
+            },
+            semiannual: {
+              priceId: '',
+              display: 'R$ 169,90',
+              originalPrice: 'R$ 179,40',
+              discount: '5%',
+              savings: 'Economize 5%'
+            },
+            annual: {
+              priceId: '',
+              display: 'R$ 177,00',
+              originalPrice: 'R$ 358,80',
+              discount: '51%',
+              savings: 'Economize 51%'
+            }
+          }
+        }],
+        contact: {
+          phone: ''
+        }
+      };
+      
+      setConfig(fallbackConfig);
     } finally {
       setIsLoading(false);
     }
@@ -162,10 +193,8 @@ export const useNewPlanConfig = () => {
     fetchConfig();
   }, []);
 
-  return {
-    config,
-    isLoading,
-    error,
-    refetch: fetchConfig,
-  };
+  return { config, isLoading, error, refetch: fetchConfig };
 };
+
+// Export legacy types for compatibility
+export type NewPlanConfig = PlanConfig;

@@ -30,7 +30,19 @@ serve(async (req) => {
 
     const { event, payment } = webhookData;
     
+    // Eventos de CHECKOUT_* geralmente não têm dados de pagamento
     if (!payment || !payment.id) {
+      if (event && event.startsWith('CHECKOUT_')) {
+        console.log('[ASAAS-WEBHOOK] Evento de checkout recebido sem dados de pagamento (normal):', event);
+        return new Response(JSON.stringify({
+          received: true,
+          ignored: true,
+          reason: 'checkout_event_without_payment'
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
       throw new Error('Dados do pagamento não encontrados no webhook');
     }
 

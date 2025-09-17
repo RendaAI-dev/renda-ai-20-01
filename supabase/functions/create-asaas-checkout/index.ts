@@ -300,29 +300,76 @@ serve(async (req) => {
     console.log('[ASAAS-CHECKOUT] Checkout criado:', checkout.id);
     console.log('[ASAAS-CHECKOUT] Resposta completa do Asaas:', JSON.stringify(checkout, null, 2));
 
-    // Log campos retornados pelo Asaas para auditoria
-    console.log(`[ASAAS-CHECKOUT] URLs retornadas pelo Asaas:`, {
-      url: checkout.url,
-      invoiceUrl: checkout.invoiceUrl,
-      link: checkout.link
-    });
+    // Buscar subscription ID do checkout para obter a fatura
+    let finalUrl = '';
+    let invoiceUrl = '';
+    let paymentId = '';
 
-    // Sempre construir URL correta (ignorar URLs potencialmente incorretas do Asaas)
-    const asaasEnv = Deno.env.get('ASAAS_ENVIRONMENT') || 'sandbox';
-    console.log(`[ASAAS-CHECKOUT] Environment: ${asaasEnv}, Checkout ID: ${checkout.id}`);
-    
-    const baseUrl = asaasEnv === 'production' 
-      ? 'https://www.asaas.com/checkoutSession/show' 
-      : 'https://sandbox.asaas.com/checkoutSession/show';
-    const checkoutUrl = `${baseUrl}/${checkout.id}`;
-    
-    console.log(`[ASAAS-CHECKOUT] URL final construída: ${checkoutUrl}`);
+    try {
+      // Aguardar um pouco para a subscription ser criada
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Buscar subscription através do customer e status ACTIVE
+      const subscriptionResponse = await fetch(`${asaasUrl}/subscriptions?customer=${asaasCustomer.id}&status=ACTIVE`, {
+        headers: {
+          'access_token': apiKey,
+          'Content-Type': 'application/json'
+        }
+      });
 
-    // Retornar URL do checkout hospedado pelo Asaas
+      if (subscriptionResponse.ok) {
+        const subscriptions = await subscriptionResponse.json();
+        console.log('[ASAAS-CHECKOUT] Subscriptions encontradas:', JSON.stringify(subscriptions, null, 2));
+        
+        if (subscriptions.data && subscriptions.data.length > 0) {
+          const latestSubscription = subscriptions.data[0];
+          console.log('[ASAAS-CHECKOUT] Subscription ID:', latestSubscription.id);
+          
+          // Buscar pagamentos da subscription
+          const paymentsResponse = await fetch(`${asaasUrl}/subscriptions/${latestSubscription.id}/payments`, {
+            headers: {
+              'access_token': apiKey,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (paymentsResponse.ok) {
+            const payments = await paymentsResponse.json();
+            console.log('[ASAAS-CHECKOUT] Pagamentos da subscription:', JSON.stringify(payments, null, 2));
+            
+            if (payments.data && payments.data.length > 0) {
+              const firstPayment = payments.data[0];
+              invoiceUrl = firstPayment.invoiceUrl;
+              paymentId = firstPayment.id;
+              finalUrl = invoiceUrl;
+              console.log('[ASAAS-CHECKOUT] ✅ Fatura encontrada:', invoiceUrl);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.log('[ASAAS-CHECKOUT] ⚠️ Erro ao buscar fatura, usando checkout fallback:', error.message);
+    }
+
+    // Fallback para checkout se não conseguir obter a fatura
+    if (!finalUrl) {
+      const asaasEnv = Deno.env.get('ASAAS_ENVIRONMENT') || 'sandbox';
+      const baseUrl = asaasEnv === 'production' 
+        ? 'https://www.asaas.com/checkoutSession/show' 
+        : 'https://sandbox.asaas.com/checkoutSession/show';
+      finalUrl = `${baseUrl}/${checkout.id}`;
+      console.log('[ASAAS-CHECKOUT] 📋 Usando checkout fallback:', finalUrl);
+    }
+
+    console.log('[ASAAS-CHECKOUT] URL final construída:', finalUrl);
+
+    // Retornar resposta com fatura ou checkout
     return new Response(JSON.stringify({
       success: true,
-      checkoutUrl,
+      checkoutUrl: finalUrl, // Mantém compatibilidade
+      invoiceUrl: invoiceUrl || finalUrl, // Nova URL da fatura
       checkoutId: checkout.id,
+      paymentId: paymentId || null, // ID do pagamento se encontrado
       reference
     }), {
       headers: { 

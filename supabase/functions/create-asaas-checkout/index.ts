@@ -302,7 +302,9 @@ serve(async (req) => {
 
     // Construir URL do checkout
     const asaasEnv = Deno.env.get('ASAAS_ENVIRONMENT') || 'sandbox';
-    const baseUrl = asaasEnv === 'production' ? 'https://checkout.asaas.com' : 'https://sandbox.checkout.asaas.com';
+    const baseUrl = asaasEnv === 'production' 
+      ? 'https://www.asaas.com/checkoutSession/show' 
+      : 'https://sandbox.asaas.com/checkoutSession/show';
     const checkoutUrl = checkout.url || checkout.invoiceUrl || `${baseUrl}/${checkout.id}`;
 
     // Retornar URL do checkout hospedado pelo Asaas

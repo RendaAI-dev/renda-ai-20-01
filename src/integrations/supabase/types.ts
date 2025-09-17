@@ -479,42 +479,63 @@ export type Database = {
       }
       poupeja_users: {
         Row: {
-          address: Json | null
           birth_date: string | null
           cep: string | null
+          city: string | null
+          complement: string | null
           cpf: string | null
           created_at: string | null
+          ddd: string | null
           email: string
+          ibge: string | null
           id: string
           name: string | null
+          neighborhood: string | null
+          number: string | null
           phone: string | null
           profile_image: string | null
+          state: string | null
+          street: string | null
           updated_at: string | null
         }
         Insert: {
-          address?: Json | null
           birth_date?: string | null
           cep?: string | null
+          city?: string | null
+          complement?: string | null
           cpf?: string | null
           created_at?: string | null
+          ddd?: string | null
           email: string
+          ibge?: string | null
           id: string
           name?: string | null
+          neighborhood?: string | null
+          number?: string | null
           phone?: string | null
           profile_image?: string | null
+          state?: string | null
+          street?: string | null
           updated_at?: string | null
         }
         Update: {
-          address?: Json | null
           birth_date?: string | null
           cep?: string | null
+          city?: string | null
+          complement?: string | null
           cpf?: string | null
           created_at?: string | null
+          ddd?: string | null
           email?: string
+          ibge?: string | null
           id?: string
           name?: string | null
+          neighborhood?: string | null
+          number?: string | null
           phone?: string | null
           profile_image?: string | null
+          state?: string | null
+          street?: string | null
           updated_at?: string | null
         }
         Relationships: []

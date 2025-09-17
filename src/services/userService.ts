@@ -28,7 +28,17 @@ export const getCurrentUser = async (): Promise<User | null> => {
       phone: data.phone || "",
       cpf: data.cpf || "",
       birthDate: data.birth_date || "",
-      address: data.address || null,
+      address: {
+        cep: data.cep || "",
+        street: data.street || "",
+        number: data.number || "",
+        complement: data.complement || "",
+        neighborhood: data.neighborhood || "",
+        city: data.city || "",
+        state: data.state || "",
+        ibge: data.ibge || "",
+        ddd: data.ddd || ""
+      },
       cep: data.cep || "",
       achievements: [] // Return empty array since achievements tables don't exist yet
     };
@@ -65,8 +75,19 @@ export const updateUserProfile = async (
     if (userData.phone !== undefined) updateData.phone = userData.phone;
     if (userData.cpf !== undefined) updateData.cpf = userData.cpf;
     if (userData.birthDate !== undefined) updateData.birth_date = userData.birthDate;
-    if (userData.address !== undefined) updateData.address = userData.address;
     if (userData.cep !== undefined) updateData.cep = userData.cep;
+    
+    // Handle address fields individually
+    if (userData.address) {
+      if (userData.address.street !== undefined) updateData.street = userData.address.street;
+      if (userData.address.number !== undefined) updateData.number = userData.address.number;
+      if (userData.address.complement !== undefined) updateData.complement = userData.address.complement;
+      if (userData.address.neighborhood !== undefined) updateData.neighborhood = userData.address.neighborhood;
+      if (userData.address.city !== undefined) updateData.city = userData.address.city;
+      if (userData.address.state !== undefined) updateData.state = userData.address.state;
+      if (userData.address.ibge !== undefined) updateData.ibge = userData.address.ibge;
+      if (userData.address.ddd !== undefined) updateData.ddd = userData.address.ddd;
+    }
     
     console.log('userService: Updating database with mapped data:', updateData);
     
@@ -93,7 +114,17 @@ export const updateUserProfile = async (
       phone: data.phone || "",
       cpf: data.cpf || "",
       birthDate: data.birth_date || "",
-      address: data.address || null,
+      address: {
+        cep: data.cep || "",
+        street: data.street || "",
+        number: data.number || "",
+        complement: data.complement || "",
+        neighborhood: data.neighborhood || "",
+        city: data.city || "",
+        state: data.state || "",
+        ibge: data.ibge || "",
+        ddd: data.ddd || ""
+      },
       cep: data.cep || "",
       achievements: [] // Return empty array since achievements tables don't exist yet
     };

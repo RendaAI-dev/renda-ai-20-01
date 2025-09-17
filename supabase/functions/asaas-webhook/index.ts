@@ -118,48 +118,6 @@ serve(async (req) => {
     // Prosseguir processamento normal quando já existe
     return await processPaymentEvent(supabase, userId!, payment, existingPayment, event);
 
-    // Mapear status do Asaas para status da aplicação
-    const statusMapping = {
-      'PENDING': 'pending',
-      'RECEIVED': 'active', 
-      'CONFIRMED': 'active',
-      'OVERDUE': 'past_due',
-      'REFUNDED': 'cancelled',
-      'RECEIVED_IN_CASH': 'active',
-      'AWAITING_RISK_ANALYSIS': 'pending'
-    };
-
-    const newStatus = statusMapping[payment.status] || 'pending';
-
-    // Atualizar pagamento
-    await supabase
-      .from('poupeja_asaas_payments')
-      .update({
-        status: payment.status,
-        payment_date: payment.paymentDate || null,
-        updated_at: new Date().toISOString()
-      })
-      .eq('asaas_payment_id', payment.id);
-
-    // Processar mudanças na assinatura baseado no evento
-    if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
-      await handlePaymentSuccess(supabase, userId, payment, existingPayment);
-    } else if (event === 'PAYMENT_OVERDUE') {
-      await handlePaymentOverdue(supabase, userId, payment);
-    } else if (event === 'PAYMENT_DELETED' || event === 'PAYMENT_REFUNDED') {
-      await handlePaymentCancelled(supabase, userId);
-    }
-
-    console.log('[ASAAS-WEBHOOK] Webhook processado com sucesso');
-
-    return new Response(JSON.stringify({
-      received: true,
-      event: event,
-      status: newStatus
-    }), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders }
-    });
-
   } catch (error) {
     console.error('[ASAAS-WEBHOOK] Erro:', error.message);
     return new Response(JSON.stringify({
@@ -173,6 +131,8 @@ serve(async (req) => {
 });
 
 async function processPaymentEvent(supabase: any, userId: string, payment: any, existingPayment: any, event: string) {
+  console.log(`[ASAAS-WEBHOOK] Processando evento: ${event} | Payment ID: ${payment.id} | Status: ${payment.status} | User: ${userId}`);
+  
   // Mapear status do Asaas para status da aplicação
   const statusMapping: Record<string, string> = {
     'PENDING': 'pending',
@@ -185,9 +145,10 @@ async function processPaymentEvent(supabase: any, userId: string, payment: any, 
   };
 
   const newStatus = statusMapping[payment.status] || 'pending';
+  console.log(`[ASAAS-WEBHOOK] Mapeamento de status: ${payment.status} → ${newStatus}`);
 
   // Atualizar pagamento
-  await supabase
+  const { error: updateError } = await supabase
     .from('poupeja_asaas_payments')
     .update({
       status: payment.status,
@@ -196,21 +157,34 @@ async function processPaymentEvent(supabase: any, userId: string, payment: any, 
     })
     .eq('asaas_payment_id', payment.id);
 
-  // Processar mudanças na assinatura baseado no evento
-  if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
-    await handlePaymentSuccess(supabase, userId, payment, existingPayment);
-  } else if (event === 'PAYMENT_OVERDUE') {
-    await handlePaymentOverdue(supabase, userId, payment);
-  } else if (event === 'PAYMENT_DELETED' || event === 'PAYMENT_REFUNDED') {
-    await handlePaymentCancelled(supabase, userId);
+  if (updateError) {
+    console.error('[ASAAS-WEBHOOK] Erro ao atualizar pagamento:', updateError);
+  } else {
+    console.log('[ASAAS-WEBHOOK] ✅ Pagamento atualizado com sucesso');
   }
 
-  console.log('[ASAAS-WEBHOOK] Webhook processado com sucesso');
+  // Processar mudanças na assinatura baseado no evento
+  if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
+    console.log('[ASAAS-WEBHOOK] 🎉 PAGAMENTO CONFIRMADO! Processando ativação da assinatura...');
+    await handlePaymentSuccess(supabase, userId, payment, existingPayment);
+  } else if (event === 'PAYMENT_OVERDUE') {
+    console.log('[ASAAS-WEBHOOK] ⚠️ Pagamento em atraso, processando...');
+    await handlePaymentOverdue(supabase, userId, payment);
+  } else if (event === 'PAYMENT_DELETED' || event === 'PAYMENT_REFUNDED') {
+    console.log('[ASAAS-WEBHOOK] ❌ Pagamento cancelado/reembolsado, processando...');
+    await handlePaymentCancelled(supabase, userId);
+  } else {
+    console.log('[ASAAS-WEBHOOK] ℹ️ Evento não requer ação na assinatura:', event);
+  }
+
+  console.log('[ASAAS-WEBHOOK] ✅ Webhook processado com sucesso');
 
   return new Response(JSON.stringify({
     received: true,
     event,
-    status: newStatus
+    status: newStatus,
+    payment_id: payment.id,
+    user_id: userId
   }), {
     headers: { 'Content-Type': 'application/json', ...corsHeaders }
   });

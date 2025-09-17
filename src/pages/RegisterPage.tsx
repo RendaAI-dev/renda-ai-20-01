@@ -308,6 +308,27 @@ const RegisterPage = () => {
         }, 500);
         
         return;
+      } else if (functionData && functionData.checkoutId) {
+        // Fallback: construir URL manualmente se checkoutUrl não estiver presente
+        console.log('CheckoutId presente mas checkoutUrl ausente, construindo fallback');
+        toast({
+          title: "Localizando link de pagamento...",
+          description: "Redirecionando para o checkout.",
+        });
+        const baseUrl = window.location.hostname.includes('localhost') || window.location.hostname.includes('preview') 
+          ? 'https://sandbox.asaas.com'
+          : 'https://www.asaas.com';
+        const fallbackUrl = `${baseUrl}/checkoutSession/show/${functionData.checkoutId}`;
+        console.log('Using fallback URL:', fallbackUrl);
+        
+        // Garantir que o overlay de carregamento permaneça visível
+        document.body.classList.add('overflow-hidden');
+        
+        setTimeout(() => {
+          window.location.href = fallbackUrl;
+        }, 500);
+        
+        return;
       } else {
         throw new Error('Não foi possível obter a URL de checkout.');
       }

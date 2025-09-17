@@ -75,6 +75,20 @@ const CheckoutPage = () => {
       if (data?.success && data?.checkoutUrl) {
         console.log('Redirecting to Asaas checkout:', data.checkoutUrl);
         window.location.href = data.checkoutUrl;
+      } else if (data?.success && data?.checkoutId) {
+        // Fallback: construir URL manualmente se checkoutUrl não estiver presente
+        console.log('CheckoutId presente mas checkoutUrl ausente, construindo fallback');
+        toast({
+          title: "Localizando link de pagamento...",
+          description: "Redirecionando para o checkout.",
+        });
+        const baseUrl = window.location.hostname.includes('localhost') || window.location.hostname.includes('preview') 
+          ? 'https://sandbox.asaas.com'
+          : 'https://www.asaas.com';
+        const fallbackUrl = `${baseUrl}/checkoutSession/show/${data.checkoutId}`;
+        console.log('Using fallback URL:', fallbackUrl);
+        
+        window.location.href = fallbackUrl;
       } else {
         throw new Error(data?.error || 'URL de checkout não retornada');
       }

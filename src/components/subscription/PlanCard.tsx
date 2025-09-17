@@ -133,6 +133,21 @@ const PlanCard: React.FC<PlanCardProps> = ({
         
         // Redirecionar para Asaas na mesma aba
         window.location.href = data.checkoutUrl;
+      } else if (data?.checkoutId) {
+        // Fallback: construir URL manualmente se checkoutUrl não estiver presente
+        console.log('CheckoutId presente mas checkoutUrl ausente, construindo fallback');
+        toast({
+          title: "Localizando link de pagamento...",
+          description: "Redirecionando para o checkout.",
+        });
+        const baseUrl = window.location.hostname.includes('localhost') || window.location.hostname.includes('preview') 
+          ? 'https://sandbox.asaas.com'
+          : 'https://www.asaas.com';
+        const fallbackUrl = `${baseUrl}/checkoutSession/show/${data.checkoutId}`;
+        console.log('Using fallback URL:', fallbackUrl);
+        
+        // Redirecionar para Asaas na mesma aba
+        window.location.href = fallbackUrl;
       } else {
         throw new Error('URL de checkout não retornada');
       }

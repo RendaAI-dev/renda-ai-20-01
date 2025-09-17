@@ -269,19 +269,25 @@ serve(async (req) => {
 
     // Garantir checkoutUrl válida com estratégia robusta
     const getCheckoutUrl = async (): Promise<{ url: string; source: string }> => {
-      // Prioridade 1: URL direta do checkout
+      // Prioridade 1: Link direto do checkout (mais comum para checkout sessions)
+      if (checkout.link) {
+        console.log('[ASAAS-CHECKOUT] ✅ Link encontrado no checkout inicial');
+        return { url: checkout.link, source: 'link_initial' };
+      }
+
+      // Prioridade 2: URL direta do checkout
       if (checkout.url) {
         console.log('[ASAAS-CHECKOUT] ✅ URL encontrada no checkout inicial');
         return { url: checkout.url, source: 'checkout_initial' };
       }
 
-      // Prioridade 2: invoiceUrl direta
+      // Prioridade 3: invoiceUrl direta
       if (checkout.invoiceUrl) {
         console.log('[ASAAS-CHECKOUT] ✅ invoiceUrl encontrada no checkout inicial');
         return { url: checkout.invoiceUrl, source: 'invoice_initial' };
       }
 
-      // Prioridade 3: Buscar checkout específico
+      // Prioridade 4: Buscar checkout específico
       console.log('[ASAAS-CHECKOUT] ⚠️ URL não encontrada, buscando checkout específico...');
       try {
         const checkoutDetailResponse = await fetch(`${asaasUrl}/checkouts/${checkout.id}`, {
@@ -297,6 +303,11 @@ serve(async (req) => {
           const checkoutDetail = await checkoutDetailResponse.json();
           console.log('[ASAAS-CHECKOUT] Checkout específico keys:', Object.keys(checkoutDetail || {}));
           
+          if (checkoutDetail.link) {
+            console.log('[ASAAS-CHECKOUT] ✅ Link encontrado no GET checkout específico');
+            return { url: checkoutDetail.link, source: 'link_refetch' };
+          }
+
           if (checkoutDetail.url) {
             console.log('[ASAAS-CHECKOUT] ✅ URL encontrada no GET checkout específico');
             return { url: checkoutDetail.url, source: 'checkout_refetch' };
@@ -314,13 +325,13 @@ serve(async (req) => {
         console.error('[ASAAS-CHECKOUT] Erro na busca do checkout específico:', error);
       }
 
-      // Prioridade 4: URL construída como fallback
+      // Prioridade 5: URL construída como fallback (formato correto para checkout sessions)
       const baseUrl = environment === 'production' 
         ? 'https://www.asaas.com'
         : 'https://sandbox.asaas.com';
-      const fallbackUrl = `${baseUrl}/i/${checkout.id}`;
+      const fallbackUrl = `${baseUrl}/checkoutSession/show/${checkout.id}`;
       
-      console.log('[ASAAS-CHECKOUT] ⚠️ Usando URL construída como fallback:', fallbackUrl);
+      console.log('[ASAAS-CHECKOUT] ⚠️ Usando URL construída como fallback (checkoutSession):', fallbackUrl);
       return { url: fallbackUrl, source: 'constructed_fallback' };
     };
 

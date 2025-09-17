@@ -265,43 +265,101 @@ serve(async (req) => {
 
     console.log('[ASAAS-CHECKOUT] Checkout criado:', checkout.id);
 
-    // Função para buscar pagamentos do usuário
+    // Função para buscar pagamentos do usuário com estratégia melhorada
     const fetchUserPayments = async (retries = 5): Promise<AsaasPayment | null> => {
       for (let i = 0; i < retries; i++) {
         try {
-          const delay = (i + 1) * 2000 + Math.random() * 1000; // 2-3s, 4-5s, 6-7s, 8-9s, 10-11s
+          // Delay reduzido: 1s, 2s, 4s, 6s, 8s
+          const delay = i === 0 ? 1000 : (i * 2000);
           await new Promise(resolve => setTimeout(resolve, delay));
 
-          console.log(`[ASAAS-CHECKOUT] Tentativa ${i + 1}/${retries} - Buscando pagamentos...`);
+          console.log(`[ASAAS-CHECKOUT] Tentativa ${i + 1}/${retries} - Buscando pagamentos do customer ${asaasCustomer.id}...`);
 
-          const paymentsResponse = await fetch(`${asaasUrl}/payments?customer=${asaasCustomer.id}&limit=10`, {
+          const paymentsResponse = await fetch(`${asaasUrl}/payments?customer=${asaasCustomer.id}&limit=20&status=PENDING&status=CONFIRMED&status=RECEIVED`, {
             headers: {
               'access_token': apiKey,
               'Content-Type': 'application/json'
             }
           });
 
-          if (paymentsResponse.ok) {
-            const paymentsData = await paymentsResponse.json();
-            console.log(`[ASAAS-CHECKOUT] Encontrados ${paymentsData.data?.length || 0} pagamentos`);
+          console.log(`[ASAAS-CHECKOUT] Status da resposta de pagamentos: ${paymentsResponse.status}`);
 
-            // Buscar pagamento que corresponde ao valor e é recente (últimos 5 minutos)
-            const recentTime = Date.now() - (5 * 60 * 1000);
-            const payment = paymentsData.data?.find((p: any) => 
-              Math.abs(parseFloat(p.value) - value) < 0.01 && 
-              ['PENDING', 'CONFIRMED', 'RECEIVED'].includes(p.status) &&
-              new Date(p.dateCreated).getTime() > recentTime
-            );
+          if (!paymentsResponse.ok) {
+            const errorText = await paymentsResponse.text();
+            console.error(`[ASAAS-CHECKOUT] Erro ${paymentsResponse.status} na busca de pagamentos:`, errorText);
+            
+            // Se erro 400, tentar busca alternativa por subscriptions
+            if (paymentsResponse.status === 400) {
+              console.log(`[ASAAS-CHECKOUT] Tentando busca alternativa por subscriptions...`);
+              
+              const subscriptionsResponse = await fetch(`${asaasUrl}/subscriptions?customer=${asaasCustomer.id}&limit=10`, {
+                headers: {
+                  'access_token': apiKey,
+                  'Content-Type': 'application/json'
+                }
+              });
+
+              if (subscriptionsResponse.ok) {
+                const subscriptionsData = await subscriptionsResponse.json();
+                console.log(`[ASAAS-CHECKOUT] Encontradas ${subscriptionsData.data?.length || 0} subscriptions`);
+                
+                const recentTime = Date.now() - (5 * 60 * 1000);
+                const subscription = subscriptionsData.data?.find((s: any) => 
+                  Math.abs(parseFloat(s.value) - value) < 0.01 &&
+                  new Date(s.dateCreated).getTime() > recentTime
+                );
+
+                if (subscription && subscription.nextDueDate) {
+                  console.log(`[ASAAS-CHECKOUT] ✅ Subscription encontrada: ${subscription.id}`);
+                  // Buscar payment específico da subscription
+                  const subPaymentResponse = await fetch(`${asaasUrl}/payments?subscription=${subscription.id}&limit=1`, {
+                    headers: {
+                      'access_token': apiKey,
+                      'Content-Type': 'application/json'
+                    }
+                  });
+                  
+                  if (subPaymentResponse.ok) {
+                    const subPaymentData = await subPaymentResponse.json();
+                    if (subPaymentData.data && subPaymentData.data.length > 0) {
+                      return subPaymentData.data[0];
+                    }
+                  }
+                }
+              }
+            }
+            continue;
+          }
+
+          const paymentsData = await paymentsResponse.json();
+          console.log(`[ASAAS-CHECKOUT] Encontrados ${paymentsData.data?.length || 0} pagamentos`);
+
+          if (paymentsData.data && paymentsData.data.length > 0) {
+            // Buscar pagamento que corresponde ao valor e é recente (últimos 10 minutos)
+            const recentTime = Date.now() - (10 * 60 * 1000);
+            const payment = paymentsData.data.find((p: any) => {
+              const valueDiff = Math.abs(parseFloat(p.value) - value);
+              const isRecentlyCreated = new Date(p.dateCreated).getTime() > recentTime;
+              const hasValidStatus = ['PENDING', 'CONFIRMED', 'RECEIVED'].includes(p.status);
+              
+              console.log(`[ASAAS-CHECKOUT] Verificando pagamento ${p.id}: valor=${p.value} (diff=${valueDiff}), status=${p.status}, recente=${isRecentlyCreated}`);
+              
+              return valueDiff < 0.01 && hasValidStatus && isRecentlyCreated;
+            });
 
             if (payment) {
-              console.log(`[ASAAS-CHECKOUT] ✅ Pagamento encontrado: ${payment.id}`);
+              console.log(`[ASAAS-CHECKOUT] ✅ Pagamento encontrado: ${payment.id}, status: ${payment.status}, valor: ${payment.value}`);
               return payment;
+            } else {
+              console.log(`[ASAAS-CHECKOUT] ⚠️ Nenhum pagamento correspondente encontrado nos critérios`);
             }
           }
         } catch (error) {
-          console.error(`[ASAAS-CHECKOUT] Erro na tentativa ${i + 1}:`, error.message);
+          console.error(`[ASAAS-CHECKOUT] Erro na tentativa ${i + 1}:`, error);
         }
       }
+      
+      console.log(`[ASAAS-CHECKOUT] ❌ Não foi possível encontrar pagamento após ${retries} tentativas`);
       return null;
     };
 

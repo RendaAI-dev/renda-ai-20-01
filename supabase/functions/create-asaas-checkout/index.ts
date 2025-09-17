@@ -224,6 +224,16 @@ serve(async (req) => {
     const reference = `${user.id}_${planType}_${Date.now()}`;
     const cycle = planType === 'monthly' ? 'MONTHLY' : 'YEARLY';
 
+    // Calcular nextDueDate (primeira cobrança)
+    const today = new Date();
+    const nextDueDate = new Date(today);
+    if (planType === 'monthly') {
+      nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+    } else {
+      nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
+    }
+    const nextDueDateFormatted = nextDueDate.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+
     const checkoutData = {
       billingTypes: ['CREDIT_CARD'],
       chargeTypes: ['RECURRENT'],
@@ -245,7 +255,8 @@ serve(async (req) => {
       subscription: {
         value: value,
         cycle: cycle,
-        description: planDescription
+        description: planDescription,
+        nextDueDate: nextDueDateFormatted
       }
     };
 

@@ -26,7 +26,16 @@ const RegisterPage = () => {
   const [cpf, setCpf] = useState('');
   const [birthDate, setBirthDate] = useState<Date | undefined>();
   const [cep, setCep] = useState('');
-  const [address, setAddress] = useState<Address | null>(null);
+  const [address, setAddress] = useState<Address | null>({
+    cep: '',
+    street: '',
+    complement: '',
+    neighborhood: '',
+    city: '',
+    state: '',
+    ibge: '',
+    ddd: ''
+  });
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -438,16 +447,14 @@ const RegisterPage = () => {
             required
           />
 
-          {address && (
-            <div className="space-y-2">
-              <Label>Endereço</Label>
-              <AddressDisplay
-                address={address}
-                onAddressChange={handleAddressChange}
-                editable={true}
-              />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label>Endereço</Label>
+            <AddressDisplay
+              address={address}
+              onAddressChange={handleAddressChange}
+              editable={true}
+            />
+          </div>
 
           <div>
             <Label htmlFor="password">Senha</Label>

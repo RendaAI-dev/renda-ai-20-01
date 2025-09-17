@@ -10,7 +10,16 @@ interface AddressDisplayProps {
 }
 
 export function AddressDisplay({ address, onAddressChange, editable = true }: AddressDisplayProps) {
-  if (!address) return null;
+  const currentAddress = address || {
+    cep: '',
+    street: '',
+    complement: '',
+    neighborhood: '',
+    city: '',
+    state: '',
+    ibge: '',
+    ddd: ''
+  };
 
   const handleFieldChange = (field: keyof Address, value: string) => {
     if (onAddressChange) {
@@ -25,7 +34,7 @@ export function AddressDisplay({ address, onAddressChange, editable = true }: Ad
           <Label htmlFor="street">Logradouro</Label>
           <Input
             id="street"
-            value={address.street}
+            value={currentAddress.street}
             onChange={(e) => handleFieldChange('street', e.target.value)}
             disabled={!editable}
           />
@@ -35,7 +44,7 @@ export function AddressDisplay({ address, onAddressChange, editable = true }: Ad
           <Label htmlFor="complement">Complemento</Label>
           <Input
             id="complement"
-            value={address.complement}
+            value={currentAddress.complement}
             onChange={(e) => handleFieldChange('complement', e.target.value)}
             placeholder="Apto, casa, etc."
             disabled={!editable}
@@ -48,7 +57,7 @@ export function AddressDisplay({ address, onAddressChange, editable = true }: Ad
           <Label htmlFor="neighborhood">Bairro</Label>
           <Input
             id="neighborhood"
-            value={address.neighborhood}
+            value={currentAddress.neighborhood}
             onChange={(e) => handleFieldChange('neighborhood', e.target.value)}
             disabled={!editable}
           />
@@ -58,7 +67,7 @@ export function AddressDisplay({ address, onAddressChange, editable = true }: Ad
           <Label htmlFor="city">Cidade</Label>
           <Input
             id="city"
-            value={address.city}
+            value={currentAddress.city}
             onChange={(e) => handleFieldChange('city', e.target.value)}
             disabled={!editable}
           />
@@ -70,7 +79,7 @@ export function AddressDisplay({ address, onAddressChange, editable = true }: Ad
           <Label htmlFor="state">Estado</Label>
           <Input
             id="state"
-            value={address.state}
+            value={currentAddress.state}
             onChange={(e) => handleFieldChange('state', e.target.value)}
             maxLength={2}
             disabled={!editable}

@@ -300,76 +300,137 @@ serve(async (req) => {
     console.log('[ASAAS-CHECKOUT] Checkout criado:', checkout.id);
     console.log('[ASAAS-CHECKOUT] Resposta completa do Asaas:', JSON.stringify(checkout, null, 2));
 
-    // Buscar subscription ID do checkout para obter a fatura
+    // Buscar fatura da subscription com retry logic
     let finalUrl = '';
     let invoiceUrl = '';
     let paymentId = '';
+    let redirectType = 'checkout'; // 'invoice' ou 'checkout'
 
-    try {
-      // Aguardar um pouco para a subscription ser criada
-      await new Promise(resolve => setTimeout(resolve, 2000));
+    // Função para buscar fatura com retry
+    const findInvoice = async (attempt = 1, maxAttempts = 3): Promise<boolean> => {
+      console.log(`[ASAAS-CHECKOUT] 🔍 Tentativa ${attempt}/${maxAttempts} para encontrar fatura`);
       
-      // Buscar subscription através do customer e status ACTIVE
-      const subscriptionResponse = await fetch(`${asaasUrl}/subscriptions?customer=${asaasCustomer.id}&status=ACTIVE`, {
-        headers: {
-          'access_token': apiKey,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (subscriptionResponse.ok) {
-        const subscriptions = await subscriptionResponse.json();
-        console.log('[ASAAS-CHECKOUT] Subscriptions encontradas:', JSON.stringify(subscriptions, null, 2));
+      try {
+        // Aguardar tempo progressivo: 2s, 4s, 6s
+        const delay = attempt * 2000;
+        await new Promise(resolve => setTimeout(resolve, delay));
         
-        if (subscriptions.data && subscriptions.data.length > 0) {
-          const latestSubscription = subscriptions.data[0];
-          console.log('[ASAAS-CHECKOUT] Subscription ID:', latestSubscription.id);
+        // Estratégia 1: Buscar subscription por customer (SEM filtro de status)
+        console.log(`[ASAAS-CHECKOUT] Buscando subscriptions do customer: ${asaasCustomer.id}`);
+        const subscriptionResponse = await fetch(`${asaasUrl}/subscriptions?customer=${asaasCustomer.id}`, {
+          headers: {
+            'access_token': apiKey,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (subscriptionResponse.ok) {
+          const subscriptions = await subscriptionResponse.json();
+          console.log(`[ASAAS-CHECKOUT] Subscriptions encontradas (${subscriptions.totalCount}):`, 
+            JSON.stringify(subscriptions.data?.map(s => ({ id: s.id, status: s.status, dateCreated: s.dateCreated })), null, 2));
           
-          // Buscar pagamentos da subscription
-          const paymentsResponse = await fetch(`${asaasUrl}/subscriptions/${latestSubscription.id}/payments`, {
-            headers: {
-              'access_token': apiKey,
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          if (paymentsResponse.ok) {
-            const payments = await paymentsResponse.json();
-            console.log('[ASAAS-CHECKOUT] Pagamentos da subscription:', JSON.stringify(payments, null, 2));
+          if (subscriptions.data && subscriptions.data.length > 0) {
+            // Ordenar por data de criação (mais recente primeiro)
+            const sortedSubscriptions = subscriptions.data.sort((a, b) => 
+              new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime()
+            );
             
-            if (payments.data && payments.data.length > 0) {
-              const firstPayment = payments.data[0];
-              invoiceUrl = firstPayment.invoiceUrl;
-              paymentId = firstPayment.id;
-              finalUrl = invoiceUrl;
-              console.log('[ASAAS-CHECKOUT] ✅ Fatura encontrada:', invoiceUrl);
+            const latestSubscription = sortedSubscriptions[0];
+            console.log(`[ASAAS-CHECKOUT] Subscription mais recente: ${latestSubscription.id} (status: ${latestSubscription.status})`);
+            
+            // Buscar pagamentos da subscription
+            const paymentsResponse = await fetch(`${asaasUrl}/subscriptions/${latestSubscription.id}/payments`, {
+              headers: {
+                'access_token': apiKey,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (paymentsResponse.ok) {
+              const payments = await paymentsResponse.json();
+              console.log(`[ASAAS-CHECKOUT] Pagamentos encontrados (${payments.totalCount}):`, 
+                JSON.stringify(payments.data?.map(p => ({ id: p.id, status: p.status, invoiceUrl: p.invoiceUrl })), null, 2));
+              
+              if (payments.data && payments.data.length > 0) {
+                const firstPayment = payments.data[0];
+                if (firstPayment.invoiceUrl) {
+                  invoiceUrl = firstPayment.invoiceUrl;
+                  paymentId = firstPayment.id;
+                  finalUrl = invoiceUrl;
+                  redirectType = 'invoice';
+                  console.log(`[ASAAS-CHECKOUT] ✅ Fatura encontrada via subscription: ${invoiceUrl}`);
+                  return true;
+                }
+              }
             }
           }
         }
+        
+        // Estratégia 2: Buscar pagamentos diretamente pelo checkout
+        console.log(`[ASAAS-CHECKOUT] Tentando buscar pagamentos pelo checkout: ${checkout.id}`);
+        const checkoutPaymentsResponse = await fetch(`${asaasUrl}/payments?checkout=${checkout.id}`, {
+          headers: {
+            'access_token': apiKey,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (checkoutPaymentsResponse.ok) {
+          const checkoutPayments = await checkoutPaymentsResponse.json();
+          console.log(`[ASAAS-CHECKOUT] Pagamentos do checkout encontrados (${checkoutPayments.totalCount}):`, 
+            JSON.stringify(checkoutPayments.data?.map(p => ({ id: p.id, status: p.status, invoiceUrl: p.invoiceUrl })), null, 2));
+          
+          if (checkoutPayments.data && checkoutPayments.data.length > 0) {
+            const firstPayment = checkoutPayments.data[0];
+            if (firstPayment.invoiceUrl) {
+              invoiceUrl = firstPayment.invoiceUrl;
+              paymentId = firstPayment.id;
+              finalUrl = invoiceUrl;
+              redirectType = 'invoice';
+              console.log(`[ASAAS-CHECKOUT] ✅ Fatura encontrada via checkout: ${invoiceUrl}`);
+              return true;
+            }
+          }
+        }
+        
+        console.log(`[ASAAS-CHECKOUT] ⏳ Tentativa ${attempt} falhou, nenhuma fatura encontrada ainda`);
+        return false;
+        
+      } catch (error) {
+        console.log(`[ASAAS-CHECKOUT] ❌ Erro na tentativa ${attempt}:`, error.message);
+        return false;
       }
-    } catch (error) {
-      console.log('[ASAAS-CHECKOUT] ⚠️ Erro ao buscar fatura, usando checkout fallback:', error.message);
+    };
+
+    // Tentar encontrar a fatura com retry
+    let invoiceFound = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      invoiceFound = await findInvoice(attempt);
+      if (invoiceFound) break;
     }
 
     // Fallback para checkout se não conseguir obter a fatura
-    if (!finalUrl) {
+    if (!invoiceFound) {
       const asaasEnv = Deno.env.get('ASAAS_ENVIRONMENT') || 'sandbox';
       const baseUrl = asaasEnv === 'production' 
         ? 'https://www.asaas.com/checkoutSession/show' 
         : 'https://sandbox.asaas.com/checkoutSession/show';
       finalUrl = `${baseUrl}/${checkout.id}`;
-      console.log('[ASAAS-CHECKOUT] 📋 Usando checkout fallback:', finalUrl);
+      redirectType = 'checkout';
+      console.log(`[ASAAS-CHECKOUT] 📋 Todas as tentativas falharam, usando checkout fallback: ${finalUrl}`);
+      console.log(`[ASAAS-CHECKOUT] ⚠️ Motivo: Não foi possível encontrar fatura após 3 tentativas com delays progressivos`);
     }
 
-    console.log('[ASAAS-CHECKOUT] URL final construída:', finalUrl);
+    console.log(`[ASAAS-CHECKOUT] 🎯 Redirecionamento final: ${redirectType} -> ${finalUrl}`);
 
     // Retornar resposta com fatura ou checkout
     return new Response(JSON.stringify({
       success: true,
-      checkoutUrl: finalUrl, // Mantém compatibilidade
-      invoiceUrl: invoiceUrl || finalUrl, // Nova URL da fatura
+      checkoutUrl: finalUrl, // Mantém compatibilidade (pode ser fatura ou checkout)
+      invoiceUrl: invoiceUrl || finalUrl, // URL da fatura específica
       checkoutId: checkout.id,
       paymentId: paymentId || null, // ID do pagamento se encontrado
+      redirectType, // 'invoice' ou 'checkout' para debugging
       reference
     }), {
       headers: { 

@@ -34,8 +34,8 @@ export const usePlanConfig = () => {
       try {
         setIsLoading(true);
         
-        // Buscar price IDs do Stripe (dados sensíveis)
-        const { data: priceData, error: priceError } = await supabase.functions.invoke('get-stripe-prices');
+        // Buscar price IDs do Asaas (dados sensíveis)
+        const { data: priceData, error: priceError } = await supabase.functions.invoke('get-asaas-config');
         if (priceError || !priceData?.success) {
           throw new Error(priceError?.message || priceData?.error || 'Failed to fetch price IDs');
         }

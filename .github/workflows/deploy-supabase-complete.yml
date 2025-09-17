@@ -106,15 +106,15 @@ jobs:
         supabase functions deploy update-admin-settings --project-ref $SUPABASE_PROJECT_ID
         supabase functions deploy migrate-settings --project-ref $SUPABASE_PROJECT_ID
         supabase functions deploy get-public-settings --project-ref $SUPABASE_PROJECT_ID
-        supabase functions deploy get-stripe-prices --project-ref $SUPABASE_PROJECT_ID
+        supabase functions deploy get-asaas-config --project-ref $SUPABASE_PROJECT_ID
         supabase functions deploy check-subscription-status --project-ref $SUPABASE_PROJECT_ID
         supabase functions deploy verify-admin-access --project-ref $SUPABASE_PROJECT_ID
         supabase functions deploy promote-to-admin --project-ref $SUPABASE_PROJECT_ID
         supabase functions deploy grant-admin-access --project-ref $SUPABASE_PROJECT_ID
         supabase functions deploy recover-purchases --project-ref $SUPABASE_PROJECT_ID
-        supabase functions deploy customer-portal --project-ref $SUPABASE_PROJECT_ID
-        supabase functions deploy create-checkout-session --project-ref $SUPABASE_PROJECT_ID
-        supabase functions deploy stripe-webhook --project-ref $SUPABASE_PROJECT_ID
+        supabase functions deploy asaas-customer-portal --project-ref $SUPABASE_PROJECT_ID
+        supabase functions deploy create-asaas-checkout --project-ref $SUPABASE_PROJECT_ID
+        supabase functions deploy asaas-webhook --project-ref $SUPABASE_PROJECT_ID
         supabase functions deploy sync-subscriptions --project-ref $SUPABASE_PROJECT_ID
         supabase functions deploy update-plan-config --project-ref $SUPABASE_PROJECT_ID
         supabase functions deploy update-admin-email --project-ref $SUPABASE_PROJECT_ID
@@ -131,9 +131,9 @@ jobs:
       run: |
         echo "⚙️ Configuring public functions..."
         
-        # Configure stripe-webhook function
+        # Configure asaas-webhook function
         curl -X PATCH \
-          "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/functions/stripe-webhook" \
+          "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/functions/asaas-webhook" \
           -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
           -H "Content-Type: application/json" \
           -d '{

@@ -13,9 +13,9 @@ export async function getPlanConfig() {
   try {
     console.log('[getPlanConfig] Iniciando busca de configurações...');
     
-    // Buscar price IDs das configurações do Stripe
-    const { data: priceData, error: priceError } = await supabase.functions.invoke('get-stripe-prices');
-    console.log('[getPlanConfig] Resposta get-stripe-prices:', { priceData, priceError });
+    // Buscar price IDs das configurações do Asaas
+    const { data: priceData, error: priceError } = await supabase.functions.invoke('get-asaas-config');
+    console.log('[getPlanConfig] Resposta get-asaas-config:', { priceData, priceError });
     
     if (priceError || !priceData?.success) {
       throw new Error(priceError?.message || priceData?.error || 'Failed to fetch price IDs');

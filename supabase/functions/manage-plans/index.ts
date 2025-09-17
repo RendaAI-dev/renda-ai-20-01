@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
 interface Plan {
@@ -26,8 +27,12 @@ interface Plan {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { 
+      headers: corsHeaders,
+      status: 200
+    });
   }
 
   try {
@@ -170,14 +175,28 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Erro no manage-plans:', error);
+    
+    let status = 500;
+    let errorMessage = error.message || 'Erro interno do servidor';
+    
+    // Determinar status code baseado no tipo de erro
+    if (error.message?.includes('Token de autenticação')) {
+      status = 401;
+    } else if (error.message?.includes('Acesso negado')) {
+      status = 403;
+    } else if (error.message?.includes('não encontrado')) {
+      status = 404;
+    }
+    
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message || 'Erro interno do servidor' 
+        error: errorMessage,
+        timestamp: new Date().toISOString()
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
+        status,
       }
     );
   }

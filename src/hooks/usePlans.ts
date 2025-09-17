@@ -48,20 +48,32 @@ export const usePlans = (activeOnly = false) => {
         }
       } else {
         // Usar edge function para todos os planos (admin) - método GET
+        const session = await supabase.auth.getSession();
+        
+        if (!session.data.session?.access_token) {
+          throw new Error('Sessão expirada. Faça login novamente.');
+        }
+        
         const response = await fetch(`${SUPABASE_URL}/functions/v1/manage-plans`, {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            'Authorization': `Bearer ${session.data.session.access_token}`,
             'apikey': SUPABASE_PUBLISHABLE_KEY,
             'Content-Type': 'application/json',
           },
         });
         
-        const data = await response.json();
-        
         if (!response.ok) {
-          throw new Error(data?.error || 'Erro ao buscar planos');
+          if (response.status === 401) {
+            throw new Error('Não autorizado. Verifique suas credenciais.');
+          } else if (response.status === 403) {
+            throw new Error('Acesso negado. Apenas administradores podem gerenciar planos.');
+          } else if (response.status === 0 || !response.status) {
+            throw new Error('Erro de conexão. Verifique sua internet.');
+          }
         }
+        
+        const data = await response.json();
         
         if (data?.success) {
           setPlans(data.plans || []);
@@ -84,10 +96,16 @@ export const usePlans = (activeOnly = false) => {
 
   const createPlan = async (planData: Omit<Plan, 'id' | 'created_at' | 'updated_at'>) => {
     try {
+      const session = await supabase.auth.getSession();
+      
+      if (!session.data.session?.access_token) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/manage-plans`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Authorization': `Bearer ${session.data.session.access_token}`,
           'apikey': SUPABASE_PUBLISHABLE_KEY,
           'Content-Type': 'application/json',
         },
@@ -97,7 +115,13 @@ export const usePlans = (activeOnly = false) => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.error || 'Erro ao criar plano');
+        let errorMessage = data?.error || 'Erro ao criar plano';
+        if (response.status === 401) {
+          errorMessage = 'Não autorizado. Faça login novamente.';
+        } else if (response.status === 403) {
+          errorMessage = 'Acesso negado. Apenas administradores podem criar planos.';
+        }
+        throw new Error(errorMessage);
       }
 
       if (data?.success) {
@@ -123,10 +147,16 @@ export const usePlans = (activeOnly = false) => {
 
   const updatePlan = async (planId: string, planData: Partial<Plan>) => {
     try {
+      const session = await supabase.auth.getSession();
+      
+      if (!session.data.session?.access_token) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/manage-plans?id=${planId}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Authorization': `Bearer ${session.data.session.access_token}`,
           'apikey': SUPABASE_PUBLISHABLE_KEY,
           'Content-Type': 'application/json',
         },
@@ -136,7 +166,15 @@ export const usePlans = (activeOnly = false) => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.error || 'Erro ao atualizar plano');
+        let errorMessage = data?.error || 'Erro ao atualizar plano';
+        if (response.status === 401) {
+          errorMessage = 'Não autorizado. Faça login novamente.';
+        } else if (response.status === 403) {
+          errorMessage = 'Acesso negado. Apenas administradores podem atualizar planos.';
+        } else if (response.status === 404) {
+          errorMessage = 'Plano não encontrado.';
+        }
+        throw new Error(errorMessage);
       }
 
       if (data?.success) {
@@ -162,10 +200,16 @@ export const usePlans = (activeOnly = false) => {
 
   const deletePlan = async (planId: string) => {
     try {
+      const session = await supabase.auth.getSession();
+      
+      if (!session.data.session?.access_token) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/manage-plans?id=${planId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Authorization': `Bearer ${session.data.session.access_token}`,
           'apikey': SUPABASE_PUBLISHABLE_KEY,
           'Content-Type': 'application/json',
         },
@@ -174,7 +218,15 @@ export const usePlans = (activeOnly = false) => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.error || 'Erro ao deletar plano');
+        let errorMessage = data?.error || 'Erro ao deletar plano';
+        if (response.status === 401) {
+          errorMessage = 'Não autorizado. Faça login novamente.';
+        } else if (response.status === 403) {
+          errorMessage = 'Acesso negado. Apenas administradores podem deletar planos.';
+        } else if (response.status === 404) {
+          errorMessage = 'Plano não encontrado.';
+        }
+        throw new Error(errorMessage);
       }
 
       if (data?.success) {

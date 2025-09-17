@@ -14,6 +14,112 @@ export type Database = {
   }
   public: {
     Tables: {
+      poupeja_asaas_customers: {
+        Row: {
+          asaas_customer_id: string
+          cpf: string | null
+          created_at: string | null
+          email: string
+          id: string
+          name: string | null
+          phone: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          asaas_customer_id: string
+          cpf?: string | null
+          created_at?: string | null
+          email: string
+          id?: string
+          name?: string | null
+          phone?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          asaas_customer_id?: string
+          cpf?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string | null
+          phone?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poupeja_asaas_customers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "poupeja_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poupeja_asaas_payments: {
+        Row: {
+          amount: number
+          asaas_customer_id: string
+          asaas_payment_id: string
+          bank_slip_url: string | null
+          created_at: string | null
+          description: string | null
+          due_date: string
+          external_reference: string | null
+          id: string
+          invoice_url: string | null
+          method: string | null
+          payment_date: string | null
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          asaas_customer_id: string
+          asaas_payment_id: string
+          bank_slip_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date: string
+          external_reference?: string | null
+          id?: string
+          invoice_url?: string | null
+          method?: string | null
+          payment_date?: string | null
+          status: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          asaas_customer_id?: string
+          asaas_payment_id?: string
+          bank_slip_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string
+          external_reference?: string | null
+          id?: string
+          invoice_url?: string | null
+          method?: string | null
+          payment_date?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poupeja_asaas_payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "poupeja_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       poupeja_categories: {
         Row: {
           color: string
@@ -115,6 +221,7 @@ export type Database = {
       }
       poupeja_plans: {
         Row: {
+          asaas_price_id: string | null
           created_at: string | null
           created_by: string | null
           description: string | null
@@ -131,12 +238,12 @@ export type Database = {
           price_original: number | null
           slug: string
           sort_order: number | null
-          stripe_price_id: string | null
           trial_days: number | null
           updated_at: string | null
           updated_by: string | null
         }
         Insert: {
+          asaas_price_id?: string | null
           created_at?: string | null
           created_by?: string | null
           description?: string | null
@@ -153,12 +260,12 @@ export type Database = {
           price_original?: number | null
           slug: string
           sort_order?: number | null
-          stripe_price_id?: string | null
           trial_days?: number | null
           updated_at?: string | null
           updated_by?: string | null
         }
         Update: {
+          asaas_price_id?: string | null
           created_at?: string | null
           created_by?: string | null
           description?: string | null
@@ -175,7 +282,6 @@ export type Database = {
           price_original?: number | null
           slug?: string
           sort_order?: number | null
-          stripe_price_id?: string | null
           trial_days?: number | null
           updated_at?: string | null
           updated_by?: string | null
@@ -342,41 +448,47 @@ export type Database = {
       }
       poupeja_subscriptions: {
         Row: {
+          asaas_customer_id: string | null
+          asaas_subscription_id: string | null
           cancel_at_period_end: boolean | null
           created_at: string | null
           current_period_end: string | null
           current_period_start: string | null
+          grace_period_end: string | null
           id: string
+          payment_processor: string | null
           plan_type: string
           status: string
-          stripe_customer_id: string | null
-          stripe_subscription_id: string | null
           updated_at: string | null
           user_id: string | null
         }
         Insert: {
+          asaas_customer_id?: string | null
+          asaas_subscription_id?: string | null
           cancel_at_period_end?: boolean | null
           created_at?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
+          grace_period_end?: string | null
           id?: string
+          payment_processor?: string | null
           plan_type: string
           status: string
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Update: {
+          asaas_customer_id?: string | null
+          asaas_subscription_id?: string | null
           cancel_at_period_end?: boolean | null
           created_at?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
+          grace_period_end?: string | null
           id?: string
+          payment_processor?: string | null
           plan_type?: string
           status?: string
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
           updated_at?: string | null
           user_id?: string | null
         }

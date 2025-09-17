@@ -36,7 +36,7 @@ const CheckoutPage = () => {
     }
   }, [success, canceled, navigate, toast]);
   
-  const handleCheckout = async (priceId: string, planType: string) => {
+  const handleCheckout = async (planType: string) => {
     try {
       setIsLoading(true);
       
@@ -51,37 +51,35 @@ const CheckoutPage = () => {
         return;
       }
       
-      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+      const { data, error } = await supabase.functions.invoke('create-asaas-checkout', {
         body: { 
           planType,
-          priceId, // Passando o priceId diretamente também
           successUrl: `${window.location.origin}/payment-success?email=${encodeURIComponent(user.email || '')}`,
           cancelUrl: `${window.location.origin}/checkout?canceled=true`
         }
       });
 
       if (error) {
-        console.error('Error creating checkout session:', error);
+        console.error('Error creating Asaas checkout:', error);
         toast({
           title: "Erro no checkout",
-          description: `Erro: ${error.message}. Verifique se suas chaves do Stripe estão configuradas.`,
+          description: `Erro: ${error.message}. Verifique se suas chaves do Asaas estão configuradas.`,
           variant: "destructive",
         });
         return;
       }
 
-      if (data?.url) {
-        console.log('Redirecting to Stripe checkout:', data.url);
-        // Redirecionar na mesma aba em vez de abrir uma nova
-        window.location.href = data.url;
+      if (data?.success && data?.checkoutUrl) {
+        console.log('Redirecting to Asaas checkout:', data.checkoutUrl);
+        window.location.href = data.checkoutUrl;
       } else {
-        throw new Error('URL de checkout não retornada');
+        throw new Error(data?.error || 'URL de checkout não retornada');
       }
     } catch (error) {
       console.error('Checkout error:', error);
       toast({
         title: "Erro no checkout",
-        description: "Algo deu errado. Verifique suas configurações do Stripe.",
+        description: "Algo deu errado. Verifique suas configurações do Asaas.",
         variant: "destructive",
       });
     } finally {
@@ -102,7 +100,6 @@ const CheckoutPage = () => {
       name: "Mensal",
       price: config.prices.monthly.displayPrice,
       period: "/mês",
-      priceId: config.prices.monthly.priceId,
       planType: "monthly",
       description: "Para uso pessoal completo",
       features: ["Movimentos ilimitados", "Dashboard completo", "Todos os relatórios", "Metas ilimitadas", "Agendamentos", "Suporte prioritário"],
@@ -111,7 +108,6 @@ const CheckoutPage = () => {
       name: "Anual",
       price: config.prices.annual.displayPrice,
       period: "/ano",
-      priceId: config.prices.annual.priceId,
       planType: "annual",
       originalPrice: config.prices.annual.displayOriginalPrice,
       savings: config.prices.annual.displaySavings,
@@ -170,7 +166,7 @@ const CheckoutPage = () => {
                 <Button 
                   className="w-full" 
                   size="lg"
-                  onClick={() => handleCheckout(planItem.priceId, planItem.planType)}
+                  onClick={() => handleCheckout(planItem.planType)}
                   disabled={isLoading}
                 >
                   {isLoading ? (

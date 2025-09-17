@@ -2,3 +2,6 @@ project_id = "yazmxlgfraauuhmsnysh"
 
 [functions.generate-html]
 verify_jwt = false
+
+[functions.asaas-webhook]
+verify_jwt = false

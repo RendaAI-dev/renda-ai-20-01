@@ -4,7 +4,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import SubscriptionStatusCard from '@/components/subscription/SubscriptionStatusCard';
 import PlanCard from '@/components/subscription/PlanCard';
-import ManageSubscriptionButton from '@/components/subscription/ManageSubscriptionButton';
+import AsaasManageSubscriptionButton from '@/components/subscription/AsaasManageSubscriptionButton';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -113,7 +113,7 @@ const PlansPage = () => {
               Gerencie sua assinatura, altere a forma de pagamento ou cancele quando quiser.
             </p>
             <div className="max-w-sm mx-auto">
-              <ManageSubscriptionButton />
+              <AsaasManageSubscriptionButton />
             </div>
           </div>
         )}

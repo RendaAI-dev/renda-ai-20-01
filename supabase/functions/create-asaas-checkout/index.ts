@@ -300,12 +300,19 @@ serve(async (req) => {
     console.log('[ASAAS-CHECKOUT] Checkout criado:', checkout.id);
     console.log('[ASAAS-CHECKOUT] Resposta completa do Asaas:', JSON.stringify(checkout, null, 2));
 
-    // Construir URL do checkout
+    // Log campos retornados pelo Asaas para auditoria
+    console.log(`[ASAAS-CHECKOUT] URLs retornadas pelo Asaas:`, {
+      url: checkout.url,
+      invoiceUrl: checkout.invoiceUrl,
+      link: checkout.link
+    });
+
+    // Sempre construir URL correta (ignorar URLs potencialmente incorretas do Asaas)
     const asaasEnv = Deno.env.get('ASAAS_ENVIRONMENT') || 'sandbox';
     const baseUrl = asaasEnv === 'production' 
       ? 'https://www.asaas.com/checkoutSession/show' 
       : 'https://sandbox.asaas.com/checkoutSession/show';
-    const checkoutUrl = checkout.url || checkout.invoiceUrl || `${baseUrl}/${checkout.id}`;
+    const checkoutUrl = `${baseUrl}/${checkout.id}`;
 
     // Retornar URL do checkout hospedado pelo Asaas
     return new Response(JSON.stringify({

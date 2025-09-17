@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.asaas-webhook]
 verify_jwt = false
+
+[functions.update-payment-method]
+verify_jwt = true
+
+[functions.change-plan]
+verify_jwt = true

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { CreditCard, Loader2 } from 'lucide-react';
+import { CreditCard, Loader2, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -15,6 +15,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import PlanChangeDialog from './PlanChangeDialog';
 
 interface PortalData {
   customer: {
@@ -48,6 +49,7 @@ const AsaasManageSubscriptionButton: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [portalData, setPortalData] = useState<PortalData | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [planChangeOpen, setPlanChangeOpen] = useState(false);
 
   if (!hasActiveSubscription) {
     return null;
@@ -80,6 +82,44 @@ const AsaasManageSubscriptionButton: React.FC = () => {
       } else {
         toast.error(error.message || 'Erro ao acessar gerenciamento de assinatura');
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateCard = async (scenario: string) => {
+    setIsLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('update-payment-method', {
+        body: { scenario }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Erro ao atualizar método de pagamento');
+      }
+
+      toast.success(data.message || 'Método de pagamento atualizado com sucesso');
+      
+      if (data.invoiceUrl) {
+        toast.info('Redirecionando para a página de pagamento...');
+        setTimeout(() => {
+          window.open(data.invoiceUrl, '_blank');
+        }, 1000);
+      }
+
+      // Recarregar dados do portal
+      setTimeout(() => {
+        handleManageSubscription();
+      }, 2000);
+      
+    } catch (error: any) {
+      console.error('Erro ao atualizar método de pagamento:', error);
+      toast.error(error.message || 'Erro ao atualizar método de pagamento');
     } finally {
       setIsLoading(false);
     }
@@ -242,16 +282,69 @@ const AsaasManageSubscriptionButton: React.FC = () => {
 
               <Separator />
 
-              <div className="text-sm text-muted-foreground">
-                <p>
-                  Para alterar dados de pagamento ou cancelar sua assinatura, 
-                  entre em contato com nosso suporte através do email ou WhatsApp.
-                </p>
-              </div>
+              {/* Ações de Gerenciamento */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Gerenciar Pagamento</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleUpdateCard('update_card_only')}
+                      disabled={isLoading}
+                      className="justify-start"
+                    >
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Atualizar Cartão de Crédito
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      onClick={() => handleUpdateCard('update_card_cancel_overdue')}
+                      disabled={isLoading}
+                      className="justify-start"
+                    >
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Trocar Cartão e Cancelar Dívidas Antigas
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={() => setPlanChangeOpen(true)}
+                      disabled={isLoading}
+                      className="justify-start"
+                    >
+                      <Zap className="w-4 h-4 mr-2" />
+                      Alterar Plano (Upgrade/Downgrade)
+                    </Button>
+                  </div>
+                  
+                  <div className="text-sm text-muted-foreground">
+                    <p>
+                      <strong>Cenário 1:</strong> Para quem está em dia - apenas atualiza o cartão para futuras cobranças<br/>
+                      <strong>Cenário 2:</strong> Para quem tem faturas em atraso - cancela dívidas antigas e inicia nova cobrança<br/>
+                      <strong>Cenário 3:</strong> Alterar plano com cobrança proporcional a partir da data da mudança
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <PlanChangeDialog
+        open={planChangeOpen}
+        onOpenChange={setPlanChangeOpen}
+        currentPlan={portalData?.subscription.plan_type || 'monthly'}
+        onPlanChanged={() => {
+          // Recarregar dados do portal após mudança de plano
+          setTimeout(() => {
+            handleManageSubscription();
+          }, 2000);
+        }}
+      />
     </>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,30 @@ export function CEPInput({
   required = false 
 }: CEPInputProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSearchedCEP = useRef<string>('');
+
+  // Auto search when valid CEP is entered
+  useEffect(() => {
+    // Clear previous timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    // Only search if CEP is valid and different from last searched
+    if (viacepService.isValidCEP(value) && value !== lastSearchedCEP.current) {
+      timeoutRef.current = setTimeout(() => {
+        handleSearchCEP();
+      }, 500); // 500ms debounce
+    }
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [value]);
 
   const formatCEP = (cep: string): string => {
     const cleanCEP = cep.replace(/\D/g, '');
@@ -46,6 +70,9 @@ export function CEPInput({
       });
       return;
     }
+
+    // Update last searched CEP to avoid duplicate searches
+    lastSearchedCEP.current = value;
 
     setIsLoading(true);
     try {

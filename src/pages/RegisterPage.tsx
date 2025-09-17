@@ -10,7 +10,7 @@ import { useBrandingConfig } from '@/hooks/useBrandingConfig';
 import { CPFInput } from '@/components/common/CPFInput';
 import { CEPInput } from '@/components/common/CEPInput';
 import { AddressDisplay } from '@/components/common/AddressDisplay';
-import { DatePicker } from '@/components/ui/date-picker';
+import { EnhancedDatePicker } from '@/components/ui/enhanced-date-picker';
 import type { Address } from '@/services/viacepService';
 
 const RegisterPage = () => {
@@ -435,9 +435,10 @@ const RegisterPage = () => {
 
           <div className="space-y-2">
             <Label>Data de Nascimento</Label>
-            <DatePicker
+            <EnhancedDatePicker
               date={birthDate}
               setDate={setBirthDate}
+              placeholder="DD/MM/AAAA"
             />
           </div>
 

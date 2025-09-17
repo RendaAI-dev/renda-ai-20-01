@@ -213,13 +213,13 @@ const EnhancedPlanManager: React.FC = () => {
               
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">Mensal:</span>
-                  <span className="font-bold">R$ {plan.price_monthly.toFixed(2).replace('.', ',')}</span>
+                  <span className="text-sm">Preço ({plan.plan_period}):</span>
+                  <span className="font-bold">R$ {plan.price.toFixed(2).replace('.', ',')}</span>
                 </div>
-                {plan.price_annual && (
+                {plan.price_original && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Anual:</span>
-                    <span className="font-bold">R$ {plan.price_annual.toFixed(2).replace('.', ',')}</span>
+                    <span className="text-sm">Preço Original:</span>
+                    <span className="font-bold">R$ ${plan.price_original.toFixed(2).replace('.', ',')}</span>
                   </div>
                 )}
               </div>

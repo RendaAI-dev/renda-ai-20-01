@@ -1,24 +1,26 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, X, Calculator } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Trash2, Plus } from 'lucide-react';
 import { Plan } from '@/hooks/usePlans';
+import { PLAN_PERIODS, PlanPeriod } from '@/utils/planPeriodUtils';
 
 interface PlanFormDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (planData: Partial<Plan>) => Promise<void>;
-  plan?: Plan | null;
+  plan?: Plan;
   mode: 'create' | 'edit';
 }
 
-const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
+export const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
   isOpen,
   onClose,
   onSubmit,
@@ -29,14 +31,10 @@ const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
     name: '',
     slug: '',
     description: '',
-    price_monthly: 0,
-    price_quarterly: 0,
-    price_semiannual: 0,
-    price_annual: 0,
-    stripe_price_id_monthly: '',
-    stripe_price_id_quarterly: '',
-    stripe_price_id_semiannual: '',
-    stripe_price_id_annual: '',
+    plan_period: 'monthly',
+    price: 0,
+    price_original: undefined,
+    stripe_price_id: '',
     features: [],
     limitations: [],
     is_popular: false,
@@ -49,25 +47,23 @@ const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
 
   const [newFeature, setNewFeature] = useState('');
   const [newLimitation, setNewLimitation] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Carregar dados do plano quando em modo de edição
   useEffect(() => {
-    if (mode === 'edit' && plan) {
-      setFormData(plan);
+    if (plan && mode === 'edit') {
+      setFormData({
+        ...plan,
+        features: [...plan.features],
+        limitations: [...plan.limitations]
+      });
     } else {
       setFormData({
         name: '',
         slug: '',
         description: '',
-        price_monthly: 0,
-        price_quarterly: 0,
-        price_semiannual: 0,
-        price_annual: 0,
-        stripe_price_id_monthly: '',
-        stripe_price_id_quarterly: '',
-        stripe_price_id_semiannual: '',
-        stripe_price_id_annual: '',
+        plan_period: 'monthly',
+        price: 0,
+        price_original: undefined,
+        stripe_price_id: '',
         features: [],
         limitations: [],
         is_popular: false,
@@ -78,25 +74,22 @@ const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
         metadata: {}
       });
     }
-  }, [mode, plan, isOpen]);
+  }, [plan, mode, isOpen]);
 
-  // Gerar slug automaticamente baseado no nome
-  const generateSlug = useCallback((name: string) => {
+  const generateSlug = (name: string) => {
     return name
       .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
       .trim();
-  }, []);
+  };
 
   const handleInputChange = (field: keyof Plan, value: any) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value };
       
-      // Auto-gerar slug quando o nome muda
+      // Auto-generate slug when name changes
       if (field === 'name' && typeof value === 'string') {
         updated.slug = generateSlug(value);
       }
@@ -140,37 +133,23 @@ const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
   };
 
   const calculateDiscount = () => {
-    if (formData.price_monthly && formData.price_annual) {
-      const monthly = Number(formData.price_monthly);
-      const annual = Number(formData.price_annual);
-      const yearlyEquivalent = monthly * 12;
-      
-      if (annual < yearlyEquivalent) {
-        const discount = Math.round(((yearlyEquivalent - annual) / yearlyEquivalent) * 100);
-        return discount;
-      }
-    }
-    return 0;
+    if (!formData.price_original || !formData.price) return 0;
+    return Math.round(((formData.price_original - formData.price) / formData.price_original) * 100);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.price_monthly) {
+    if (!formData.name || !formData.plan_period || !formData.price) {
+      alert('Por favor, preencha todos os campos obrigatórios');
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      await onSubmit(formData);
-    } catch (error) {
-      // Erro tratado no componente pai
-    } finally {
-      setIsSubmitting(false);
-    }
+    await onSubmit(formData);
+    onClose();
   };
 
-  const discount = calculateDiscount();
+  const periodInfo = PLAN_PERIODS[formData.plan_period as PlanPeriod];
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -182,311 +161,256 @@ const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Informações Básicas */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Informações Básicas</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+          {/* Informações Básicas */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Informações Básicas</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="name">Nome do Plano *</Label>
                   <Input
                     id="name"
-                    value={formData.name || ''}
+                    value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
-                    placeholder="Ex: Plano Premium"
+                    placeholder="Ex: Premium"
                     required
                   />
                 </div>
-
                 <div>
-                  <Label htmlFor="slug">Slug (URL) *</Label>
+                  <Label htmlFor="slug">Slug</Label>
                   <Input
                     id="slug"
-                    value={formData.slug || ''}
+                    value={formData.slug}
                     onChange={(e) => handleInputChange('slug', e.target.value)}
-                    placeholder="plano-premium"
+                    placeholder="premium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="period">Período do Plano *</Label>
+                <Select 
+                  value={formData.plan_period} 
+                  onValueChange={(value) => handleInputChange('plan_period', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o período" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                    <SelectItem value="quarterly">Trimestral</SelectItem>
+                    <SelectItem value="semiannual">Semestral</SelectItem>
+                    <SelectItem value="annual">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+                {periodInfo && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {periodInfo.label} - {periodInfo.shortLabel}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="description">Descrição</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  placeholder="Descrição do plano..."
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Preços */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Preços - {periodInfo?.label}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="price">Preço {periodInfo?.label} (R$) *</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
                     required
                   />
                 </div>
-
                 <div>
-                  <Label htmlFor="description">Descrição</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description || ''}
-                    onChange={(e) => handleInputChange('description', e.target.value)}
-                    placeholder="Descrição do plano..."
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="is_popular"
-                    checked={formData.is_popular || false}
-                    onCheckedChange={(checked) => handleInputChange('is_popular', checked)}
-                  />
-                  <Label htmlFor="is_popular">Plano mais popular</Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="is_active"
-                    checked={formData.is_active !== false}
-                    onCheckedChange={(checked) => handleInputChange('is_active', checked)}
-                  />
-                  <Label htmlFor="is_active">Ativo para vendas</Label>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Preços */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Calculator className="h-5 w-5" />
-                  Configuração de Preços por Período
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="price_monthly">Preço Mensal (R$) *</Label>
-                    <Input
-                      id="price_monthly"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.price_monthly || ''}
-                      onChange={(e) => handleInputChange('price_monthly', parseFloat(e.target.value) || 0)}
-                      placeholder="29.90"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="price_quarterly">Preço Trimestral (R$)</Label>
-                    <Input
-                      id="price_quarterly"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.price_quarterly || ''}
-                      onChange={(e) => handleInputChange('price_quarterly', parseFloat(e.target.value) || 0)}
-                      placeholder="87.90"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="price_semiannual">Preço Semestral (R$)</Label>
-                    <Input
-                      id="price_semiannual"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.price_semiannual || ''}
-                      onChange={(e) => handleInputChange('price_semiannual', parseFloat(e.target.value) || 0)}
-                      placeholder="169.90"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="price_annual">Preço Anual (R$)</Label>
-                    <Input
-                      id="price_annual"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.price_annual || ''}
-                      onChange={(e) => handleInputChange('price_annual', parseFloat(e.target.value) || 0)}
-                      placeholder="177.00"
-                    />
-                  </div>
-                </div>
-
-                {/* Cálculo de Descontos */}
-                {formData.price_monthly && (
-                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
-                    <h4 className="font-medium text-primary mb-2">Descontos Calculados:</h4>
-                    <div className="space-y-1 text-sm">
-                      {formData.price_quarterly && (
-                        <p>• Trimestral: -{Math.round(((Number(formData.price_monthly) * 3 - Number(formData.price_quarterly)) / (Number(formData.price_monthly) * 3)) * 100)}%</p>
-                      )}
-                      {formData.price_semiannual && (
-                        <p>• Semestral: -{Math.round(((Number(formData.price_monthly) * 6 - Number(formData.price_semiannual)) / (Number(formData.price_monthly) * 6)) * 100)}%</p>
-                      )}
-                      {formData.price_annual && (
-                        <p>• Anual: -{Math.round(((Number(formData.price_monthly) * 12 - Number(formData.price_annual)) / (Number(formData.price_monthly) * 12)) * 100)}%</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Stripe Price IDs */}
-                <div className="mt-6">
-                  <h4 className="text-sm font-medium mb-3 text-muted-foreground">Stripe Price IDs</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="stripe_price_id_monthly">ID Mensal</Label>
-                      <Input
-                        id="stripe_price_id_monthly"
-                        value={formData.stripe_price_id_monthly || ''}
-                        onChange={(e) => handleInputChange('stripe_price_id_monthly', e.target.value)}
-                        placeholder="price_monthly_xxx"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="stripe_price_id_quarterly">ID Trimestral</Label>
-                      <Input
-                        id="stripe_price_id_quarterly"
-                        value={formData.stripe_price_id_quarterly || ''}
-                        onChange={(e) => handleInputChange('stripe_price_id_quarterly', e.target.value)}
-                        placeholder="price_quarterly_xxx"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <Label htmlFor="stripe_price_id_semiannual">ID Semestral</Label>
-                      <Input
-                        id="stripe_price_id_semiannual"
-                        value={formData.stripe_price_id_semiannual || ''}
-                        onChange={(e) => handleInputChange('stripe_price_id_semiannual', e.target.value)}
-                        placeholder="price_semiannual_xxx"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="stripe_price_id_annual">ID Anual</Label>
-                      <Input
-                        id="stripe_price_id_annual"
-                        value={formData.stripe_price_id_annual || ''}
-                        onChange={(e) => handleInputChange('stripe_price_id_annual', e.target.value)}
-                        placeholder="price_annual_xxx"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Funcionalidades */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Funcionalidades</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex gap-2">
+                  <Label htmlFor="price_original">Preço Original (R$)</Label>
                   <Input
-                    value={newFeature}
-                    onChange={(e) => setNewFeature(e.target.value)}
-                    placeholder="Nova funcionalidade..."
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addFeature())}
-                  />
-                  <Button type="button" onClick={addFeature} size="sm">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {formData.features?.map((feature, index) => (
-                    <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                      {feature}
-                      <button
-                        type="button"
-                        onClick={() => removeFeature(index)}
-                        className="ml-1 hover:text-red-600"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Limitações */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Limitações</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex gap-2">
-                  <Input
-                    value={newLimitation}
-                    onChange={(e) => setNewLimitation(e.target.value)}
-                    placeholder="Nova limitação..."
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addLimitation())}
-                  />
-                  <Button type="button" onClick={addLimitation} size="sm">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {formData.limitations?.map((limitation, index) => (
-                    <Badge key={index} variant="outline" className="flex items-center gap-1">
-                      {limitation}
-                      <button
-                        type="button"
-                        onClick={() => removeLimitation(index)}
-                        className="ml-1 hover:text-red-600"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <Label htmlFor="max_users">Máximo de Usuários</Label>
-                    <Input
-                      id="max_users"
-                      type="number"
-                      min="1"
-                      value={formData.max_users || ''}
-                      onChange={(e) => handleInputChange('max_users', parseInt(e.target.value) || undefined)}
-                      placeholder="Ilimitado"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="trial_days">Dias de Teste Grátis</Label>
-                    <Input
-                      id="trial_days"
-                      type="number"
-                      min="0"
-                      value={formData.trial_days || 0}
-                      onChange={(e) => handleInputChange('trial_days', parseInt(e.target.value) || 0)}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="sort_order">Ordem de Exibição</Label>
-                  <Input
-                    id="sort_order"
+                    id="price_original"
                     type="number"
-                    min="0"
-                    value={formData.sort_order || 0}
-                    onChange={(e) => handleInputChange('sort_order', parseInt(e.target.value) || 0)}
+                    step="0.01"
+                    value={formData.price_original || ''}
+                    onChange={(e) => handleInputChange('price_original', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    placeholder="0.00"
+                  />
+                  {calculateDiscount() > 0 && (
+                    <Badge variant="secondary" className="mt-1">
+                      Desconto: {calculateDiscount()}%
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="stripe_price_id">Stripe Price ID</Label>
+                <Input
+                  id="stripe_price_id"
+                  value={formData.stripe_price_id}
+                  onChange={(e) => handleInputChange('stripe_price_id', e.target.value)}
+                  placeholder="price_..."
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Features */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Funcionalidades</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  value={newFeature}
+                  onChange={(e) => setNewFeature(e.target.value)}
+                  placeholder="Nova funcionalidade..."
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addFeature())}
+                />
+                <Button type="button" onClick={addFeature} size="sm">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {formData.features?.map((feature, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                    <span>{feature}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeFeature(index)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Limitations */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Limitações</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  value={newLimitation}
+                  onChange={(e) => setNewLimitation(e.target.value)}
+                  placeholder="Nova limitação..."
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addLimitation())}
+                />
+                <Button type="button" onClick={addLimitation} size="sm">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {formData.limitations?.map((limitation, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                    <span>{limitation}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeLimitation(index)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Configurações */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="max_users">Máximo de Usuários</Label>
+                  <Input
+                    id="max_users"
+                    type="number"
+                    value={formData.max_users || ''}
+                    onChange={(e) => handleInputChange('max_users', e.target.value ? parseInt(e.target.value) : undefined)}
+                    placeholder="Ilimitado"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="trial_days">Dias de Teste</Label>
+                  <Input
+                    id="trial_days"
+                    type="number"
+                    value={formData.trial_days}
+                    onChange={(e) => handleInputChange('trial_days', parseInt(e.target.value) || 0)}
                     placeholder="0"
                   />
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-6 border-t">
+              <div>
+                <Label htmlFor="sort_order">Ordem de Exibição</Label>
+                <Input
+                  id="sort_order"
+                  type="number"
+                  value={formData.sort_order}
+                  onChange={(e) => handleInputChange('sort_order', parseInt(e.target.value) || 0)}
+                  placeholder="0"
+                />
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="is_popular"
+                    checked={formData.is_popular}
+                    onCheckedChange={(checked) => handleInputChange('is_popular', checked)}
+                  />
+                  <Label htmlFor="is_popular">Plano Popular</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="is_active"
+                    checked={formData.is_active}
+                    onCheckedChange={(checked) => handleInputChange('is_active', checked)}
+                  />
+                  <Label htmlFor="is_active">Ativo</Label>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Botões */}
+          <div className="flex justify-end space-x-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Salvando...' : mode === 'create' ? 'Criar Plano' : 'Salvar Alterações'}
+            <Button type="submit">
+              {mode === 'create' ? 'Criar Plano' : 'Salvar Alterações'}
             </Button>
           </div>
         </form>

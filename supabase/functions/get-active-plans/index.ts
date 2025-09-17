@@ -25,14 +25,10 @@ serve(async (req) => {
         name,
         slug,
         description,
-        price_monthly,
-        price_quarterly,
-        price_semiannual,
-        price_annual,
-        stripe_price_id_monthly,
-        stripe_price_id_quarterly,
-        stripe_price_id_semiannual,
-        stripe_price_id_annual,
+        plan_period,
+        price,
+        price_original,
+        stripe_price_id,
         features,
         limitations,
         is_popular,
@@ -47,60 +43,18 @@ serve(async (req) => {
 
     // Processar planos para adicionar campos calculados
     const processedPlans = plans?.map(plan => {
-      const monthlyPrice = plan.price_monthly;
-      const quarterlyPrice = plan.price_quarterly;
-      const semiannualPrice = plan.price_semiannual;
-      const annualPrice = plan.price_annual;
-      
-      // Calcular preços equivalentes para comparação
-      const quarterlyEquivalent = monthlyPrice * 3;
-      const semiannualEquivalent = monthlyPrice * 6;
-      const yearlyEquivalent = monthlyPrice * 12;
-      
-      // Calcular descontos
-      const quarterlyDiscount = quarterlyPrice 
-        ? Math.round(((quarterlyEquivalent - quarterlyPrice) / quarterlyEquivalent) * 100)
-        : 0;
-      const semiannualDiscount = semiannualPrice 
-        ? Math.round(((semiannualEquivalent - semiannualPrice) / semiannualEquivalent) * 100)
-        : 0;
-      const annualDiscount = annualPrice 
-        ? Math.round(((yearlyEquivalent - annualPrice) / yearlyEquivalent) * 100)
+      const discount = plan.price_original && plan.price_original > plan.price
+        ? Math.round(((plan.price_original - plan.price) / plan.price_original) * 100)
         : 0;
 
       return {
         ...plan,
-        pricing: {
-          monthly: {
-            amount: monthlyPrice,
-            display: `R$ ${monthlyPrice.toFixed(2).replace('.', ',')}`,
-            priceId: plan.stripe_price_id_monthly
-          },
-          quarterly: quarterlyPrice ? {
-            amount: quarterlyPrice,
-            display: `R$ ${quarterlyPrice.toFixed(2).replace('.', ',')}`,
-            originalPrice: `R$ ${quarterlyEquivalent.toFixed(2).replace('.', ',')}`,
-            discount: `${quarterlyDiscount}%`,
-            savings: `Economize ${quarterlyDiscount}%`,
-            priceId: plan.stripe_price_id_quarterly
-          } : null,
-          semiannual: semiannualPrice ? {
-            amount: semiannualPrice,
-            display: `R$ ${semiannualPrice.toFixed(2).replace('.', ',')}`,
-            originalPrice: `R$ ${semiannualEquivalent.toFixed(2).replace('.', ',')}`,
-            discount: `${semiannualDiscount}%`,
-            savings: `Economize ${semiannualDiscount}%`,
-            priceId: plan.stripe_price_id_semiannual
-          } : null,
-          annual: annualPrice ? {
-            amount: annualPrice,
-            display: `R$ ${annualPrice.toFixed(2).replace('.', ',')}`,
-            originalPrice: `R$ ${yearlyEquivalent.toFixed(2).replace('.', ',')}`,
-            discount: `${annualDiscount}%`,
-            savings: `Economize ${annualDiscount}%`,
-            priceId: plan.stripe_price_id_annual
-          } : null
-        }
+        discount,
+        display: `R$ ${plan.price.toFixed(2).replace('.', ',')}`,
+        originalDisplay: plan.price_original 
+          ? `R$ ${plan.price_original.toFixed(2).replace('.', ',')}` 
+          : null,
+        savings: discount > 0 ? `Economize ${discount}%` : null
       };
     });
 

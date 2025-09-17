@@ -11,14 +11,10 @@ interface Plan {
   name: string;
   slug: string;
   description?: string;
-  price_monthly: number;
-  price_quarterly?: number;
-  price_semiannual?: number;
-  price_annual?: number;
-  stripe_price_id_monthly?: string;
-  stripe_price_id_quarterly?: string;
-  stripe_price_id_semiannual?: string;
-  stripe_price_id_annual?: string;
+  plan_period: 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+  price: number;
+  price_original?: number;
+  stripe_price_id?: string;
   features: string[];
   limitations: string[];
   is_popular: boolean;

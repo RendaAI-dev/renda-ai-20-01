@@ -8,14 +8,10 @@ export interface Plan {
   name: string;
   slug: string;
   description?: string;
-  price_monthly: number;
-  price_quarterly?: number;
-  price_semiannual?: number;
-  price_annual?: number;
-  stripe_price_id_monthly?: string;
-  stripe_price_id_quarterly?: string;
-  stripe_price_id_semiannual?: string;
-  stripe_price_id_annual?: string;
+  plan_period: 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+  price: number;
+  price_original?: number;
+  stripe_price_id?: string;
   features: string[];
   limitations: string[];
   is_popular: boolean;
@@ -26,37 +22,6 @@ export interface Plan {
   metadata: Record<string, any>;
   created_at: string;
   updated_at: string;
-  pricing?: {
-    monthly: {
-      amount: number;
-      display: string;
-      priceId: string;
-    };
-    quarterly?: {
-      amount: number;
-      display: string;
-      originalPrice: string;
-      discount: string;
-      savings: string;
-      priceId: string;
-    };
-    semiannual?: {
-      amount: number;
-      display: string;
-      originalPrice: string;
-      discount: string;
-      savings: string;
-      priceId: string;
-    };
-    annual?: {
-      amount: number;
-      display: string;
-      originalPrice: string;
-      discount: string;
-      savings: string;
-      priceId: string;
-    };
-  };
 }
 
 export const usePlans = (activeOnly = false) => {

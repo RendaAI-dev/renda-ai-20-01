@@ -69,7 +69,7 @@ const PlansPage = () => {
       savings: preferredPricing.savings,
       description: plan.description || "Plano completo",
       features: plan.features,
-      popular: plan.isPopular,
+      popular: plan.is_popular,
       planType: plan.pricing.annual ? 'annual' as const : 'monthly' as const,
     };
   }) || [];

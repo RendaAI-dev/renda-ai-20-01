@@ -3,11 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check } from 'lucide-react';
-import { Plan } from '@/hooks/useNewPlanConfig';
+import { PlanFamily } from '@/hooks/useNewPlanConfig';
 import { PlanPeriod, PLAN_PERIODS } from '@/utils/planPeriodUtils';
 
 interface PeriodPricingCardProps {
-  plan: Plan;
+  plan: PlanFamily;
   period: PlanPeriod;
   isPopular?: boolean;
   onSelectPlan: (planId: string, priceId: string) => void;

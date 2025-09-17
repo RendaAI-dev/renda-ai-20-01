@@ -126,20 +126,12 @@ export type Database = {
           max_users: number | null
           metadata: Json | null
           name: string
-          price_annual: number | null
-          price_annual_original: number | null
-          price_monthly: number
-          price_monthly_original: number | null
-          price_quarterly: number | null
-          price_quarterly_original: number | null
-          price_semiannual: number | null
-          price_semiannual_original: number | null
+          plan_period: Database["public"]["Enums"]["plan_period"]
+          price: number
+          price_original: number | null
           slug: string
           sort_order: number | null
-          stripe_price_id_annual: string | null
-          stripe_price_id_monthly: string | null
-          stripe_price_id_quarterly: string | null
-          stripe_price_id_semiannual: string | null
+          stripe_price_id: string | null
           trial_days: number | null
           updated_at: string | null
           updated_by: string | null
@@ -156,20 +148,12 @@ export type Database = {
           max_users?: number | null
           metadata?: Json | null
           name: string
-          price_annual?: number | null
-          price_annual_original?: number | null
-          price_monthly: number
-          price_monthly_original?: number | null
-          price_quarterly?: number | null
-          price_quarterly_original?: number | null
-          price_semiannual?: number | null
-          price_semiannual_original?: number | null
+          plan_period?: Database["public"]["Enums"]["plan_period"]
+          price?: number
+          price_original?: number | null
           slug: string
           sort_order?: number | null
-          stripe_price_id_annual?: string | null
-          stripe_price_id_monthly?: string | null
-          stripe_price_id_quarterly?: string | null
-          stripe_price_id_semiannual?: string | null
+          stripe_price_id?: string | null
           trial_days?: number | null
           updated_at?: string | null
           updated_by?: string | null
@@ -186,20 +170,12 @@ export type Database = {
           max_users?: number | null
           metadata?: Json | null
           name?: string
-          price_annual?: number | null
-          price_annual_original?: number | null
-          price_monthly?: number
-          price_monthly_original?: number | null
-          price_quarterly?: number | null
-          price_quarterly_original?: number | null
-          price_semiannual?: number | null
-          price_semiannual_original?: number | null
+          plan_period?: Database["public"]["Enums"]["plan_period"]
+          price?: number
+          price_original?: number | null
           slug?: string
           sort_order?: number | null
-          stripe_price_id_annual?: string | null
-          stripe_price_id_monthly?: string | null
-          stripe_price_id_quarterly?: string | null
-          stripe_price_id_semiannual?: string | null
+          stripe_price_id?: string | null
           trial_days?: number | null
           updated_at?: string | null
           updated_by?: string | null
@@ -725,6 +701,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      plan_period: "monthly" | "quarterly" | "semiannual" | "annual"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -853,6 +830,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      plan_period: ["monthly", "quarterly", "semiannual", "annual"],
     },
   },
 } as const

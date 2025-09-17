@@ -33,15 +33,8 @@ serve(async (req) => {
     // Eventos de CHECKOUT_* e SUBSCRIPTION_* geralmente não têm dados de pagamento
     if (!payment || !payment.id) {
       if (event && event.startsWith('CHECKOUT_')) {
-        console.log('[ASAAS-WEBHOOK] Evento de checkout recebido sem dados de pagamento (normal):', event);
-        return new Response(JSON.stringify({
-          received: true,
-          ignored: true,
-          reason: 'checkout_event_without_payment'
-        }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
+        console.log('[ASAAS-WEBHOOK] Evento de checkout recebido:', event);
+        return await handleCheckoutEvent(supabase, event, webhookData);
       }
       
       if (event && event.startsWith('SUBSCRIPTION_')) {
@@ -425,4 +418,253 @@ async function handleSubscriptionEvent(supabase: any, event: string, subscriptio
     status: 200,
     headers: { 'Content-Type': 'application/json', ...corsHeaders }
   });
+}
+
+async function handleCheckoutEvent(supabase: any, event: string, webhookData: any) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, asaas-access-token',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+  };
+
+  console.log('[ASAAS-WEBHOOK] Processando evento de checkout:', event);
+  console.log('[ASAAS-WEBHOOK] Dados do webhook:', JSON.stringify(webhookData, null, 2));
+
+  const { checkout } = webhookData;
+
+  switch (event) {
+    case 'CHECKOUT_CREATED':
+      console.log('[ASAAS-WEBHOOK] 📝 Checkout criado:', checkout?.id);
+      return new Response(JSON.stringify({
+        received: true,
+        event,
+        checkout_id: checkout?.id,
+        message: 'Checkout created, waiting for payment'
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+
+    case 'CHECKOUT_PAID':
+      console.log('[ASAAS-WEBHOOK] 💰 CHECKOUT PAGO! Processando ativação da assinatura...');
+      console.log('[ASAAS-WEBHOOK] Checkout ID:', checkout?.id);
+      
+      if (!checkout?.id) {
+        console.error('[ASAAS-WEBHOOK] ❌ Checkout ID não encontrado no evento CHECKOUT_PAID');
+        return new Response(JSON.stringify({
+          received: true,
+          error: 'Missing checkout ID'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Buscar pagamentos relacionados ao checkout
+      try {
+        const paymentsResult = await fetchCheckoutPayments(supabase, checkout.id);
+        
+        if (!paymentsResult.success || !paymentsResult.payments?.length) {
+          console.error('[ASAAS-WEBHOOK] ❌ Nenhum pagamento encontrado para o checkout:', checkout.id);
+          return new Response(JSON.stringify({
+            received: true,
+            error: 'No payments found for checkout',
+            checkout_id: checkout.id
+          }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // Processar cada pagamento encontrado
+        for (const payment of paymentsResult.payments) {
+          console.log('[ASAAS-WEBHOOK] 🔄 Processando pagamento do checkout:', payment.id);
+          
+          // Verificar se já existe no banco
+          const { data: existingPayment } = await supabase
+            .from('poupeja_asaas_payments')
+            .select('*, user_id')
+            .eq('asaas_payment_id', payment.id)
+            .maybeSingle();
+
+          let userId = existingPayment?.user_id;
+
+          if (!existingPayment) {
+            // Mapear customer para user_id
+            const { data: asaasCustomerRow } = await supabase
+              .from('poupeja_asaas_customers')
+              .select('user_id')
+              .eq('asaas_customer_id', payment.customer)
+              .maybeSingle();
+
+            if (!asaasCustomerRow?.user_id) {
+              console.error('[ASAAS-WEBHOOK] ❌ Customer não encontrado:', payment.customer);
+              continue;
+            }
+
+            userId = asaasCustomerRow.user_id;
+
+            // Inserir pagamento
+            const paymentRow = {
+              user_id: userId,
+              asaas_payment_id: payment.id,
+              asaas_customer_id: payment.customer,
+              status: payment.status,
+              amount: payment.value,
+              due_date: payment.dueDate,
+              method: 'CHECKOUT',
+              description: payment.description || null,
+              external_reference: payment.externalReference || null,
+              invoice_url: payment.invoiceUrl || null,
+              bank_slip_url: payment.bankSlipUrl || null,
+              payment_date: payment.paymentDate || null
+            };
+
+            const { data: inserted } = await supabase
+              .from('poupeja_asaas_payments')
+              .insert(paymentRow)
+              .select('*')
+              .single();
+
+            console.log('[ASAAS-WEBHOOK] ✅ Pagamento inserido via checkout:', payment.id);
+            
+            // Ativar assinatura se pagamento confirmado
+            if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
+              await handlePaymentSuccess(supabase, userId, payment, inserted);
+            }
+          } else {
+            // Atualizar pagamento existente
+            await supabase
+              .from('poupeja_asaas_payments')
+              .update({
+                status: payment.status,
+                payment_date: payment.paymentDate || null,
+                updated_at: new Date().toISOString()
+              })
+              .eq('asaas_payment_id', payment.id);
+
+            console.log('[ASAAS-WEBHOOK] ✅ Pagamento atualizado via checkout:', payment.id);
+            
+            // Ativar assinatura se pagamento confirmado
+            if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
+              await handlePaymentSuccess(supabase, userId, payment, existingPayment);
+            }
+          }
+        }
+
+        return new Response(JSON.stringify({
+          received: true,
+          event,
+          checkout_id: checkout.id,
+          payments_processed: paymentsResult.payments.length,
+          message: 'CHECKOUT_PAID processed successfully'
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+
+      } catch (error) {
+        console.error('[ASAAS-WEBHOOK] ❌ Erro ao processar CHECKOUT_PAID:', error);
+        return new Response(JSON.stringify({
+          received: true,
+          error: error.message,
+          checkout_id: checkout.id
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+    case 'CHECKOUT_EXPIRED':
+      console.log('[ASAAS-WEBHOOK] ⏰ Checkout expirado:', checkout?.id);
+      return new Response(JSON.stringify({
+        received: true,
+        event,
+        checkout_id: checkout?.id,
+        message: 'Checkout expired'
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+
+    case 'CHECKOUT_CANCELLED':
+      console.log('[ASAAS-WEBHOOK] ❌ Checkout cancelado:', checkout?.id);
+      return new Response(JSON.stringify({
+        received: true,
+        event,
+        checkout_id: checkout?.id,
+        message: 'Checkout cancelled'
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+
+    default:
+      console.log('[ASAAS-WEBHOOK] ℹ️ Evento de checkout não tratado:', event);
+      return new Response(JSON.stringify({
+        received: true,
+        event,
+        message: 'Checkout event logged but not processed'
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+  }
+}
+
+async function fetchCheckoutPayments(supabase: any, checkoutId: string) {
+  try {
+    console.log('[ASAAS-WEBHOOK] 🔍 Buscando pagamentos para checkout:', checkoutId);
+    
+    // Buscar configuração da API do Asaas
+    const { data: asaasConfig } = await supabase
+      .from('poupeja_settings')
+      .select('key, value')
+      .eq('category', 'asaas')
+      .in('key', ['api_key', 'environment']);
+
+    if (!asaasConfig?.length) {
+      throw new Error('Configuração do Asaas não encontrada');
+    }
+
+    const apiKey = asaasConfig.find((c: any) => c.key === 'api_key')?.value;
+    const environment = asaasConfig.find((c: any) => c.key === 'environment')?.value || 'sandbox';
+
+    if (!apiKey) {
+      throw new Error('API key do Asaas não encontrada');
+    }
+
+    const baseUrl = environment === 'production' 
+      ? 'https://api.asaas.com'
+      : 'https://sandbox.asaas.com';
+
+    // Buscar pagamentos do checkout via API do Asaas
+    const response = await fetch(`${baseUrl}/v3/payments?checkout=${checkoutId}`, {
+      method: 'GET',
+      headers: {
+        'access_token': apiKey,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Erro da API Asaas: ${response.status} - ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('[ASAAS-WEBHOOK] 📊 Resposta da API Asaas:', JSON.stringify(result, null, 2));
+
+    return {
+      success: true,
+      payments: result.data || []
+    };
+
+  } catch (error) {
+    console.error('[ASAAS-WEBHOOK] ❌ Erro ao buscar pagamentos do checkout:', error);
+    return {
+      success: false,
+      error: error.message,
+      payments: []
+    };
+  }
 }

@@ -19,24 +19,34 @@ const LandingPricing = () => {
     window.location.href = `/register?priceId=${priceId}&planType=${selectedPeriod}&planSlug=${planId}`;
   };
 
-  if (isLoading) {
+  // Sempre mostrar o conteúdo, mesmo durante loading
+  if (isLoading && !config) {
     return (
       <section className="py-20 w-full" id="planos">
         <div className="w-full px-4">
-          <div className="flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin" />
+          <div className="text-center">
+            <div className="animate-pulse space-y-4">
+              <div className="h-8 bg-muted rounded w-64 mx-auto"></div>
+              <div className="h-4 bg-muted rounded w-96 mx-auto"></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto mt-8">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-96 bg-muted rounded-lg"></div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
     );
   }
 
-  if (error || !config) {
+  // Se houve erro mas temos config (fallback), continue normalmente
+  if (!config) {
     return (
       <section className="py-20 w-full" id="planos">
         <div className="w-full px-4">
-          <div className="text-center text-red-600">
-            Erro ao carregar configurações dos planos
+          <div className="text-center text-muted-foreground">
+            Planos temporariamente indisponíveis. Tente novamente em alguns instantes.
           </div>
         </div>
       </section>

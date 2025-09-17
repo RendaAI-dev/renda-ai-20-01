@@ -264,6 +264,68 @@ serve(async (req) => {
     const checkout = await checkoutResponse.json();
 
     console.log('[ASAAS-CHECKOUT] Checkout criado:', checkout.id);
+    console.log('[ASAAS-CHECKOUT] Checkout objeto completo:', JSON.stringify(checkout, null, 2));
+    console.log('[ASAAS-CHECKOUT] Checkout keys disponíveis:', Object.keys(checkout || {}));
+
+    // Garantir checkoutUrl válida com estratégia robusta
+    const getCheckoutUrl = async (): Promise<{ url: string; source: string }> => {
+      // Prioridade 1: URL direta do checkout
+      if (checkout.url) {
+        console.log('[ASAAS-CHECKOUT] ✅ URL encontrada no checkout inicial');
+        return { url: checkout.url, source: 'checkout_initial' };
+      }
+
+      // Prioridade 2: invoiceUrl direta
+      if (checkout.invoiceUrl) {
+        console.log('[ASAAS-CHECKOUT] ✅ invoiceUrl encontrada no checkout inicial');
+        return { url: checkout.invoiceUrl, source: 'invoice_initial' };
+      }
+
+      // Prioridade 3: Buscar checkout específico
+      console.log('[ASAAS-CHECKOUT] ⚠️ URL não encontrada, buscando checkout específico...');
+      try {
+        const checkoutDetailResponse = await fetch(`${asaasUrl}/checkouts/${checkout.id}`, {
+          headers: {
+            'access_token': apiKey,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        console.log('[ASAAS-CHECKOUT] Status GET checkout específico:', checkoutDetailResponse.status);
+
+        if (checkoutDetailResponse.ok) {
+          const checkoutDetail = await checkoutDetailResponse.json();
+          console.log('[ASAAS-CHECKOUT] Checkout específico keys:', Object.keys(checkoutDetail || {}));
+          
+          if (checkoutDetail.url) {
+            console.log('[ASAAS-CHECKOUT] ✅ URL encontrada no GET checkout específico');
+            return { url: checkoutDetail.url, source: 'checkout_refetch' };
+          }
+          
+          if (checkoutDetail.invoiceUrl) {
+            console.log('[ASAAS-CHECKOUT] ✅ invoiceUrl encontrada no GET checkout específico');
+            return { url: checkoutDetail.invoiceUrl, source: 'invoice_refetch' };
+          }
+        } else {
+          const errorText = await checkoutDetailResponse.text();
+          console.error('[ASAAS-CHECKOUT] Erro ao buscar checkout específico:', errorText);
+        }
+      } catch (error) {
+        console.error('[ASAAS-CHECKOUT] Erro na busca do checkout específico:', error);
+      }
+
+      // Prioridade 4: URL construída como fallback
+      const baseUrl = environment === 'production' 
+        ? 'https://www.asaas.com'
+        : 'https://sandbox.asaas.com';
+      const fallbackUrl = `${baseUrl}/i/${checkout.id}`;
+      
+      console.log('[ASAAS-CHECKOUT] ⚠️ Usando URL construída como fallback:', fallbackUrl);
+      return { url: fallbackUrl, source: 'constructed_fallback' };
+    };
+
+    const { url: guaranteedCheckoutUrl, source: urlSource } = await getCheckoutUrl();
+    console.log('[ASAAS-CHECKOUT] ✅ URL final garantida:', guaranteedCheckoutUrl, '(source:', urlSource + ')');
 
     // Função para buscar pagamentos do usuário com estratégia melhorada
     const fetchUserPayments = async (retries = 5): Promise<AsaasPayment | null> => {
@@ -363,16 +425,18 @@ serve(async (req) => {
       return null;
     };
 
-    // Tentar buscar o pagamento específico
+    // Tentar buscar o pagamento específico com prioridade para invoiceUrl
     const userPayment = await fetchUserPayments();
 
     if (userPayment && userPayment.invoiceUrl) {
-      console.log('[ASAAS-CHECKOUT] ✅ Redirecionando para fatura específica');
+      console.log('[ASAAS-CHECKOUT] ✅ Redirecionando para fatura específica (invoiceUrl tem prioridade)');
       return new Response(JSON.stringify({
         success: true,
         checkoutUrl: userPayment.invoiceUrl,
         paymentId: userPayment.id,
-        reference
+        checkoutId: checkout.id,
+        reference,
+        source: 'invoice_found'
       }), {
         headers: { 
           'Content-Type': 'application/json',
@@ -381,13 +445,14 @@ serve(async (req) => {
       });
     }
 
-    // Fallback para checkout genérico
-    console.log('[ASAAS-CHECKOUT] ⚠️ Usando checkout genérico como fallback');
+    // Usar URL garantida do checkout
+    console.log('[ASAAS-CHECKOUT] ✅ Redirecionando para checkout URL garantida');
     return new Response(JSON.stringify({
       success: true,
-      checkoutUrl: checkout.url || checkout.invoiceUrl,
+      checkoutUrl: guaranteedCheckoutUrl,
       checkoutId: checkout.id,
-      reference
+      reference,
+      source: urlSource
     }), {
       headers: { 
         'Content-Type': 'application/json',

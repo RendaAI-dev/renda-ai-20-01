@@ -198,15 +198,14 @@ serve(async (req) => {
       throw new Error('Tipo de plano inválido');
     }
 
-    // Converter para centavos (Asaas trabalha com valores em centavos)
-    const valueInCents = Math.round(value * 100);
-
-    console.log(`[ASAAS-CHECKOUT] Valor do plano ${planType}: R$ ${value} (${valueInCents} centavos)`);
+    console.log(`[ASAAS-CHECKOUT] Valor do plano ${planType}: R$ ${value}`);
 
     // Criar Checkout do Asaas para ASSINATURA recorrente com cartão de crédito
     const reference = `${user.id}_${planType}_${Date.now()}`;
     const cycle = planType === 'monthly' ? 'MONTHLY' : 'ANNUALLY';
-    
+    const planName = planType === 'monthly' ? 'Plano Premium Mensal' : 'Plano Premium Anual';
+    const planDescription = planType === 'monthly' ? 'Assinatura Mensal - Renda AI' : 'Assinatura Anual - Renda AI';
+
     const checkoutData = {
       billingTypes: ['CREDIT_CARD'],
       chargeTypes: ['RECURRENT'],
@@ -217,10 +216,18 @@ serve(async (req) => {
         expiredUrl: cancelUrl
       },
       customer: asaasCustomer.id,
+      items: [
+        {
+          name: planName,
+          description: planDescription,
+          quantity: 1,
+          value: value
+        }
+      ],
       subscription: {
-        value: valueInCents,
+        value: value,
         cycle: cycle,
-        description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`
+        description: planDescription
       }
     };
 

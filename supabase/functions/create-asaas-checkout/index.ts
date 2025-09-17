@@ -167,29 +167,30 @@ serve(async (req) => {
       console.log('[ASAAS-CHECKOUT] Cliente criado:', asaasCustomer.id);
     }
 
-    // Buscar valores dos planos nas configurações (corrigido para chaves corretas)
-    const { data: priceSettings } = await supabase
-      .from('poupeja_settings')
-      .select('key, value')
-      .eq('category', 'pricing')
-      .in('key', ['plan_price_monthly', 'plan_price_annual']);
+    // Buscar valores dos planos na tabela de planos gerenciados
+    const { data: monthlyPlan } = await supabase
+      .from('poupeja_plans')
+      .select('price')
+      .eq('plan_period', 'monthly')
+      .eq('is_active', true)
+      .single();
 
-    const normalizePrice = (v?: string | null) => {
-      if (!v) return 0;
-      const s = String(v).replace(/\./g, '').replace(',', '.');
-      const n = parseFloat(s);
-      return isNaN(n) ? 0 : n;
-    };
+    const { data: annualPlan } = await supabase
+      .from('poupeja_plans')
+      .select('price')
+      .eq('plan_period', 'annual')
+      .eq('is_active', true)
+      .single();
 
-    const priceConfig = priceSettings?.reduce((acc, setting) => {
-      acc[setting.key] = normalizePrice(setting.value);
-      return acc;
-    }, {} as Record<string, number>) ?? {};
+    console.log('[ASAAS-CHECKOUT] Planos encontrados:', {
+      monthly: monthlyPlan?.price,
+      annual: annualPlan?.price
+    });
 
-    // Valores com fallback
+    // Valores dos planos com fallback
     const planValues = {
-      monthly: priceConfig.plan_price_monthly || 49.9,
-      annual: priceConfig.plan_price_annual || 499.9
+      monthly: monthlyPlan?.price || 49.90,
+      annual: annualPlan?.price || 538.90
     } as const;
 
     const value = planValues[planType as keyof typeof planValues];
@@ -197,7 +198,10 @@ serve(async (req) => {
       throw new Error('Tipo de plano inválido');
     }
 
-    console.log(`[ASAAS-CHECKOUT] Valor do plano ${planType}: ${value}`);
+    // Converter para centavos (Asaas trabalha com valores em centavos)
+    const valueInCents = Math.round(value * 100);
+
+    console.log(`[ASAAS-CHECKOUT] Valor do plano ${planType}: R$ ${value} (${valueInCents} centavos)`);
 
     // Criar Checkout do Asaas para ASSINATURA recorrente com cartão de crédito
     const reference = `${user.id}_${planType}_${Date.now()}`;
@@ -214,11 +218,13 @@ serve(async (req) => {
       },
       customer: asaasCustomer.id,
       subscription: {
-        value: value,
+        value: valueInCents,
         cycle: cycle,
         description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`
       }
     };
+
+    console.log('[ASAAS-CHECKOUT] Dados completos enviados para Asaas:', JSON.stringify(checkoutData, null, 2));
 
     const checkoutResponse = await fetch(`${asaasUrl}/checkouts`, {
       method: 'POST',
@@ -238,6 +244,7 @@ serve(async (req) => {
       let errorMessage = 'Erro ao criar checkout no Asaas';
       try {
         const errorObj = JSON.parse(errorText);
+        console.error('[ASAAS-CHECKOUT] Resposta de erro completa do Asaas:', errorObj);
         if (errorObj.errors && Array.isArray(errorObj.errors)) {
           errorMessage = errorObj.errors.map((e: any) => e.description || e.message).join(', ');
         }

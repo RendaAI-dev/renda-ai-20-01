@@ -201,6 +201,8 @@ serve(async (req) => {
 
     // Criar Checkout do Asaas para ASSINATURA recorrente com cartão de crédito
     const reference = `${user.id}_${planType}_${Date.now()}`;
+    const cycle = planType === 'monthly' ? 'MONTHLY' : 'ANNUALLY';
+    
     const checkoutData = {
       billingTypes: ['CREDIT_CARD'],
       chargeTypes: ['RECURRENT'],
@@ -210,15 +212,12 @@ serve(async (req) => {
         cancelUrl,
         expiredUrl: cancelUrl
       },
-      customer: asaasCustomer.id, // Pré-vincular ao cliente existente
-      items: [
-        {
-          name: planType === 'monthly' ? 'Plano Mensal' : 'Plano Anual',
-          description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
-          quantity: 1,
-          value: value
-        }
-      ]
+      customer: asaasCustomer.id,
+      subscription: {
+        value: value,
+        cycle: cycle,
+        description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`
+      }
     };
 
     const checkoutResponse = await fetch(`${asaasUrl}/checkouts`, {

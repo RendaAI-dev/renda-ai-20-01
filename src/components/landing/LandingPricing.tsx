@@ -7,8 +7,8 @@ import { SimplePlanCard } from '@/components/landing/SimplePlanCard';
 const LandingPricing = () => {
   const { config, isLoading, error } = useNewPlanConfig();
 
-  const handleSelectPlan = (planId: string, priceId: string) => {
-    window.location.href = `/register?priceId=${priceId}&planType=monthly&planSlug=${planId}`;
+  const handleSelectPlan = (planId: string, priceId: string, period: string = 'monthly') => {
+    window.location.href = `/register?priceId=${priceId}&planType=${period}&planSlug=${planId}`;
   };
 
   // Sempre mostrar o conteúdo, mesmo durante loading

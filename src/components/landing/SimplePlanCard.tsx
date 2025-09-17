@@ -8,7 +8,7 @@ import { PlanFamily } from '@/hooks/useNewPlanConfig';
 interface SimplePlanCardProps {
   plan: PlanFamily;
   isPopular?: boolean;
-  onSelectPlan: (planId: string, priceId: string) => void;
+  onSelectPlan: (planId: string, priceId: string, period: string) => void;
 }
 
 export const SimplePlanCard: React.FC<SimplePlanCardProps> = ({
@@ -16,8 +16,11 @@ export const SimplePlanCard: React.FC<SimplePlanCardProps> = ({
   isPopular = false,
   onSelectPlan
 }) => {
-  // Use monthly pricing as default
-  const pricing = plan.pricing.monthly;
+  // Use first available pricing (monthly > annual > semiannual > quarterly)
+  const pricing = plan.pricing.monthly || plan.pricing.annual || plan.pricing.semiannual || plan.pricing.quarterly;
+  const period = plan.pricing.monthly ? 'monthly' : 
+                 plan.pricing.annual ? 'annual' : 
+                 plan.pricing.semiannual ? 'semiannual' : 'quarterly';
   
   if (!pricing) return null;
 
@@ -37,7 +40,10 @@ export const SimplePlanCard: React.FC<SimplePlanCardProps> = ({
             {pricing.display}
           </div>
           <p className="text-sm text-muted-foreground">
-            por mês
+            {period === 'monthly' ? 'por mês' : 
+             period === 'annual' ? 'por ano' : 
+             period === 'semiannual' ? 'por semestre' : 
+             'por trimestre'}
           </p>
         </div>
       </CardHeader>
@@ -73,7 +79,7 @@ export const SimplePlanCard: React.FC<SimplePlanCardProps> = ({
         
         <Button 
           className="w-full mt-6" 
-          onClick={() => onSelectPlan(plan.id, pricing.priceId)}
+          onClick={() => onSelectPlan(plan.id, pricing.priceId, period)}
           variant={isPopular ? "default" : "outline"}
         >
           Escolher Plano

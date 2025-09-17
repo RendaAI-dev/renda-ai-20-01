@@ -227,7 +227,9 @@ serve(async (req) => {
       subscription: {
         value: value,
         cycle: cycle,
-        description: planDescription
+        description: planDescription,
+        nextDueDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+        externalReference: reference
       }
     };
 
@@ -263,7 +265,66 @@ serve(async (req) => {
 
     console.log('[ASAAS-CHECKOUT] Checkout criado:', checkout.id);
 
-    // Retornar URL do checkout hospedado pelo Asaas
+    // Função para buscar pagamentos do usuário
+    const fetchUserPayments = async (retries = 5): Promise<AsaasPayment | null> => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const delay = (i + 1) * 2000 + Math.random() * 1000; // 2-3s, 4-5s, 6-7s, 8-9s, 10-11s
+          await new Promise(resolve => setTimeout(resolve, delay));
+
+          console.log(`[ASAAS-CHECKOUT] Tentativa ${i + 1}/${retries} - Buscando pagamentos...`);
+
+          const paymentsResponse = await fetch(`${asaasUrl}/payments?customer=${asaasCustomer.id}&limit=10`, {
+            headers: {
+              'access_token': apiKey,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (paymentsResponse.ok) {
+            const paymentsData = await paymentsResponse.json();
+            console.log(`[ASAAS-CHECKOUT] Encontrados ${paymentsData.data?.length || 0} pagamentos`);
+
+            // Buscar pagamento que corresponde ao valor e é recente (últimos 5 minutos)
+            const recentTime = Date.now() - (5 * 60 * 1000);
+            const payment = paymentsData.data?.find((p: any) => 
+              Math.abs(parseFloat(p.value) - value) < 0.01 && 
+              ['PENDING', 'CONFIRMED', 'RECEIVED'].includes(p.status) &&
+              new Date(p.dateCreated).getTime() > recentTime
+            );
+
+            if (payment) {
+              console.log(`[ASAAS-CHECKOUT] ✅ Pagamento encontrado: ${payment.id}`);
+              return payment;
+            }
+          }
+        } catch (error) {
+          console.error(`[ASAAS-CHECKOUT] Erro na tentativa ${i + 1}:`, error.message);
+        }
+      }
+      return null;
+    };
+
+    // Tentar buscar o pagamento específico
+    const userPayment = await fetchUserPayments();
+
+    if (userPayment && userPayment.invoiceUrl) {
+      console.log('[ASAAS-CHECKOUT] ✅ Redirecionando para fatura específica');
+      return new Response(JSON.stringify({
+        success: true,
+        checkoutUrl: userPayment.invoiceUrl,
+        paymentId: userPayment.id,
+        reference
+      }), {
+        headers: { 
+          'Content-Type': 'application/json',
+          ...corsHeaders 
+        }
+      });
+    }
+
+    // Fallback para checkout genérico
+    console.log('[ASAAS-CHECKOUT] ⚠️ Usando checkout genérico como fallback');
     return new Response(JSON.stringify({
       success: true,
       checkoutUrl: checkout.url || checkout.invoiceUrl,

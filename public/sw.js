@@ -1,7 +1,7 @@
 // Service Worker para Renda AI
 // Gerado automaticamente pelo sistema de branding
 
-const CACHE_NAME = 'renda-ai-v1.0.0';
+const CACHE_NAME = 'renda-ai-v1.0.1';
 const urlsToCache = [
   '/',
   '/index.html',

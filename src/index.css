@@ -223,3 +223,11 @@
 .shadow-card-hover {
   box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15), 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
+
+/* Force hide any cached period selector elements */
+[data-period-selector],
+.period-selector,
+button[data-period],
+.period-buttons {
+  display: none !important;
+}

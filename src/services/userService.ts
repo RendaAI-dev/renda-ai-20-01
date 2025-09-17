@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@/types";
+import type { Address } from "@/services/viacepService";
 
 export const getCurrentUser = async (): Promise<User | null> => {
   try {
@@ -25,6 +26,10 @@ export const getCurrentUser = async (): Promise<User | null> => {
       email: data.email || user.email || "",
       profileImage: data.profile_image,
       phone: data.phone || "",
+      cpf: data.cpf || "",
+      birthDate: data.birth_date || "",
+      address: data.address || null,
+      cep: data.cep || "",
       achievements: [] // Return empty array since achievements tables don't exist yet
     };
   } catch (error) {
@@ -34,7 +39,15 @@ export const getCurrentUser = async (): Promise<User | null> => {
 };
 
 export const updateUserProfile = async (
-  userData: Partial<{ name: string; profileImage: string; phone: string; }>
+  userData: Partial<{ 
+    name: string; 
+    profileImage: string; 
+    phone: string; 
+    cpf: string;
+    birthDate: string;
+    address: Address;
+    cep: string;
+  }>
 ): Promise<User | null> => {
   try {
     console.log('userService: Updating user profile with data:', userData);
@@ -50,6 +63,10 @@ export const updateUserProfile = async (
     if (userData.name !== undefined) updateData.name = userData.name;
     if (userData.profileImage !== undefined) updateData.profile_image = userData.profileImage;
     if (userData.phone !== undefined) updateData.phone = userData.phone;
+    if (userData.cpf !== undefined) updateData.cpf = userData.cpf;
+    if (userData.birthDate !== undefined) updateData.birth_date = userData.birthDate;
+    if (userData.address !== undefined) updateData.address = userData.address;
+    if (userData.cep !== undefined) updateData.cep = userData.cep;
     
     console.log('userService: Updating database with mapped data:', updateData);
     
@@ -74,6 +91,10 @@ export const updateUserProfile = async (
       email: data.email || user.email || "",
       profileImage: data.profile_image,
       phone: data.phone || "",
+      cpf: data.cpf || "",
+      birthDate: data.birth_date || "",
+      address: data.address || null,
+      cep: data.cep || "",
       achievements: [] // Return empty array since achievements tables don't exist yet
     };
   } catch (error) {

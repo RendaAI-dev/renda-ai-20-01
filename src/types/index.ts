@@ -73,6 +73,10 @@ export interface User {
   email: string;
   profileImage?: string;
   phone?: string;
+  cpf?: string;
+  birthDate?: string;
+  address?: any; // Will be Address type from viacepService
+  cep?: string;
   achievements: Achievement[];
 }
 

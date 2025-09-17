@@ -7,6 +7,11 @@ import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import { getPlanTypeFromPriceId } from '@/utils/subscriptionUtils';
 import { useBrandingConfig } from '@/hooks/useBrandingConfig';
+import { CPFInput } from '@/components/common/CPFInput';
+import { CEPInput } from '@/components/common/CEPInput';
+import { AddressDisplay } from '@/components/common/AddressDisplay';
+import { DatePicker } from '@/components/ui/date-picker';
+import type { Address } from '@/services/viacepService';
 
 const RegisterPage = () => {
   const [searchParams] = useSearchParams();
@@ -18,6 +23,10 @@ const RegisterPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [birthDate, setBirthDate] = useState<Date | undefined>();
+  const [cep, setCep] = useState('');
+  const [address, setAddress] = useState<Address | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -113,6 +122,19 @@ const RegisterPage = () => {
     setWhatsapp(formattedValue);
   };
 
+  const handleAddressFound = (foundAddress: Address) => {
+    setAddress(foundAddress);
+  };
+
+  const handleAddressChange = (field: keyof Address, value: string) => {
+    if (address) {
+      setAddress({
+        ...address,
+        [field]: value
+      });
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
@@ -145,6 +167,10 @@ const RegisterPage = () => {
           data: {
             full_name: fullName,
             phone: formattedPhone,
+            cpf: cpf,
+            birth_date: birthDate?.toISOString().split('T')[0],
+            address: address,
+            cep: cep,
           },
         },
       });
@@ -341,7 +367,7 @@ const RegisterPage = () => {
           <p className="text-sm text-center text-red-600 mb-4">{error}</p>
         )}
 
-        <form id="register-form" onSubmit={handleSubmit} className="space-y-6">
+        <form id="register-form" onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="fullName">Nome Completo</Label>
             <Input
@@ -386,10 +412,42 @@ const RegisterPage = () => {
               className="mt-1"
               maxLength={16}
             />
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               Este número será utilizado para enviar mensagens e notificações importantes via WhatsApp.
             </p>
           </div>
+
+          <CPFInput
+            value={cpf}
+            onChange={setCpf}
+            required
+          />
+
+          <div className="space-y-2">
+            <Label>Data de Nascimento</Label>
+            <DatePicker
+              date={birthDate}
+              setDate={setBirthDate}
+            />
+          </div>
+
+          <CEPInput
+            value={cep}
+            onChange={setCep}
+            onAddressFound={handleAddressFound}
+            required
+          />
+
+          {address && (
+            <div className="space-y-2">
+              <Label>Endereço</Label>
+              <AddressDisplay
+                address={address}
+                onAddressChange={handleAddressChange}
+                editable={true}
+              />
+            </div>
+          )}
 
           <div>
             <Label htmlFor="password">Senha</Label>

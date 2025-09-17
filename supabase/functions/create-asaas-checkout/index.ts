@@ -167,23 +167,30 @@ serve(async (req) => {
       console.log('[ASAAS-CHECKOUT] Cliente criado:', asaasCustomer.id);
     }
 
-    // Buscar valores dos planos nas configurações
+    // Buscar valores dos planos nas configurações (corrigido para chaves corretas)
     const { data: priceSettings } = await supabase
       .from('poupeja_settings')
       .select('key, value')
       .eq('category', 'pricing')
-      .in('key', ['monthly_price', 'annual_price']);
+      .in('key', ['plan_price_monthly', 'plan_price_annual']);
+
+    const normalizePrice = (v?: string | null) => {
+      if (!v) return 0;
+      const s = String(v).replace(/\./g, '').replace(',', '.');
+      const n = parseFloat(s);
+      return isNaN(n) ? 0 : n;
+    };
 
     const priceConfig = priceSettings?.reduce((acc, setting) => {
-      acc[setting.key] = parseFloat(setting.value) || 0;
+      acc[setting.key] = normalizePrice(setting.value);
       return acc;
     }, {} as Record<string, number>) ?? {};
 
     // Valores com fallback
     const planValues = {
-      monthly: priceConfig.monthly_price || 9.99,
-      annual: priceConfig.annual_price || 99.99
-    };
+      monthly: priceConfig.plan_price_monthly || 49.9,
+      annual: priceConfig.plan_price_annual || 499.9
+    } as const;
 
     const value = planValues[planType as keyof typeof planValues];
     if (!value) {
@@ -192,70 +199,63 @@ serve(async (req) => {
 
     console.log(`[ASAAS-CHECKOUT] Valor do plano ${planType}: ${value}`);
 
-    // Criar cobrança no Asaas para pagamento via cartão de crédito
-    const paymentData = {
-      customer: asaasCustomer.id,
-      billingType: 'CREDIT_CARD',
-      value: value,
-      dueDate: new Date().toISOString().split('T')[0],
-      description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
-      externalReference: `${user.id}_${planType}_${Date.now()}`
+    // Criar Checkout do Asaas para ASSINATURA recorrente com cartão de crédito
+    const reference = `${user.id}_${planType}_${Date.now()}`;
+    const checkoutData = {
+      billingTypes: ['CREDIT_CARD'],
+      chargeTypes: ['RECURRENT'],
+      reference,
+      callback: {
+        successUrl,
+        cancelUrl,
+        expiredUrl: cancelUrl
+      },
+      customer: asaasCustomer.id, // Pré-vincular ao cliente existente
+      items: [
+        {
+          name: planType === 'monthly' ? 'Plano Mensal' : 'Plano Anual',
+          description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
+          quantity: 1,
+          value: value
+        }
+      ]
     };
 
-    const paymentResponse = await fetch(`${asaasUrl}/payments`, {
+    const checkoutResponse = await fetch(`${asaasUrl}/checkouts`, {
       method: 'POST',
       headers: {
         'access_token': apiKey,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(paymentData)
+      body: JSON.stringify(checkoutData)
     });
 
-    if (!paymentResponse.ok) {
-      const errorText = await paymentResponse.text();
-      console.error('[ASAAS-CHECKOUT] Erro ao criar cobrança:', errorText);
-      console.error('[ASAAS-CHECKOUT] Status:', paymentResponse.status);
-      console.error('[ASAAS-CHECKOUT] Dados enviados:', JSON.stringify(paymentData, null, 2));
-      
-      let errorMessage = 'Erro ao criar cobrança no Asaas';
+    if (!checkoutResponse.ok) {
+      const errorText = await checkoutResponse.text();
+      console.error('[ASAAS-CHECKOUT] Erro ao criar checkout:', errorText);
+      console.error('[ASAAS-CHECKOUT] Status:', checkoutResponse.status);
+      console.error('[ASAAS-CHECKOUT] Dados enviados:', JSON.stringify(checkoutData, null, 2));
+
+      let errorMessage = 'Erro ao criar checkout no Asaas';
       try {
         const errorObj = JSON.parse(errorText);
         if (errorObj.errors && Array.isArray(errorObj.errors)) {
           errorMessage = errorObj.errors.map((e: any) => e.description || e.message).join(', ');
         }
-      } catch (e) {
-        // Se não conseguir parsear, usar mensagem padrão
-      }
-      
+      } catch (_) {}
       throw new Error(errorMessage);
     }
 
-    const payment: AsaasPayment = await paymentResponse.json();
+    const checkout = await checkoutResponse.json();
 
-    // Salvar pagamento no banco
-    await supabase
-      .from('poupeja_asaas_payments')
-      .insert({
-        user_id: user.id,
-        asaas_payment_id: payment.id,
-        asaas_customer_id: asaasCustomer.id,
-        status: payment.status,
-        amount: value,
-        due_date: payment.dueDate,
-        method: 'CHECKOUT',
-        description: paymentData.description,
-        external_reference: paymentData.externalReference,
-        invoice_url: payment.invoiceUrl,
-        bank_slip_url: payment.bankSlipUrl
-      });
+    console.log('[ASAAS-CHECKOUT] Checkout criado:', checkout.id);
 
-    console.log('[ASAAS-CHECKOUT] Cobrança criada:', payment.id);
-
-    // Retornar URL do checkout (invoice_url do Asaas)
+    // Retornar URL do checkout hospedado pelo Asaas
     return new Response(JSON.stringify({
       success: true,
-      checkoutUrl: payment.invoiceUrl,
-      paymentId: payment.id
+      checkoutUrl: checkout.url || checkout.invoiceUrl,
+      checkoutId: checkout.id,
+      reference
     }), {
       headers: { 
         'Content-Type': 'application/json',

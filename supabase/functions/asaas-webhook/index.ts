@@ -34,22 +34,63 @@ serve(async (req) => {
       throw new Error('Dados do pagamento não encontrados no webhook');
     }
 
-    // Buscar pagamento no banco
+    // Buscar pagamento no banco (pode não existir ainda se usamos Checkout)
     const { data: existingPayment } = await supabase
       .from('poupeja_asaas_payments')
       .select('*, user_id')
       .eq('asaas_payment_id', payment.id)
-      .single();
+      .maybeSingle();
+
+    let userId = existingPayment?.user_id as string | undefined;
 
     if (!existingPayment) {
-      console.log('[ASAAS-WEBHOOK] Pagamento não encontrado no banco:', payment.id);
-      return new Response(JSON.stringify({ received: true }), {
-        headers: { 'Content-Type': 'application/json', ...corsHeaders }
-      });
+      console.log('[ASAAS-WEBHOOK] Pagamento não encontrado no banco, tentando mapear pelo customer:', payment.customer);
+
+      // Tentar descobrir o usuário pelo asaas_customer_id
+      const { data: asaasCustomerRow } = await supabase
+        .from('poupeja_asaas_customers')
+        .select('user_id')
+        .eq('asaas_customer_id', payment.customer)
+        .maybeSingle();
+
+      if (!asaasCustomerRow?.user_id) {
+        console.warn('[ASAAS-WEBHOOK] Não foi possível mapear o usuário pelo customer. Ignorando evento.', { paymentId: payment.id });
+        return new Response(JSON.stringify({ received: true }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      userId = asaasCustomerRow.user_id;
+
+      // Inserir pagamento agora que temos o userId
+      const paymentRow = {
+        user_id: userId,
+        asaas_payment_id: payment.id,
+        asaas_customer_id: payment.customer,
+        status: payment.status,
+        amount: payment.value,
+        due_date: payment.dueDate,
+        method: 'CHECKOUT',
+        description: payment.description || null,
+        external_reference: payment.externalReference || null,
+        invoice_url: payment.invoiceUrl || null,
+        bank_slip_url: payment.bankSlipUrl || null
+      };
+
+      const { data: inserted } = await supabase
+        .from('poupeja_asaas_payments')
+        .insert(paymentRow)
+        .select('*')
+        .single();
+
+      console.log('[ASAAS-WEBHOOK] Pagamento inserido a partir do webhook:', payment.id);
+
+      // Prosseguir usando o registro recém-criado
+      return await processPaymentEvent(supabase, userId, payment, inserted, event);
     }
 
-    const userId = existingPayment.user_id;
-    console.log('[ASAAS-WEBHOOK] Processando para usuário:', userId);
+    // Prosseguir processamento normal quando já existe
+    return await processPaymentEvent(supabase, userId!, payment, existingPayment, event);
 
     // Mapear status do Asaas para status da aplicação
     const statusMapping = {
@@ -105,11 +146,81 @@ serve(async (req) => {
   }
 });
 
+async function processPaymentEvent(supabase: any, userId: string, payment: any, existingPayment: any, event: string) {
+  // Mapear status do Asaas para status da aplicação
+  const statusMapping: Record<string, string> = {
+    'PENDING': 'pending',
+    'RECEIVED': 'active', 
+    'CONFIRMED': 'active',
+    'OVERDUE': 'past_due',
+    'REFUNDED': 'cancelled',
+    'RECEIVED_IN_CASH': 'active',
+    'AWAITING_RISK_ANALYSIS': 'pending'
+  };
+
+  const newStatus = statusMapping[payment.status] || 'pending';
+
+  // Atualizar pagamento
+  await supabase
+    .from('poupeja_asaas_payments')
+    .update({
+      status: payment.status,
+      payment_date: payment.paymentDate || null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('asaas_payment_id', payment.id);
+
+  // Processar mudanças na assinatura baseado no evento
+  if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
+    await handlePaymentSuccess(supabase, userId, payment, existingPayment);
+  } else if (event === 'PAYMENT_OVERDUE') {
+    await handlePaymentOverdue(supabase, userId, payment);
+  } else if (event === 'PAYMENT_DELETED' || event === 'PAYMENT_REFUNDED') {
+    await handlePaymentCancelled(supabase, userId);
+  }
+
+  console.log('[ASAAS-WEBHOOK] Webhook processado com sucesso');
+
+  return new Response(JSON.stringify({
+    received: true,
+    event,
+    status: newStatus
+  }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+}
+
 async function handlePaymentSuccess(supabase: any, userId: string, payment: any, existingPayment: any) {
   console.log('[ASAAS-WEBHOOK] Processando pagamento recebido para usuário:', userId);
 
   // Determinar tipo de plano baseado na referência externa ou valor
-  const planType = existingPayment.external_reference?.includes('annual') ? 'annual' : 'monthly';
+  let planType: 'monthly' | 'annual' = 'monthly';
+  const ref = existingPayment.external_reference || payment.externalReference || '';
+  if (ref.includes('annual')) planType = 'annual';
+  else if (ref.includes('monthly')) planType = 'monthly';
+  else {
+    // Fallback: comparar valores com configurações públicas
+    const { data: priceSettings } = await supabase
+      .from('poupeja_settings')
+      .select('key, value')
+      .eq('category', 'pricing')
+      .in('key', ['plan_price_monthly', 'plan_price_annual']);
+
+    const normalize = (v?: string | null) => {
+      if (!v) return 0;
+      const s = String(v).replace(/\./g, '').replace(',', '.');
+      const n = parseFloat(s);
+      return isNaN(n) ? 0 : n;
+    };
+
+    const monthly = normalize(priceSettings?.find((s: any) => s.key === 'plan_price_monthly')?.value);
+    const annual = normalize(priceSettings?.find((s: any) => s.key === 'plan_price_annual')?.value);
+
+    const diffMonthly = Math.abs((payment.value ?? 0) - monthly);
+    const diffAnnual = Math.abs((payment.value ?? 0) - annual);
+    planType = diffAnnual < diffMonthly ? 'annual' : 'monthly';
+  }
+
   const periodDays = planType === 'annual' ? 365 : 30;
 
   const now = new Date();
@@ -121,7 +232,7 @@ async function handlePaymentSuccess(supabase: any, userId: string, payment: any,
     .from('poupeja_subscriptions')
     .select('*')
     .eq('user_id', userId)
-    .single();
+    .maybeSingle();
 
   const subscriptionData = {
     user_id: userId,

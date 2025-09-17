@@ -150,45 +150,36 @@ export const useNewPlanConfig = (): PlanConfigResponse => {
           };
         }
 
-        // Agrupar planos por família (mesmo nome base)
-        const planFamilies = new Map<string, any>();
-        
-        plansData.plans.forEach((plan: any) => {
-          const familyKey = plan.name;
-          
-          if (!planFamilies.has(familyKey)) {
-            planFamilies.set(familyKey, {
-              id: plan.id,
-              name: plan.name,
-              slug: plan.slug,
-              description: plan.description,
-              features: plan.features || [],
-              limitations: plan.limitations || [],
-              is_popular: plan.is_popular || false,
-              trial_days: plan.trial_days || 0,
-              max_users: plan.max_users,
-              metadata: plan.metadata || {},
-              pricing: {}
-            });
+        // Create individual plan families for each active plan
+        const plans = plansData.plans.map((plan: any) => ({
+          id: plan.id,
+          name: plan.name,
+          slug: plan.slug,
+          description: plan.description,
+          features: plan.features || [],
+          limitations: plan.limitations || [],
+          is_popular: plan.is_popular || false,
+          trial_days: plan.trial_days || 0,
+          max_users: plan.max_users,
+          metadata: plan.metadata || {},
+          pricing: {
+            [plan.plan_period]: {
+              amount: plan.price,
+              display: plan.display,
+              originalPrice: plan.originalDisplay,
+              discount: plan.discount > 0 ? `${plan.discount}%` : undefined,
+              savings: plan.savings,
+              priceId: plan.stripe_price_id
+            }
           }
-          
-          const family = planFamilies.get(familyKey);
-          family.pricing[plan.plan_period] = {
-            amount: plan.price,
-            display: plan.display,
-            originalPrice: plan.originalDisplay,
-            discount: plan.discount > 0 ? `${plan.discount}%` : undefined,
-            savings: plan.savings,
-            priceId: plan.stripe_price_id
-          };
-        });
+        }));
 
         const contactPhone = publicData?.success && publicData?.settings?.contact_phone?.value 
           ? publicData.settings.contact_phone.value 
           : '';
 
         return {
-          plans: Array.from(planFamilies.values()),
+          plans,
           contact: { phone: contactPhone }
         };
       };

@@ -3,7 +3,7 @@ import React from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Palette, CreditCard, DollarSign, Phone, Database, Code, Package } from 'lucide-react';
 import BrandingConfigManager from './BrandingConfigManager';
-import StripeConfigManager from './StripeConfigManager';
+import AsaasConfigManager from './AsaasConfigManager';
 import PlanPricingManager from './PlanPricingManager';
 import EnhancedPlanManager from './EnhancedPlanManager';
 import ContactConfigManager from './ContactConfigManager';
@@ -22,9 +22,9 @@ const AdminSectionTabs: React.FC = () => {
           <Palette className="h-4 w-4" />
           Branding
         </TabsTrigger>
-        <TabsTrigger value="stripe" className="flex items-center gap-2">
+        <TabsTrigger value="asaas" className="flex items-center gap-2">
           <CreditCard className="h-4 w-4" />
-          Stripe
+          Asaas
         </TabsTrigger>
         <TabsTrigger value="plans" className="flex items-center gap-2">
           <Package className="h-4 w-4" />
@@ -52,8 +52,8 @@ const AdminSectionTabs: React.FC = () => {
         <BrandingConfigManager />
       </TabsContent>
 
-      <TabsContent value="stripe" className="mt-6">
-        <StripeConfigManager />
+      <TabsContent value="asaas" className="mt-6">
+        <AsaasConfigManager />
       </TabsContent>
 
       <TabsContent value="plans" className="mt-6">

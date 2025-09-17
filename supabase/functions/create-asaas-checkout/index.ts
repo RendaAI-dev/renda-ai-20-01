@@ -192,9 +192,10 @@ serve(async (req) => {
 
     console.log(`[ASAAS-CHECKOUT] Valor do plano ${planType}: ${value}`);
 
-    // Criar cobrança no Asaas (sem dados de cartão - será preenchido na página de checkout)
+    // Criar cobrança no Asaas para pagamento via cartão de crédito
     const paymentData = {
       customer: asaasCustomer.id,
+      billingType: 'CREDIT_CARD',
       value: value,
       dueDate: new Date().toISOString().split('T')[0],
       description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,

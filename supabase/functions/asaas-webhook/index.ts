@@ -164,8 +164,13 @@ async function processPaymentEvent(supabase: any, userId: string, payment: any, 
   }
 
   // Processar mudanças na assinatura baseado no evento
-  if (event === 'PAYMENT_RECEIVED_IN_CASH') {
-    console.log('[ASAAS-WEBHOOK] 💰 PAGAMENTO RECEBIDO EM DINHEIRO! Processando ativação da assinatura...');
+  if (event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') {
+    console.log('[ASAAS-WEBHOOK] 🎉 PAGAMENTO CONFIRMADO VIA CARTÃO! Processando ativação da assinatura...');
+    console.log('[ASAAS-WEBHOOK] Evento:', event, '| Status do pagamento:', payment.status);
+    await handlePaymentSuccess(supabase, userId, payment, existingPayment);
+  } else if (event === 'PAYMENT_UPDATED' && (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED')) {
+    console.log('[ASAAS-WEBHOOK] 🔄 PAYMENT_UPDATED com status confirmado! Processando ativação...');
+    console.log('[ASAAS-WEBHOOK] Status atualizado para:', payment.status);
     await handlePaymentSuccess(supabase, userId, payment, existingPayment);
   } else if (event === 'PAYMENT_OVERDUE') {
     console.log('[ASAAS-WEBHOOK] ⚠️ Pagamento em atraso, processando...');

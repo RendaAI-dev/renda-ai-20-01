@@ -167,44 +167,62 @@ serve(async (req) => {
       console.log('[ASAAS-CHECKOUT] Cliente criado:', asaasCustomer.id);
     }
 
-    // Buscar valores dos planos na tabela de planos gerenciados
-    const { data: monthlyPlan } = await supabase
+    // Buscar preços e dados dos planos
+    const { data: planPrices, error: planError } = await supabase
       .from('poupeja_plans')
-      .select('price')
-      .eq('plan_period', 'monthly')
-      .eq('is_active', true)
-      .single();
+      .select('plan_period, price, name, description')
+      .eq('is_active', true);
 
-    const { data: annualPlan } = await supabase
-      .from('poupeja_plans')
-      .select('price')
-      .eq('plan_period', 'annual')
-      .eq('is_active', true)
-      .single();
+    if (planError) {
+      console.error('[ASAAS-CHECKOUT] Erro ao buscar preços dos planos:', planError);
+      throw new Error('Erro ao obter configuração de preços');
+    }
 
-    console.log('[ASAAS-CHECKOUT] Planos encontrados:', {
-      monthly: monthlyPlan?.price,
-      annual: annualPlan?.price
-    });
+    if (!planPrices || planPrices.length === 0) {
+      console.error('[ASAAS-CHECKOUT] Nenhum plano ativo encontrado');
+      throw new Error('Nenhum plano disponível');
+    }
 
-    // Valores dos planos com fallback
-    const planValues = {
-      monthly: monthlyPlan?.price || 49.90,
-      annual: annualPlan?.price || 538.90
-    } as const;
+    console.log('[ASAAS-CHECKOUT] Planos encontrados:', 
+      planPrices.reduce((acc, plan) => {
+        acc[plan.plan_period] = plan.price;
+        return acc;
+      }, {} as Record<string, number>)
+    );
 
-    const value = planValues[planType as keyof typeof planValues];
-    if (!value) {
+    // Mapear planos
+    const monthlyPlan = planPrices.find(p => p.plan_period === 'monthly');
+    const annualPlan = planPrices.find(p => p.plan_period === 'annual');
+
+    let value: number;
+    let planName: string;
+    let planDescription: string;
+    
+    if (planType === 'monthly') {
+      if (!monthlyPlan) throw new Error('Plano mensal não encontrado');
+      value = parseFloat(monthlyPlan.price.toFixed(2));
+      planName = monthlyPlan.name || 'Plano Premium Mensal';
+      planDescription = monthlyPlan.description || 'Assinatura Mensal - Renda AI';
+    } else if (planType === 'annual') {
+      if (!annualPlan) throw new Error('Plano anual não encontrado');
+      value = parseFloat(annualPlan.price.toFixed(2));
+      planName = annualPlan.name || 'Plano Premium Anual';  
+      planDescription = annualPlan.description || 'Assinatura Anual - Renda AI';
+    } else {
       throw new Error('Tipo de plano inválido');
     }
 
-    console.log(`[ASAAS-CHECKOUT] Valor do plano ${planType}: R$ ${value}`);
+    // Validar preço
+    if (isNaN(value) || value <= 0) {
+      console.error(`[ASAAS-CHECKOUT] Preço inválido para plano ${planType}:`, value, `(tipo: ${typeof value})`);
+      throw new Error('Preço do plano inválido');
+    }
+
+    console.log(`[ASAAS-CHECKOUT] Valor do plano ${planType}: R$ ${value} (tipo: ${typeof value})`);
 
     // Criar Checkout do Asaas para ASSINATURA recorrente com cartão de crédito
     const reference = `${user.id}_${planType}_${Date.now()}`;
-    const cycle = planType === 'monthly' ? 'MONTHLY' : 'ANNUALLY';
-    const planName = planType === 'monthly' ? 'Plano Premium Mensal' : 'Plano Premium Anual';
-    const planDescription = planType === 'monthly' ? 'Assinatura Mensal - Renda AI' : 'Assinatura Anual - Renda AI';
+    const cycle = planType === 'monthly' ? 'MONTHLY' : 'YEARLY';
 
     const checkoutData = {
       billingTypes: ['CREDIT_CARD'],
@@ -244,18 +262,25 @@ serve(async (req) => {
 
     if (!checkoutResponse.ok) {
       const errorText = await checkoutResponse.text();
-      console.error('[ASAAS-CHECKOUT] Erro ao criar checkout:', errorText);
       console.error('[ASAAS-CHECKOUT] Status:', checkoutResponse.status);
       console.error('[ASAAS-CHECKOUT] Dados enviados:', JSON.stringify(checkoutData, null, 2));
 
       let errorMessage = 'Erro ao criar checkout no Asaas';
       try {
         const errorObj = JSON.parse(errorText);
-        console.error('[ASAAS-CHECKOUT] Resposta de erro completa do Asaas:', errorObj);
+        console.error('[ASAAS-CHECKOUT] Resposta de erro completa do Asaas:', JSON.stringify(errorObj, null, 2));
         if (errorObj.errors && Array.isArray(errorObj.errors)) {
-          errorMessage = errorObj.errors.map((e: any) => e.description || e.message).join(', ');
+          const descriptions = errorObj.errors.map((e: any) => e.description || e.message).filter(Boolean);
+          if (descriptions.length > 0) {
+            errorMessage = descriptions.join(', ');
+            console.error('[ASAAS-CHECKOUT] Erro:', descriptions.join(', '));
+          }
         }
-      } catch (_) {}
+      } catch (parseError) {
+        console.error('[ASAAS-CHECKOUT] Erro ao fazer parse da resposta:', parseError);
+        console.error('[ASAAS-CHECKOUT] Resposta raw:', errorText);
+      }
+      
       throw new Error(errorMessage);
     }
 

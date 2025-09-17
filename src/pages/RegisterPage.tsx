@@ -41,6 +41,7 @@ const RegisterPage = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const priceId = searchParams.get('priceId');
+  const planType = searchParams.get('planType');
 
   // Função para aguardar uma sessão válida ser estabelecida
   const waitForValidSession = async (maxRetries = 20, retryDelay = 1500): Promise<any> => {
@@ -156,8 +157,8 @@ const RegisterPage = () => {
       formElement.classList.add('form-loading');
     }
   
-    if (!priceId) {
-      setError("Price ID não encontrado na URL. Por favor, selecione um plano.");
+    if (!priceId && !planType) {
+      setError("Plano não encontrado na URL. Por favor, selecione um plano.");
       setIsLoading(false);
       formElement?.classList.remove('form-loading');
       navigate('/plans');
@@ -259,10 +260,13 @@ const RegisterPage = () => {
 
       console.log('Sessão estabelecida com sucesso, preparando checkout...');
       
-      // Converter priceId para planType
-      const planType = await getPlanTypeFromPriceId(priceId);
+      // Usar planType da URL ou converter priceId para planType
+      let finalPlanType = planType;
+      if (!finalPlanType && priceId) {
+        finalPlanType = await getPlanTypeFromPriceId(priceId);
+      }
       
-      if (!planType) {
+      if (!finalPlanType) {
         throw new Error("Tipo de plano inválido. Verifique as configurações.");
       }
       
@@ -272,11 +276,11 @@ const RegisterPage = () => {
         description: "Preparando checkout...",
       });
       
-      // Chamar a Supabase Function para criar a sessão de checkout do Stripe
-      console.log('Chamando create-checkout-session com sessão válida...');
-      const { data: functionData, error: functionError } = await supabase.functions.invoke('create-checkout-session', {
+      // Chamar a Supabase Function para criar a sessão de checkout do Asaas
+      console.log('Chamando create-asaas-checkout com sessão válida...');
+      const { data: functionData, error: functionError } = await supabase.functions.invoke('create-asaas-checkout', {
         body: { 
-          planType,
+          planType: finalPlanType,
           successUrl: `${window.location.origin}/payment-success?email=${encodeURIComponent(validSession.user.email || '')}`,
           cancelUrl: `${window.location.origin}/register?canceled=true`
         },
@@ -290,17 +294,17 @@ const RegisterPage = () => {
         throw new Error(`Erro no checkout: ${functionError.message}`);
       }
 
-      console.log('Dados retornados pela função create-checkout-session:', functionData);
+      console.log('Dados retornados pela função create-asaas-checkout:', functionData);
 
-      if (functionData && functionData.url) {
-        console.log('Redirecionando para:', functionData.url);
+      if (functionData && functionData.checkoutUrl) {
+        console.log('Redirecionando para:', functionData.checkoutUrl);
         
         // Garantir que o overlay de carregamento permaneça visível
         document.body.classList.add('overflow-hidden');
         
         // Adicionar um pequeno atraso antes do redirecionamento para garantir que o overlay seja exibido
         setTimeout(() => {
-          window.location.href = functionData.url;
+          window.location.href = functionData.checkoutUrl;
         }, 500);
         
         return;

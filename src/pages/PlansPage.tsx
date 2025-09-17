@@ -94,7 +94,6 @@ const PlansPage = () => {
               name={plan.name}
               price={plan.price}
               period={plan.period}
-              priceId={plan.priceId}
               originalPrice={plan.originalPrice}
               savings={plan.savings}
               description={plan.description}

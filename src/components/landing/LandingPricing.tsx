@@ -8,7 +8,7 @@ const LandingPricing = () => {
   const { config, isLoading, error } = useNewPlanConfig();
 
   const handleSelectPlan = (planId: string, priceId: string, period: string = 'monthly') => {
-    window.location.href = `/register?priceId=${priceId}&planType=${period}&planSlug=${planId}`;
+    window.location.href = `/register?planType=${period}&planSlug=${planId}`;
   };
 
   // Sempre mostrar o conteúdo, mesmo durante loading

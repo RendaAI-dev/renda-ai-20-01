@@ -14,7 +14,6 @@ interface PlanCardProps {
   name: string;
   price: string;
   period: string;
-  priceId: string;
   originalPrice?: string;
   savings?: string;
   description: string;
@@ -27,7 +26,6 @@ const PlanCard: React.FC<PlanCardProps> = ({
   name,
   price,
   period,
-  priceId,
   originalPrice,
   savings,
   description,
@@ -75,8 +73,8 @@ const PlanCard: React.FC<PlanCardProps> = ({
           description: "Você precisa estar logado para fazer uma assinatura.",
           variant: "destructive",
         });
-        // Redirecionar para página de registro com o priceId
-        navigate(`/register?priceId=${priceId}`);
+        // Redirecionar para página de registro com o planType
+        navigate(`/register?planType=${planType}`);
         return;
       }
 
@@ -95,10 +93,9 @@ const PlanCard: React.FC<PlanCardProps> = ({
       console.log('Token disponível:', !!session.access_token);
 
       // Invocar a função com o token explícito
-      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+      const { data, error } = await supabase.functions.invoke('create-asaas-checkout', {
         body: { 
           planType,
-          priceId,
           successUrl: `${window.location.origin}/payment-success?email=${encodeURIComponent(session.user.email)}`,
           cancelUrl: `${window.location.origin}/plans?canceled=true`
         },
@@ -125,17 +122,17 @@ const PlanCard: React.FC<PlanCardProps> = ({
         
         toast({
           title: "Erro no checkout",
-          description: `Erro: ${error.message}. Verifique se suas chaves do Stripe estão configuradas.`,
+          description: `Erro: ${error.message}. Verifique se suas chaves do Asaas estão configuradas.`,
           variant: "destructive",
         });
         return;
       }
 
-      if (data?.url) {
-        console.log('Redirecting to Stripe checkout:', data.url);
+      if (data?.checkoutUrl) {
+        console.log('Redirecting to Asaas checkout:', data.checkoutUrl);
         
-        // Redirecionar para Stripe na mesma aba
-        window.location.href = data.url;
+        // Redirecionar para Asaas na mesma aba
+        window.location.href = data.checkoutUrl;
       } else {
         throw new Error('URL de checkout não retornada');
       }
@@ -143,7 +140,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
       console.error('Checkout error:', error);
       toast({
         title: "Erro no checkout",
-        description: "Algo deu errado. Verifique suas configurações do Stripe.",
+        description: "Algo deu errado. Verifique suas configurações do Asaas.",
         variant: "destructive",
       });
     } finally {

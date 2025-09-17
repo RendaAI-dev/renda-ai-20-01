@@ -15,6 +15,7 @@ interface ViaCEPResponse {
 export interface Address {
   cep: string;
   street: string;
+  number: string;
   complement: string;
   neighborhood: string;
   city: string;
@@ -50,6 +51,7 @@ class ViaCEPService {
       return {
         cep: data.cep,
         street: data.logradouro,
+        number: '', // Empty as ViaCEP doesn't provide house number
         complement: data.complemento,
         neighborhood: data.bairro,
         city: data.localidade,

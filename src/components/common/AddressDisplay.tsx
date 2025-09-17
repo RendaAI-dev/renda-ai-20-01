@@ -13,6 +13,7 @@ export function AddressDisplay({ address, onAddressChange, editable = true }: Ad
   const currentAddress = address || {
     cep: '',
     street: '',
+    number: '',
     complement: '',
     neighborhood: '',
     city: '',
@@ -29,8 +30,8 @@ export function AddressDisplay({ address, onAddressChange, editable = true }: Ad
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="space-y-2 md:col-span-2">
           <Label htmlFor="street">Logradouro</Label>
           <Input
             id="street"
@@ -41,6 +42,20 @@ export function AddressDisplay({ address, onAddressChange, editable = true }: Ad
         </div>
         
         <div className="space-y-2">
+          <Label htmlFor="number">Número</Label>
+          <Input
+            id="number"
+            value={currentAddress.number}
+            onChange={(e) => handleFieldChange('number', e.target.value)}
+            placeholder="123"
+            disabled={!editable}
+            required
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
           <Label htmlFor="complement">Complemento</Label>
           <Input
             id="complement"
@@ -50,9 +65,7 @@ export function AddressDisplay({ address, onAddressChange, editable = true }: Ad
             disabled={!editable}
           />
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
         <div className="space-y-2">
           <Label htmlFor="neighborhood">Bairro</Label>
           <Input
@@ -62,7 +75,9 @@ export function AddressDisplay({ address, onAddressChange, editable = true }: Ad
             disabled={!editable}
           />
         </div>
-        
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="city">Cidade</Label>
           <Input
@@ -72,9 +87,7 @@ export function AddressDisplay({ address, onAddressChange, editable = true }: Ad
             disabled={!editable}
           />
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
         <div className="space-y-2">
           <Label htmlFor="state">Estado</Label>
           <Input
@@ -86,6 +99,7 @@ export function AddressDisplay({ address, onAddressChange, editable = true }: Ad
           />
         </div>
       </div>
+
     </div>
   );
 }

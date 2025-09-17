@@ -29,6 +29,7 @@ const RegisterPage = () => {
   const [address, setAddress] = useState<Address | null>({
     cep: '',
     street: '',
+    number: '',
     complement: '',
     neighborhood: '',
     city: '',

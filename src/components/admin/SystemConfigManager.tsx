@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, AlertTriangle, Database, CheckCircle, Server } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
-import { PaymentSyncButton } from './PaymentSyncButton';
 
 const SystemConfigManager: React.FC = () => {
   const { toast } = useToast();
@@ -51,19 +50,6 @@ const SystemConfigManager: React.FC = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Ações de Administração */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-800 text-sm font-medium">Sincronização de Pagamentos</p>
-              <p className="text-gray-700 text-xs">
-                Verificar e atualizar status de pagamentos pendentes via API do Asaas
-              </p>
-            </div>
-            <PaymentSyncButton />
-          </div>
-        </div>
-
         {/* Status de Conexão com o Banco */}
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <div className="flex items-center gap-2">

@@ -167,10 +167,22 @@ serve(async (req) => {
       console.log('[ASAAS-CHECKOUT] Cliente criado:', asaasCustomer.id);
     }
 
-    // Definir valor baseado no plano
+    // Buscar valores dos planos nas configurações
+    const { data: priceSettings } = await supabase
+      .from('poupeja_settings')
+      .select('key, value')
+      .eq('category', 'pricing')
+      .in('key', ['monthly_price', 'annual_price']);
+
+    const priceConfig = priceSettings?.reduce((acc, setting) => {
+      acc[setting.key] = parseFloat(setting.value) || 0;
+      return acc;
+    }, {} as Record<string, number>) ?? {};
+
+    // Valores com fallback
     const planValues = {
-      monthly: 9.99,
-      annual: 99.99
+      monthly: priceConfig.monthly_price || 9.99,
+      annual: priceConfig.annual_price || 99.99
     };
 
     const value = planValues[planType as keyof typeof planValues];
@@ -178,29 +190,15 @@ serve(async (req) => {
       throw new Error('Tipo de plano inválido');
     }
 
-    // Criar cobrança no Asaas
+    console.log(`[ASAAS-CHECKOUT] Valor do plano ${planType}: ${value}`);
+
+    // Criar cobrança no Asaas (sem dados de cartão - será preenchido na página de checkout)
     const paymentData = {
       customer: asaasCustomer.id,
-      billingType: 'CREDIT_CARD',
       value: value,
       dueDate: new Date().toISOString().split('T')[0],
       description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
-      externalReference: `${user.id}_${planType}_${Date.now()}`,
-      creditCard: {
-        holderName: userData.name || 'Cliente',
-        number: '',
-        expiryMonth: '',
-        expiryYear: '',
-        ccv: ''
-      },
-      creditCardHolderInfo: {
-        name: userData.name || 'Cliente',
-        email: userData.email,
-        cpfCnpj: userData.cpf?.replace(/\D/g, ''),
-        postalCode: userData.cep?.replace(/\D/g, ''),
-        addressNumber: userData.number,
-        phone: userData.phone?.replace(/\D/g, '')
-      }
+      externalReference: `${user.id}_${planType}_${Date.now()}`
     };
 
     const paymentResponse = await fetch(`${asaasUrl}/payments`, {
@@ -213,9 +211,22 @@ serve(async (req) => {
     });
 
     if (!paymentResponse.ok) {
-      const error = await paymentResponse.text();
-      console.error('[ASAAS-CHECKOUT] Erro ao criar cobrança:', error);
-      throw new Error('Erro ao criar cobrança no Asaas');
+      const errorText = await paymentResponse.text();
+      console.error('[ASAAS-CHECKOUT] Erro ao criar cobrança:', errorText);
+      console.error('[ASAAS-CHECKOUT] Status:', paymentResponse.status);
+      console.error('[ASAAS-CHECKOUT] Dados enviados:', JSON.stringify(paymentData, null, 2));
+      
+      let errorMessage = 'Erro ao criar cobrança no Asaas';
+      try {
+        const errorObj = JSON.parse(errorText);
+        if (errorObj.errors && Array.isArray(errorObj.errors)) {
+          errorMessage = errorObj.errors.map((e: any) => e.description || e.message).join(', ');
+        }
+      } catch (e) {
+        // Se não conseguir parsear, usar mensagem padrão
+      }
+      
+      throw new Error(errorMessage);
     }
 
     const payment: AsaasPayment = await paymentResponse.json();
@@ -230,7 +241,7 @@ serve(async (req) => {
         status: payment.status,
         amount: value,
         due_date: payment.dueDate,
-        method: 'CREDIT_CARD',
+        method: 'CHECKOUT',
         description: paymentData.description,
         external_reference: paymentData.externalReference,
         invoice_url: payment.invoiceUrl,

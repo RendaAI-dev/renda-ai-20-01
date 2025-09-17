@@ -56,6 +56,9 @@ const CheckoutPage = () => {
           planType,
           successUrl: `${window.location.origin}/payment-success?email=${encodeURIComponent(user.email || '')}`,
           cancelUrl: `${window.location.origin}/checkout?canceled=true`
+        },
+        headers: {
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
         }
       });
 
@@ -63,7 +66,7 @@ const CheckoutPage = () => {
         console.error('Error creating Asaas checkout:', error);
         toast({
           title: "Erro no checkout",
-          description: `Erro: ${error.message}. Verifique se suas chaves do Asaas estão configuradas.`,
+          description: `${error.message}`,
           variant: "destructive",
         });
         return;

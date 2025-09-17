@@ -465,13 +465,13 @@ async function handleCheckoutEvent(supabase: any, event: string, webhookData: an
         const paymentsResult = await fetchCheckoutPayments(supabase, checkout.id);
         
         if (!paymentsResult.success || !paymentsResult.payments?.length) {
-          console.error('[ASAAS-WEBHOOK] ❌ Nenhum pagamento encontrado para o checkout:', checkout.id);
+          console.log('[ASAAS-WEBHOOK] ⏳ Aguardando pagamentos para o checkout:', checkout.id);
           return new Response(JSON.stringify({
             received: true,
-            error: 'No payments found for checkout',
+            message: 'Checkout paid event received, awaiting payment data',
             checkout_id: checkout.id
           }), {
-            status: 404,
+            status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
           });
         }
@@ -635,8 +635,8 @@ async function fetchCheckoutPayments(supabase: any, checkoutId: string) {
     }
 
     const baseUrl = environment === 'production' 
-      ? 'https://api.asaas.com'
-      : 'https://sandbox.asaas.com';
+      ? 'https://api.asaas.com/api'
+      : 'https://sandbox.asaas.com/api';
 
     // Buscar pagamentos do checkout via API do Asaas
     const response = await fetch(`${baseUrl}/v3/payments?checkout=${checkoutId}`, {
@@ -648,10 +648,21 @@ async function fetchCheckoutPayments(supabase: any, checkoutId: string) {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[ASAAS-WEBHOOK] ❌ Erro da API Asaas:', response.status, response.statusText);
+      console.error('[ASAAS-WEBHOOK] ❌ Resposta de erro:', errorText);
       throw new Error(`Erro da API Asaas: ${response.status} - ${response.statusText}`);
     }
 
-    const result = await response.json();
+    let result;
+    try {
+      result = await response.json();
+    } catch (parseError) {
+      const responseText = await response.text();
+      console.error('[ASAAS-WEBHOOK] ❌ Erro ao fazer parse do JSON:', parseError);
+      console.error('[ASAAS-WEBHOOK] ❌ Resposta recebida:', responseText);
+      throw new Error(`Erro ao fazer parse da resposta: ${parseError.message}`);
+    }
     console.log('[ASAAS-WEBHOOK] 📊 Resposta da API Asaas:', JSON.stringify(result, null, 2));
 
     return {

@@ -309,10 +309,14 @@ serve(async (req) => {
 
     // Sempre construir URL correta (ignorar URLs potencialmente incorretas do Asaas)
     const asaasEnv = Deno.env.get('ASAAS_ENVIRONMENT') || 'sandbox';
+    console.log(`[ASAAS-CHECKOUT] Environment: ${asaasEnv}, Checkout ID: ${checkout.id}`);
+    
     const baseUrl = asaasEnv === 'production' 
       ? 'https://www.asaas.com/checkoutSession/show' 
       : 'https://sandbox.asaas.com/checkoutSession/show';
     const checkoutUrl = `${baseUrl}/${checkout.id}`;
+    
+    console.log(`[ASAAS-CHECKOUT] URL final construída: ${checkoutUrl}`);
 
     // Retornar URL do checkout hospedado pelo Asaas
     return new Response(JSON.stringify({

@@ -28,9 +28,9 @@ serve(async (req) => {
     const webhookData = await req.json();
     console.log('[ASAAS-WEBHOOK] Evento recebido:', webhookData.event);
 
-    const { event, payment } = webhookData;
+    const { event, payment, subscription } = webhookData;
     
-    // Eventos de CHECKOUT_* geralmente não têm dados de pagamento
+    // Eventos de CHECKOUT_* e SUBSCRIPTION_* geralmente não têm dados de pagamento
     if (!payment || !payment.id) {
       if (event && event.startsWith('CHECKOUT_')) {
         console.log('[ASAAS-WEBHOOK] Evento de checkout recebido sem dados de pagamento (normal):', event);
@@ -43,7 +43,21 @@ serve(async (req) => {
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
-      throw new Error('Dados do pagamento não encontrados no webhook');
+      
+      if (event && event.startsWith('SUBSCRIPTION_')) {
+        console.log('[ASAAS-WEBHOOK] Evento de subscription recebido:', event);
+        return await handleSubscriptionEvent(supabase, event, subscription);
+      }
+      
+      console.log('[ASAAS-WEBHOOK] Evento sem dados de pagamento:', event);
+      return new Response(JSON.stringify({
+        received: true,
+        ignored: true,
+        reason: 'event_without_payment'
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
     }
 
     // Buscar pagamento no banco (pode não existir ainda se usamos Checkout)
@@ -313,4 +327,123 @@ async function handlePaymentCancelled(supabase: any, userId: string) {
     .eq('user_id', userId);
 
   console.log('[ASAAS-WEBHOOK] Assinatura cancelada para usuário:', userId);
+}
+
+async function handleSubscriptionEvent(supabase: any, event: string, subscription: any) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, asaas-access-token',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+  };
+  
+  console.log('[ASAAS-WEBHOOK] Processando evento de subscription:', event, 'ID:', subscription?.id);
+  
+  if (!subscription?.id || !subscription?.customer) {
+    console.log('[ASAAS-WEBHOOK] Dados de subscription incompletos, ignorando');
+    return new Response(JSON.stringify({
+      received: true,
+      ignored: true,
+      reason: 'incomplete_subscription_data'
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+
+  // Mapear customer para user_id
+  const { data: asaasCustomerRow } = await supabase
+    .from('poupeja_asaas_customers')
+    .select('user_id')
+    .eq('asaas_customer_id', subscription.customer)
+    .maybeSingle();
+
+  if (!asaasCustomerRow?.user_id) {
+    console.log('[ASAAS-WEBHOOK] Customer não encontrado:', subscription.customer);
+    return new Response(JSON.stringify({
+      received: true,
+      ignored: true,
+      reason: 'customer_not_found'
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+
+  const userId = asaasCustomerRow.user_id;
+  console.log('[ASAAS-WEBHOOK] Subscription mapeada para usuário:', userId);
+
+  // Mapear eventos para status
+  let status = 'pending';
+  let cancelAtPeriodEnd = false;
+
+  switch (event) {
+    case 'SUBSCRIPTION_CREATED':
+      status = 'pending';
+      break;
+    case 'SUBSCRIPTION_ACTIVATED':
+    case 'SUBSCRIPTION_ENABLED':
+      status = 'active';
+      break;
+    case 'SUBSCRIPTION_UPDATED':
+      status = 'active'; // Manter ativo se já estava
+      break;
+    case 'SUBSCRIPTION_DELETED':
+    case 'SUBSCRIPTION_CANCELLED':
+      status = 'cancelled';
+      cancelAtPeriodEnd = true;
+      break;
+    default:
+      console.log('[ASAAS-WEBHOOK] Evento de subscription não tratado:', event);
+      status = 'pending';
+  }
+
+  // Inferir plan_type do cycle ou value
+  let planType: 'monthly' | 'annual' = 'monthly';
+  if (subscription.cycle) {
+    planType = subscription.cycle === 'YEARLY' ? 'annual' : 'monthly';
+  } else if (subscription.value) {
+    // Fallback: comparar com preços conhecidos
+    const value = parseFloat(subscription.value);
+    planType = value > 100 ? 'annual' : 'monthly'; // Heurística simples
+  }
+
+  const subscriptionData = {
+    user_id: userId,
+    asaas_subscription_id: subscription.id,
+    asaas_customer_id: subscription.customer,
+    status,
+    plan_type: planType,
+    cancel_at_period_end: cancelAtPeriodEnd,
+    payment_processor: 'asaas',
+    current_period_start: null, // Será preenchido quando o pagamento chegar
+    current_period_end: null,   // Será preenchido quando o pagamento chegar
+    updated_at: new Date().toISOString()
+  };
+
+  console.log('[ASAAS-WEBHOOK] Dados da subscription para upsert:', subscriptionData);
+
+  // Upsert subscription
+  const { error: upsertError } = await supabase
+    .from('poupeja_subscriptions')
+    .upsert(subscriptionData, {
+      onConflict: 'user_id'
+    });
+
+  if (upsertError) {
+    console.error('[ASAAS-WEBHOOK] Erro ao fazer upsert da subscription:', upsertError);
+    throw new Error('Erro ao processar subscription');
+  }
+
+  console.log('[ASAAS-WEBHOOK] Subscription processada com sucesso:', subscription.id);
+
+  return new Response(JSON.stringify({
+    received: true,
+    event,
+    subscription_id: subscription.id,
+    user_id: userId,
+    status
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
 }

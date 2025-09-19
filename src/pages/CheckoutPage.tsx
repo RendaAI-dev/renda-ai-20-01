@@ -6,14 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-import { usePlanConfig } from '@/hooks/usePlanConfig';
+import { useNewPlanConfig } from '@/hooks/useNewPlanConfig';
 
 const CheckoutPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const { config, isLoading: configLoading } = usePlanConfig();
+  const { config, isLoading: configLoading } = useNewPlanConfig();
 
   const plan = searchParams.get('plan');
   const success = searchParams.get('success');
@@ -112,27 +112,39 @@ const CheckoutPage = () => {
     );
   }
 
-  const plans = [
-    {
-      name: "Mensal",
-      price: config.prices.monthly.displayPrice,
-      period: "/mês",
-      planType: "monthly",
-      description: "Para uso pessoal completo",
-      features: ["Movimentos ilimitados", "Dashboard completo", "Todos os relatórios", "Metas ilimitadas", "Agendamentos", "Suporte prioritário"],
-    },
-    {
-      name: "Anual",
-      price: config.prices.annual.displayPrice,
-      period: "/ano",
-      planType: "annual",
-      originalPrice: config.prices.annual.displayOriginalPrice,
-      savings: config.prices.annual.displaySavings,
-      description: "Melhor custo-benefício",
-      features: ["Movimentos ilimitados", "Dashboard completo", "Todos os relatórios", "Metas ilimitadas", "Agendamentos", "Suporte VIP", "Backup automático", "Análises avançadas"],
-      popular: true
+  // Criar planos baseados na nova estrutura
+  const plans = config.plans.flatMap(planFamily => {
+    const result = [];
+    
+    // Plano mensal
+    if (planFamily.pricing.monthly) {
+      result.push({
+        name: `${planFamily.name} - Mensal`,
+        price: planFamily.pricing.monthly.display,
+        period: "/mês",
+        planType: "monthly",
+        description: planFamily.description || "Para uso pessoal completo",
+        features: Array.isArray(planFamily.features) ? planFamily.features : ["Movimentos ilimitados", "Dashboard completo", "Todos os relatórios", "Metas ilimitadas", "Agendamentos", "Suporte prioritário"],
+      });
     }
-  ];
+    
+    // Plano anual
+    if (planFamily.pricing.annual) {
+      result.push({
+        name: `${planFamily.name} - Anual`,
+        price: planFamily.pricing.annual.display,
+        period: "/ano",
+        planType: "annual",
+        originalPrice: planFamily.pricing.annual.originalPrice,
+        savings: planFamily.pricing.annual.savings,
+        description: planFamily.description || "Melhor custo-benefício",
+        features: Array.isArray(planFamily.features) ? planFamily.features : ["Movimentos ilimitados", "Dashboard completo", "Todos os relatórios", "Metas ilimitadas", "Agendamentos", "Suporte VIP", "Backup automático", "Análises avançadas"],
+        popular: planFamily.is_popular && planFamily.pricing.annual.originalPrice ? true : false
+      });
+    }
+    
+    return result;
+  });
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">

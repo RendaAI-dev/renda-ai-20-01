@@ -30,7 +30,7 @@ serve(async (req) => {
         plan_period,
         price,
         price_original,
-        stripe_price_id,
+        asaas_price_id,
         features,
         limitations,
         is_popular,

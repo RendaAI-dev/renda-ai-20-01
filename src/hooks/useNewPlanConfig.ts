@@ -150,76 +150,29 @@ export const useNewPlanConfig = (): PlanConfigResponse => {
           };
         }
 
-        // Group plans intelligently - if we have monthly and annual plans, group them together
-        const planGroups = new Map<string, any>();
-        
-        plansData.plans.forEach((plan: any) => {
-          // Determine the base key for grouping - use a consistent base name
-          let groupKey = plan.slug;
-          let baseName = plan.name;
-          
-          // If this looks like a monthly plan, check if we should group it with an annual plan
-          if (plan.plan_period === 'monthly') {
-            // Look for a corresponding annual plan
-            const annualPlan = plansData.plans.find((p: any) => 
-              p.plan_period === 'annual' && 
-              (p.slug.includes('anual') || p.name.toLowerCase().includes('anual'))
-            );
-            if (annualPlan) {
-              groupKey = 'premium'; // Use a common key
-              baseName = 'Premium'; // Use a common name
-            }
-          } else if (plan.plan_period === 'annual') {
-            // Check if there's a monthly plan to group with
-            const monthlyPlan = plansData.plans.find((p: any) => 
-              p.plan_period === 'monthly' && 
-              (p.slug === 'premium' || p.name.toLowerCase().includes('premium'))
-            );
-            if (monthlyPlan) {
-              groupKey = 'premium'; // Use a common key
-              baseName = 'Premium'; // Use a common name
+        // Create individual plans for each database entry
+        const plans = plansData.plans.map((plan: any) => ({
+          id: plan.id,
+          name: plan.name,
+          slug: plan.slug,
+          description: plan.description || 'Plano completo com todas as funcionalidades',
+          features: plan.features || [],
+          limitations: plan.limitations || [],
+          is_popular: plan.is_popular || false,
+          trial_days: plan.trial_days || 0,
+          max_users: plan.max_users,
+          metadata: plan.metadata || {},
+          pricing: {
+            [plan.plan_period]: {
+              amount: plan.price,
+              display: plan.display,
+              originalPrice: plan.originalDisplay,
+              discount: plan.discount > 0 ? `${plan.discount}%` : undefined,
+              savings: plan.savings,
+              priceId: plan.asaas_price_id
             }
           }
-          
-          if (!planGroups.has(groupKey)) {
-            planGroups.set(groupKey, {
-              id: plan.id,
-              name: baseName,
-              slug: groupKey,
-              description: plan.description || 'Plano completo com todas as funcionalidades',
-              features: plan.features || [],
-              limitations: plan.limitations || [],
-              is_popular: false, // Will be set based on any plan in the group
-              trial_days: plan.trial_days || 0,
-              max_users: plan.max_users,
-              metadata: plan.metadata || {},
-              pricing: {}
-            });
-          }
-          
-          const planFamily = planGroups.get(groupKey);
-          
-          // Set is_popular if any plan in the group is popular
-          if (plan.is_popular) {
-            planFamily.is_popular = true;
-          }
-          
-          // Use the most comprehensive feature list
-          if (plan.features && plan.features.length > planFamily.features.length) {
-            planFamily.features = plan.features;
-          }
-          
-          planFamily.pricing[plan.plan_period] = {
-            amount: plan.price,
-            display: plan.display,
-            originalPrice: plan.originalDisplay,
-            discount: plan.discount > 0 ? `${plan.discount}%` : undefined,
-            savings: plan.savings,
-            priceId: plan.asaas_price_id
-          };
-        });
-        
-        const plans = Array.from(planGroups.values());
+        }));
 
         const contactPhone = publicData?.success && publicData?.settings?.contact_phone?.value 
           ? publicData.settings.contact_phone.value 

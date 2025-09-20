@@ -219,6 +219,51 @@ export type Database = {
         }
         Relationships: []
       }
+      poupeja_plan_change_requests: {
+        Row: {
+          asaas_payment_id: string | null
+          created_at: string
+          current_plan_type: string
+          expires_at: string
+          id: string
+          new_plan_type: string
+          new_plan_value: number
+          payment_url: string | null
+          status: string
+          subscription_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          asaas_payment_id?: string | null
+          created_at?: string
+          current_plan_type: string
+          expires_at?: string
+          id?: string
+          new_plan_type: string
+          new_plan_value: number
+          payment_url?: string | null
+          status?: string
+          subscription_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          asaas_payment_id?: string | null
+          created_at?: string
+          current_plan_type?: string
+          expires_at?: string
+          id?: string
+          new_plan_type?: string
+          new_plan_value?: number
+          payment_url?: string | null
+          status?: string
+          subscription_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       poupeja_plans: {
         Row: {
           asaas_price_id: string | null

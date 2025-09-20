@@ -95,95 +95,74 @@ serve(async (req) => {
     
     console.log('[CHANGE-PLAN] Alterando para:', { newValue, newCycle });
 
-    // Calcular valor proporcional
-    const today = new Date();
-    const currentPeriodEnd = new Date(subscription.current_period_end);
-    const daysRemaining = Math.max(0, Math.ceil((currentPeriodEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-    
-    let proportionalValue = newValue;
-    
-    // Se há dias restantes no período atual, calcular proporcional
-    if (daysRemaining > 0) {
-      const isUpgrade = (subscription.plan_type === 'monthly' && newPlanType === 'annual') ||
-                       (newValue > (subscription.plan_type === 'monthly' ? monthlyPrice : annualPrice));
-      
-      if (isUpgrade) {
-        // Para upgrade, cobra a diferença proporcional
-        const oldValue = subscription.plan_type === 'monthly' ? monthlyPrice : annualPrice;
-        const dailyDifference = (newValue - oldValue) / (newPlanType === 'monthly' ? 30 : 365);
-        proportionalValue = dailyDifference * daysRemaining;
-      } else {
-        // Para downgrade, gera crédito para próxima fatura
-        proportionalValue = 0; // Não cobra agora, crédito será aplicado
-      }
+    // Buscar customer do Asaas para o usuário
+    const { data: asaasCustomer } = await supabase
+      .from('poupeja_asaas_customers')
+      .select('asaas_customer_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!asaasCustomer) {
+      throw new Error('Cliente Asaas não encontrado');
     }
 
-    // Atualizar assinatura no Asaas
-    const response = await fetch(`${asaasUrl}/subscriptions/${subscription.asaas_subscription_id}`, {
-      method: 'PUT',
+    const today = new Date();
+    
+    // Criar pagamento único com valor total do novo plano
+    const paymentResponse = await fetch(`${asaasUrl}/payments`, {
+      method: 'POST',
       headers: {
         'access_token': apiKey,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        value: newValue,
-        cycle: newCycle,
+        customer: asaasCustomer.asaas_customer_id,
         billingType: 'CREDIT_CARD',
-        updatePendingPayments: true
+        value: newValue,
+        dueDate: today.toISOString().split('T')[0],
+        description: `Mudança para plano ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}`,
+        externalReference: `plan_change_${subscription.id}_${Date.now()}`
       })
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Erro ao atualizar assinatura no Asaas: ${error}`);
+    if (!paymentResponse.ok) {
+      const error = await paymentResponse.text();
+      throw new Error(`Erro ao criar pagamento: ${error}`);
     }
 
-    const updatedSubscription = await response.json();
+    const payment = await paymentResponse.json();
 
-    // Atualizar assinatura no Supabase
-    await supabase
-      .from('poupeja_subscriptions')
-      .update({
-        plan_type: newPlanType,
-        updated_at: new Date().toISOString()
+    // Criar registro de mudança de plano pendente
+    const { data: changeRequest, error: changeRequestError } = await supabase
+      .from('poupeja_plan_change_requests')
+      .insert({
+        user_id: user.id,
+        subscription_id: subscription.id,
+        current_plan_type: subscription.plan_type,
+        new_plan_type: newPlanType,
+        new_plan_value: newValue,
+        asaas_payment_id: payment.id,
+        payment_url: payment.invoiceUrl,
+        status: 'pending'
       })
-      .eq('id', subscription.id);
+      .select('*')
+      .single();
 
-    // Se há valor proporcional a cobrar, gerar pagamento único
-    let paymentUrl = null;
-    if (proportionalValue > 0) {
-      const paymentResponse = await fetch(`${asaasUrl}/payments`, {
-        method: 'POST',
-        headers: {
-          'access_token': apiKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          customer: updatedSubscription.customer,
-          billingType: 'CREDIT_CARD',
-          value: proportionalValue,
-          dueDate: today.toISOString().split('T')[0],
-          description: `Ajuste proporcional - Mudança para plano ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}`,
-          externalReference: `plan_change_${subscription.id}_${Date.now()}`
-        })
-      });
-
-      if (paymentResponse.ok) {
-        const payment = await paymentResponse.json();
-        paymentUrl = payment.invoiceUrl;
-      }
+    if (changeRequestError) {
+      throw new Error(`Erro ao criar solicitação de mudança: ${changeRequestError.message}`);
     }
 
-    console.log('[CHANGE-PLAN] ✅ Plano alterado com sucesso');
+    console.log('[CHANGE-PLAN] ✅ Solicitação de mudança criada com sucesso');
 
     return new Response(JSON.stringify({
       success: true,
-      message: `Plano alterado para ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'} com sucesso`,
+      message: `Solicitação de mudança para plano ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'} criada. Complete o pagamento para confirmar.`,
+      changeRequestId: changeRequest.id,
       newPlanType,
       newValue,
-      proportionalValue,
-      paymentUrl,
-      subscriptionUrl: `${asaasUrl.replace('/api/v3', '')}/subscription/${subscription.asaas_subscription_id}`
+      paymentUrl: payment.invoiceUrl,
+      paymentId: payment.id,
+      status: 'pending_payment'
     }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });

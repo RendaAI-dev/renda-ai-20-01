@@ -359,6 +359,21 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
 async function handlePaymentSuccess(supabase: any, userId: string, payment: any, existingPayment: any) {
   console.log('[ASAAS-WEBHOOK] Processando pagamento recebido para usuário:', userId);
 
+  // Verificar se é um pagamento de mudança de plano
+  const { data: planChangeRequest } = await supabase
+    .from('poupeja_plan_change_requests')
+    .select('*')
+    .eq('asaas_payment_id', payment.id)
+    .eq('status', 'pending')
+    .maybeSingle();
+
+  if (planChangeRequest) {
+    console.log('[ASAAS-WEBHOOK] Processando mudança de plano para:', planChangeRequest.new_plan_type);
+    await handlePlanChangePayment(supabase, planChangeRequest, payment);
+    return;
+  }
+
+  // Fluxo normal de pagamento para novas assinaturas
   // Determinar tipo de plano baseado na referência externa ou valor
   let planType: 'monthly' | 'annual' = 'monthly';
   const ref = existingPayment.external_reference || payment.externalReference || '';
@@ -429,6 +444,104 @@ async function handlePaymentSuccess(supabase: any, userId: string, payment: any,
       .insert(subscriptionData);
     
     console.log('[ASAAS-WEBHOOK] Nova assinatura criada para usuário:', userId);
+  }
+}
+
+// Processar pagamento de mudança de plano
+async function handlePlanChangePayment(supabase: any, changeRequest: any, payment: any) {
+  console.log('[ASAAS-WEBHOOK] Confirmando mudança de plano:', {
+    requestId: changeRequest.id,
+    newPlanType: changeRequest.new_plan_type,
+    paymentValue: payment.value
+  });
+
+  try {
+    // Buscar configurações do Asaas
+    const { data: settings } = await supabase
+      .from('poupeja_settings')
+      .select('key, value')
+      .eq('category', 'asaas');
+
+    const asaasConfig = settings?.reduce((acc: any, setting: any) => {
+      acc[setting.key] = setting.value;
+      return acc;
+    }, {}) ?? {};
+
+    const apiKey = asaasConfig.api_key;
+    const environment = asaasConfig.environment || 'sandbox';
+    
+    if (!apiKey) {
+      throw new Error('Chave API do Asaas não configurada');
+    }
+
+    const asaasUrl = environment === 'production' 
+      ? 'https://www.asaas.com/api/v3' 
+      : 'https://sandbox.asaas.com/api/v3';
+
+    // Buscar assinatura atual
+    const { data: subscription } = await supabase
+      .from('poupeja_subscriptions')
+      .select('*')
+      .eq('id', changeRequest.subscription_id)
+      .single();
+
+    if (!subscription) {
+      throw new Error('Assinatura não encontrada');
+    }
+
+    const newCycle = changeRequest.new_plan_type === 'monthly' ? 'MONTHLY' : 'YEARLY';
+
+    // Atualizar assinatura no Asaas
+    const response = await fetch(`${asaasUrl}/subscriptions/${subscription.asaas_subscription_id}`, {
+      method: 'PUT',
+      headers: {
+        'access_token': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        value: changeRequest.new_plan_value,
+        cycle: newCycle,
+        billingType: 'CREDIT_CARD',
+        updatePendingPayments: true
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Erro ao atualizar assinatura no Asaas: ${error}`);
+    }
+
+    // Atualizar assinatura no Supabase
+    await supabase
+      .from('poupeja_subscriptions')
+      .update({
+        plan_type: changeRequest.new_plan_type,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', changeRequest.subscription_id);
+
+    // Marcar solicitação como paga
+    await supabase
+      .from('poupeja_plan_change_requests')
+      .update({
+        status: 'paid',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', changeRequest.id);
+
+    console.log('[ASAAS-WEBHOOK] ✅ Mudança de plano confirmada com sucesso');
+
+  } catch (error) {
+    console.error('[ASAAS-WEBHOOK] ❌ Erro ao processar mudança de plano:', error.message);
+    
+    // Marcar solicitação como erro
+    await supabase
+      .from('poupeja_plan_change_requests')
+      .update({
+        status: 'error',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', changeRequest.id);
   }
 }
 

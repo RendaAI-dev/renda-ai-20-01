@@ -212,21 +212,39 @@ serve(async (req) => {
       body: JSON.stringify(subscriptionData)
     });
 
-    if (!subscriptionResponse.ok) {
-      const errorText = await subscriptionResponse.text();
-      console.error('[ASAAS-PAYMENT] Erro ao criar assinatura:', errorText);
-      throw new Error('Erro ao criar assinatura no Asaas');
+    const subscriptionResult = await subscriptionResponse.json();
+    console.log(`[ASAAS-PAYMENT] Resposta da criação de assinatura (status ${subscriptionResponse.status}):`, JSON.stringify(subscriptionResult, null, 2));
+
+    if (!subscriptionResponse.ok || subscriptionResult.errors) {
+      const errorMessage = subscriptionResult.errors 
+        ? `Erro Asaas: ${subscriptionResult.errors.map((e: any) => `${e.code} - ${e.description}`).join(', ')}`
+        : `Erro HTTP ${subscriptionResponse.status}`;
+      
+      console.error(`[ASAAS-PAYMENT] ${errorMessage}`);
+      console.error(`[ASAAS-PAYMENT] Payload enviado:`, JSON.stringify(subscriptionData, null, 2));
+      console.error(`[ASAAS-PAYMENT] Response completa:`, JSON.stringify(subscriptionResult, null, 2));
+      
+      return new Response(
+        JSON.stringify({ 
+          error: errorMessage,
+          details: subscriptionResult.errors || subscriptionResult,
+          sentPayload: subscriptionData
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
-    const subscription = await subscriptionResponse.json();
-    console.log('[ASAAS-PAYMENT] Assinatura criada:', subscription.id);
+    console.log('[ASAAS-PAYMENT] Assinatura criada:', subscriptionResult.id);
 
     // Buscar o pagamento gerado pela assinatura
-    let paymentId = subscription.paymentId;
+    let paymentId = subscriptionResult.paymentId;
     
     if (!paymentId) {
       // Se não temos o paymentId diretamente, buscar pagamentos da subscription
-      const paymentsResponse = await fetch(`${asaasUrl}/payments?subscription=${subscription.id}&limit=1`, {
+      const paymentsResponse = await fetch(`${asaasUrl}/payments?subscription=${subscriptionResult.id}&limit=1`, {
         headers: {
           'access_token': apiKey,
           'Content-Type': 'application/json'
@@ -258,7 +276,7 @@ serve(async (req) => {
       success: true,
       invoiceUrl: invoiceUrl,
       paymentId: paymentId,
-      subscriptionId: subscription.id
+      subscriptionId: subscriptionResult.id
     }), {
       headers: { 
         'Content-Type': 'application/json',

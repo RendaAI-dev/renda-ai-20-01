@@ -7,7 +7,7 @@ import { Check, Loader2, RefreshCw } from 'lucide-react';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 
 interface PlanCardProps {
@@ -164,9 +164,15 @@ const PlanCard: React.FC<PlanCardProps> = ({
           return;
         }
         
+        // Exibir erro específico do Asaas se disponível
+        let errorDescription = error.message || "Erro interno do servidor";
+        if (error.message?.includes('Erro Asaas:')) {
+          errorDescription = error.message.replace('Erro Asaas: ', '');
+        }
+        
         toast({
           title: "Erro no pagamento",
-          description: `Erro: ${error.message}. Verifique se suas chaves do Asaas estão configuradas.`,
+          description: errorDescription,
           variant: "destructive",
         });
         return;

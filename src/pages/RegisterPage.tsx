@@ -294,7 +294,16 @@ const RegisterPage = () => {
 
       if (response.error) {
         console.error('Erro ao criar pagamento:', response.error);
-        throw new Error('Erro ao criar pagamento');
+        
+        // Exibir erro específico do Asaas se disponível
+        let errorMessage = 'Erro ao criar pagamento';
+        if (response.error.message?.includes('Erro Asaas:')) {
+          errorMessage = response.error.message.replace('Erro Asaas: ', '');
+        } else if (response.error.message) {
+          errorMessage = response.error.message;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const functionData = response.data;

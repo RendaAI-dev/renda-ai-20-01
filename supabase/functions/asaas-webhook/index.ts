@@ -28,10 +28,14 @@ serve(async (req) => {
     const webhookData = await req.json();
     const { event, payment, checkout } = webhookData;
     
-    console.log('[ASAAS-WEBHOOK] Evento recebido:', event, {
+    console.log('[ASAAS-WEBHOOK] 🚀 EVENTO RECEBIDO:', event, {
       paymentId: payment?.id,
       checkoutId: checkout?.id,
-      customerId: payment?.customer || checkout?.customer
+      customerId: payment?.customer || checkout?.customer,
+      paymentStatus: payment?.status,
+      paymentValue: payment?.value,
+      timestamp: new Date().toISOString(),
+      fullPayload: JSON.stringify({ event, payment, checkout }, null, 2)
     });
 
     // Processar eventos de CHECKOUT
@@ -230,7 +234,14 @@ async function processPaymentEvent(supabase: any, event: string, payment: any) {
     });
   }
 
-  console.log('[ASAAS-WEBHOOK] Processando evento de pagamento:', event, payment.id);
+  console.log('[ASAAS-WEBHOOK] 💳 PROCESSANDO EVENTO DE PAGAMENTO:', {
+    event,
+    paymentId: payment.id,
+    status: payment.status,
+    value: payment.value,
+    customer: payment.customer,
+    timestamp: new Date().toISOString()
+  });
 
   // Buscar pagamento no banco
   const { data: existingPayment } = await supabase
@@ -317,18 +328,34 @@ async function processPaymentEvent(supabase: any, event: string, payment: any) {
 
 // Processar status do pagamento baseado no evento
 async function processPaymentStatus(supabase: any, event: string, userId: string, payment: any, paymentRecord: any) {
-  console.log('[ASAAS-WEBHOOK] Processando status:', event, 'para usuário:', userId);
+  console.log('[ASAAS-WEBHOOK] 📊 PROCESSANDO STATUS:', {
+    event,
+    userId,
+    paymentId: payment.id,
+    paymentStatus: payment.status,
+    timestamp: new Date().toISOString()
+  });
 
   switch (event) {
     case 'PAYMENT_CREATED':
       // Pagamento criado - apenas log
-      console.log('[ASAAS-WEBHOOK] Pagamento criado:', payment.id);
+      console.log('[ASAAS-WEBHOOK] ✨ Pagamento criado:', payment.id);
       break;
 
     case 'PAYMENT_CONFIRMED':
     case 'PAYMENT_RECEIVED':
       // Pagamento confirmado/recebido - ativar assinatura
+      console.log('[ASAAS-WEBHOOK] ✅ PAGAMENTO CONFIRMADO/RECEBIDO - Chamando handlePaymentSuccess:', {
+        event,
+        paymentId: payment.id,
+        userId,
+        paymentValue: payment.value,
+        paymentStatus: payment.status
+      });
+      
       await handlePaymentSuccess(supabase, userId, payment, paymentRecord);
+      
+      console.log('[ASAAS-WEBHOOK] ✅ handlePaymentSuccess CONCLUÍDO para:', payment.id);
       break;
 
     case 'PAYMENT_UPDATED':
@@ -357,7 +384,14 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
 }
 
 async function handlePaymentSuccess(supabase: any, userId: string, payment: any, existingPayment: any) {
-  console.log('[ASAAS-WEBHOOK] Processando pagamento recebido para usuário:', userId);
+  console.log('[ASAAS-WEBHOOK] 🎉 INICIANDO handlePaymentSuccess:', {
+    userId,
+    paymentId: payment.id,
+    paymentValue: payment.value,
+    paymentStatus: payment.status,
+    existingPaymentId: existingPayment?.id,
+    timestamp: new Date().toISOString()
+  });
 
   // Verificar se é um pagamento de mudança de plano
   const { data: planChangeRequest } = await supabase
@@ -368,8 +402,17 @@ async function handlePaymentSuccess(supabase: any, userId: string, payment: any,
     .maybeSingle();
 
   if (planChangeRequest) {
-    console.log('[ASAAS-WEBHOOK] Processando mudança de plano para:', planChangeRequest.new_plan_type);
+    console.log('[ASAAS-WEBHOOK] 🔄 MUDANÇA DE PLANO DETECTADA:', {
+      planChangeRequestId: planChangeRequest.id,
+      newPlanType: planChangeRequest.new_plan_type,
+      currentPlanType: planChangeRequest.current_plan_type,
+      paymentId: payment.id,
+      userId
+    });
+    
     await handlePlanChangePayment(supabase, planChangeRequest, payment);
+    
+    console.log('[ASAAS-WEBHOOK] ✅ MUDANÇA DE PLANO PROCESSADA com sucesso');
     return;
   }
 
@@ -431,19 +474,43 @@ async function handlePaymentSuccess(supabase: any, userId: string, payment: any,
 
   if (existingSubscription) {
     // Atualizar assinatura existente
-    await supabase
+    const { error: updateError } = await supabase
       .from('poupeja_subscriptions')
       .update(subscriptionData)
       .eq('id', existingSubscription.id);
     
-    console.log('[ASAAS-WEBHOOK] Assinatura atualizada:', existingSubscription.id);
+    if (updateError) {
+      console.error('[ASAAS-WEBHOOK] ❌ ERRO ao atualizar assinatura:', updateError);
+      throw updateError;
+    }
+    
+    console.log('[ASAAS-WEBHOOK] ✅ ASSINATURA ATUALIZADA:', {
+      subscriptionId: existingSubscription.id,
+      planType,
+      userId,
+      currentPeriodEnd,
+      timestamp: new Date().toISOString()
+    });
   } else {
     // Criar nova assinatura
-    await supabase
+    const { data: newSubscription, error: insertError } = await supabase
       .from('poupeja_subscriptions')
-      .insert(subscriptionData);
+      .insert(subscriptionData)
+      .select('*')
+      .single();
     
-    console.log('[ASAAS-WEBHOOK] Nova assinatura criada para usuário:', userId);
+    if (insertError) {
+      console.error('[ASAAS-WEBHOOK] ❌ ERRO ao criar assinatura:', insertError);
+      throw insertError;
+    }
+    
+    console.log('[ASAAS-WEBHOOK] ✅ NOVA ASSINATURA CRIADA:', {
+      subscriptionId: newSubscription?.id,
+      planType,
+      userId,
+      currentPeriodEnd,
+      timestamp: new Date().toISOString()
+    });
   }
 }
 

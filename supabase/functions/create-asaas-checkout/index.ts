@@ -193,6 +193,7 @@ serve(async (req) => {
     // Criar assinatura recorrente no Asaas
     const subscriptionData = {
       customer: asaasCustomer.id,
+      billingType: 'CREDIT_CARD',
       value: value,
       cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
       description: planType === 'monthly' ? 'Assinatura Mensal - Renda AI' : 'Assinatura Anual - Renda AI',

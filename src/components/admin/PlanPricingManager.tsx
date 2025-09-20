@@ -159,7 +159,7 @@ const PlanPricingManager: React.FC = () => {
               <p className="text-green-800 text-sm font-medium mb-2">💰 Configuração de Preços</p>
               <div className="text-green-700 text-sm space-y-2">
                 <p>Configure os valores que serão exibidos aos usuários na página de planos.</p>
-                <p><strong>Importante:</strong> Estes valores devem corresponder aos preços configurados no Stripe.</p>
+                <p><strong>Importante:</strong> Estes valores devem corresponder aos preços configurados no Asaas.</p>
               </div>
             </div>
           </div>
@@ -214,8 +214,8 @@ const PlanPricingManager: React.FC = () => {
             <strong>Lembre-se:</strong> Após alterar os preços aqui, você também deve:
           </p>
           <ul className="text-amber-700 text-sm mt-2 space-y-1 list-disc list-inside">
-            <li>Atualizar os preços no Dashboard do Stripe</li>
-            <li>Verificar se os Price IDs na seção Stripe estão corretos</li>
+            <li>Atualizar os preços no Dashboard do Asaas</li>
+            <li>Verificar se os produtos estão configurados corretamente</li>
             <li>Testar o fluxo de pagamento</li>
           </ul>
         </div>

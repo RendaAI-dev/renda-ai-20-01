@@ -14,8 +14,8 @@ Documento para rastrear a remoção pontual de `console.log` que expõem dados s
 ### **CRÍTICOS - PRIORIDADE MÁXIMA**
 1. **User IDs expostos:**
    - `supabase/functions/update-plan-config/index.ts:79` - User ID em auth
-   - `supabase/functions/stripe-webhook/handlers/subscription-updated.ts:49,133` - User IDs em webhook
-   - `supabase/functions/stripe-webhook/handlers/checkout-session-completed.ts:30,83` - User IDs em checkout
+   - `supabase/functions/asaas-webhook/handlers/payment-updated.ts:49,133` - User IDs em webhook
+   - `supabase/functions/asaas-webhook/handlers/payment-created.ts:30,83` - User IDs em checkout
    - `supabase/functions/grant-admin-access/index.ts:48` - User ID em admin grant
    - `supabase/functions/create-admin-user/index.ts:54` - User ID em criação admin
    - `src/services/goalService.ts:15` - User ID em goals
@@ -38,8 +38,8 @@ Documento para rastrear a remoção pontual de `console.log` que expõem dados s
 
 ### **FASE 1: Edge Functions (Supabase)**
 - [x] `supabase/functions/update-plan-config/index.ts`
-- [x] `supabase/functions/stripe-webhook/handlers/subscription-updated.ts`
-- [x] `supabase/functions/stripe-webhook/handlers/checkout-session-completed.ts`
+- [x] `supabase/functions/asaas-webhook/handlers/payment-updated.ts`
+- [x] `supabase/functions/asaas-webhook/handlers/payment-created.ts`
 - [x] `supabase/functions/grant-admin-access/index.ts`
 - [x] `supabase/functions/create-admin-user/index.ts`
 
@@ -58,8 +58,8 @@ Documento para rastrear a remoção pontual de `console.log` que expõem dados s
 ### **Implementadas em 15/01/2025:**
 - ✅ **Fase 1 CONCLUÍDA:** 5 Edge Functions com User IDs removidos
   - `update-plan-config/index.ts:79` - "User authenticated:" → "User authenticated successfully"
-  - `stripe-webhook/handlers/subscription-updated.ts:49,133` - User IDs removidos dos logs
-  - `stripe-webhook/handlers/checkout-session-completed.ts:30,83` - User IDs removidos dos logs
+  - `asaas-webhook/handlers/payment-updated.ts:49,133` - User IDs removidos dos logs
+  - `asaas-webhook/handlers/payment-created.ts:30,83` - User IDs removidos dos logs
   - `grant-admin-access/index.ts:48` - "user:" + ID → "authenticated user"
   - `create-admin-user/index.ts:54` - User ID removido do log de criação
 

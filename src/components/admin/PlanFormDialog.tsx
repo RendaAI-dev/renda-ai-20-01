@@ -34,7 +34,6 @@ export const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
     plan_period: 'monthly',
     price: 0,
     price_original: undefined,
-    stripe_price_id: '',
     features: [],
     limitations: [],
     is_popular: false,
@@ -63,7 +62,6 @@ export const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
         plan_period: 'monthly',
         price: 0,
         price_original: undefined,
-        stripe_price_id: '',
         features: [],
         limitations: [],
         is_popular: false,
@@ -261,15 +259,6 @@ export const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="stripe_price_id">Stripe Price ID</Label>
-                <Input
-                  id="stripe_price_id"
-                  value={formData.stripe_price_id}
-                  onChange={(e) => handleInputChange('stripe_price_id', e.target.value)}
-                  placeholder="price_..."
-                />
-              </div>
             </CardContent>
           </Card>
 

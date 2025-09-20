@@ -25,11 +25,9 @@ const secretsMapping = {
   'COMPANY_NAME': { category: 'branding', key: 'company_name' },
   'LOGO_ALT_TEXT': { category: 'branding', key: 'logo_alt_text' },
   
-  // Stripe (sensitive)
-  'STRIPE_SECRET_KEY': { category: 'stripe', key: 'secret_key', encrypted: true },
-  'STRIPE_WEBHOOK_SECRET': { category: 'stripe', key: 'webhook_secret', encrypted: true },
-  'STRIPE_PRICE_ID_MONTHLY': { category: 'stripe', key: 'price_id_monthly' },
-  'STRIPE_PRICE_ID_ANNUAL': { category: 'stripe', key: 'price_id_annual' },
+  // Asaas (sensitive)
+  'ASAAS_API_KEY': { category: 'asaas', key: 'api_key', encrypted: true },
+  'ASAAS_ENVIRONMENT': { category: 'asaas', key: 'environment' },
   
   // Pricing
   'PLAN_PRICE_MONTHLY': { category: 'pricing', key: 'monthly_price', type: 'number' },

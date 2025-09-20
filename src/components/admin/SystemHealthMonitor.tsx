@@ -21,41 +21,39 @@ const SystemHealthMonitor: React.FC = () => {
     const checks: HealthCheck[] = [];
 
     try {
-      // Verificar webhook do Stripe
+      // Verificar webhook do Asaas
       try {
         const webhookTest = await fetch('/api/test-webhook', { method: 'POST' });
         checks.push({
-          service: 'Stripe Webhook',
+          service: 'Asaas Webhook',
           status: webhookTest.ok ? 'healthy' : 'error',
           lastChecked: new Date(),
           message: webhookTest.ok ? 'Webhook respondendo corretamente' : 'Webhook não está respondendo'
         });
       } catch {
         checks.push({
-          service: 'Stripe Webhook',
+          service: 'Asaas Webhook',
           status: 'error',
           lastChecked: new Date(),
           message: 'Não foi possível conectar com o webhook'
         });
       }
 
-      // Verificar função de sincronização
+      // Verificar base de dados de configurações
       try {
-        const { error } = await supabase.functions.invoke('sync-subscriptions', {
-          body: { test: true }
-        });
+        const { data, error } = await supabase.from('poupeja_settings').select('count').limit(1);
         checks.push({
-          service: 'Sync Function',
-          status: error ? 'warning' : 'healthy',
+          service: 'Config Database',
+          status: error ? 'error' : 'healthy',
           lastChecked: new Date(),
-          message: error ? 'Função com problemas' : 'Função de sincronização operacional'
+          message: error ? 'Erro ao acessar configurações' : 'Base de configurações operacional'
         });
       } catch {
         checks.push({
-          service: 'Sync Function',
+          service: 'Config Database',
           status: 'error',
           lastChecked: new Date(),
-          message: 'Função de sincronização não encontrada'
+          message: 'Não foi possível acessar configurações do sistema'
         });
       }
 

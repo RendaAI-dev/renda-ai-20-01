@@ -18,19 +18,15 @@ serve(async (req) => {
     console.log("Request method:", req.method);
 
     const body = await req.json();
-    const {
-      monthlyPriceId,
-      annualPriceId,
-      monthlyPrice,
-      annualPrice,
-      annualOriginalPrice,
-      annualSavings,
-      contactPhone
-    } = body;
+  const {
+    monthlyPrice,
+    annualPrice,
+    annualOriginalPrice,
+    annualSavings,
+    contactPhone
+  } = body;
 
     console.log("Updating plan configuration with:", {
-      monthlyPriceId,
-      annualPriceId,
       monthlyPrice,
       annualPrice,
       annualOriginalPrice,
@@ -101,8 +97,6 @@ serve(async (req) => {
 
     // Map of settings to update in database
     const settingsToUpdate = [
-      { key: 'stripe_price_id_monthly', value: monthlyPriceId },
-      { key: 'stripe_price_id_annual', value: annualPriceId },
       { key: 'plan_price_monthly', value: monthlyPrice },
       { key: 'plan_price_annual', value: annualPrice },
       { key: 'contact_phone', value: contactPhone }
@@ -161,12 +155,10 @@ serve(async (req) => {
       updatedConfig: {
         prices: {
           monthly: {
-            priceId: monthlyPriceId,
             price: monthlyPrice,
             displayPrice: `R$ ${monthlyPrice}`,
           },
           annual: {
-            priceId: annualPriceId,
             price: annualPrice,
             originalPrice: annualOriginalPrice,
             savings: annualSavings,

@@ -15,7 +15,7 @@ interface Plan {
   plan_period: 'monthly' | 'quarterly' | 'semiannual' | 'annual';
   price: number;
   price_original?: number;
-  stripe_price_id?: string;
+  asaas_price_id?: string;
   features: string[];
   limitations: string[];
   is_popular: boolean;

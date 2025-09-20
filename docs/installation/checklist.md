@@ -7,7 +7,7 @@ Use este checklist para verificar se sua instalação foi concluída com sucesso
 ### Contas Necessárias
 - [ ] Conta no GitHub criada
 - [ ] Conta no Supabase criada
-- [ ] Conta no Stripe criada (opcional, para pagamentos)
+- Conta no Asaas criada (opcional, para pagamentos)
 
 ### Informações Coletadas
 - [ ] **Supabase Project ID**: `________________`
@@ -61,10 +61,10 @@ Use este checklist para verificar se sua instalação foi concluída com sucesso
 - [ ] `migrate-settings` - Status: ✅/❌
 - [ ] `check-subscription-status` - Status: ✅/❌
 - [ ] `create-admin-user` - Status: ✅/❌
-- [ ] `create-checkout-session` - Status: ✅/❌
+- [ ] `create-asaas-checkout` - Status: ✅/❌
 - [ ] `customer-portal` - Status: ✅/❌
 - [ ] `recover-purchases` - Status: ✅/❌
-- [ ] `stripe-webhook` - Status: ✅/❌
+- [ ] `asaas-webhook` - Status: ✅/❌
 - [ ] `sync-subscriptions` - Status: ✅/❌
 
 ### Teste das Functions
@@ -106,13 +106,13 @@ Use este checklist para verificar se sua instalação foi concluída com sucesso
 - [ ] Moeda padrão configurada
 - [ ] Configurações de email definidas
 
-## 💳 Stripe (Opcional)
+## 💳 Asaas (Opcional)
 
 ### Configuração Básica
-- [ ] Chaves do Stripe configuradas
-- [ ] Webhook endpoint configurado no Stripe
-- [ ] Price IDs definidos
-- [ ] Webhook secret configurado
+- [ ] Chaves do Asaas configuradas
+- [ ] Webhook endpoint configurado no Asaas
+- [ ] Environment configurado (sandbox/production)
+- [ ] API Key configurada
 
 ### Teste de Pagamento
 - [ ] Página de planos acessível

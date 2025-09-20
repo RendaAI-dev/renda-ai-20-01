@@ -126,7 +126,6 @@ const PlanPreviewDialog: React.FC<PlanPreviewDialogProps> = ({
                 </div>
 
                 <div className="text-xs space-y-1">
-                  <p><strong>Stripe Price ID:</strong> {plan.stripe_price_id || 'Não configurado'}</p>
                   <p><strong>Período:</strong> {periodInfo.label}</p>
                   <p><strong>Status:</strong> {plan.is_active ? 'Ativo' : 'Inativo'}</p>
                   <p><strong>Slug:</strong> {plan.slug}</p>

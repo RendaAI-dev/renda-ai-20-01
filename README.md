@@ -8,7 +8,7 @@ Sistema completo de gestão financeira pessoal com foco em facilidade de uso, au
 - **🎯 Metas Financeiras**: Sistema de metas com acompanhamento visual
 - **📅 Transações Recorrentes**: Agendamento e automação de pagamentos
 - **📊 Relatórios Avançados**: Dashboards e análises detalhadas
-- **💼 Assinaturas Premium**: Integração completa com Stripe
+- **💼 Assinaturas Premium**: Integração completa com Asaas
 - **👤 Sistema de Admin**: Painel administrativo completo
 - **🌍 Multi-idioma**: Português e Inglês
 - **📱 PWA**: Funciona offline e instalável
@@ -29,7 +29,7 @@ Sistema completo de gestão financeira pessoal com foco em facilidade de uso, au
 - **Supabase** (PostgreSQL + Auth + Storage + Edge Functions)
 - **Row Level Security (RLS)** para segurança
 - **Edge Functions** para APIs serverless
-- **Stripe** para pagamentos
+- **Asaas** para pagamentos
 
 ### DevOps & Deploy
 - **GitHub Actions** para CI/CD automático
@@ -42,13 +42,13 @@ Sistema completo de gestão financeira pessoal com foco em facilidade de uso, au
 ### Para Desenvolvedores
 - Node.js 18+ e npm
 - Conta no Supabase
-- Conta no Stripe (para pagamentos)
+- Conta no Asaas (para pagamentos)
 - Conta no GitHub (para CI/CD)
 
 ### Para Redistribuição
 - Conta no Supabase (gratuita)
 - Conta no GitHub (gratuita)
-- Opcional: Conta no Stripe (para monetização)
+- Opcional: Conta no Asaas (para monetização)
 
 ## ⚡ Instalação Rápida (Redistribuição)
 
@@ -130,13 +130,13 @@ npm run dev
 3. Use a senha temporária: `admin123456`
 4. **IMPORTANTE**: Altere a senha imediatamente após o primeiro login
 
-### Configurar Integração Stripe (Opcional)
+### Configurar Integração Asaas (Opcional)
 
 1. Acesse o painel administrativo (`/admin`)
-2. Vá em "Configurações do Stripe"
+2. Vá em "Configurações do Asaas"
 3. Configure:
-   - **Secret Key**: `sk_test_...` ou `sk_live_...`
-   - **Webhook Secret**: Endpoint secret do webhook
+   - **API Key**: Sua chave de API do Asaas
+   - **Environment**: `sandbox` para testes ou `production` para produção
    - **Price ID Monthly**: ID do preço mensal
    - **Price ID Annual**: ID do preço anual
 
@@ -214,9 +214,9 @@ supabase db dump --linked > backup.sql
    - Verifique as configurações do Supabase
    - Confirme que as migrações foram aplicadas
 
-3. **"Stripe webhook failed"**
-   - Verifique se o webhook está configurado no Stripe
-   - Confirme o endpoint: `https://[PROJECT_ID].supabase.co/functions/v1/stripe-webhook`
+3. **"Asaas webhook failed"**
+   - Verifique se o webhook está configurado no Asaas
+   - Confirme o endpoint: `https://[PROJECT_ID].supabase.co/functions/v1/asaas-webhook`
 
 ### Logs e Debug
 

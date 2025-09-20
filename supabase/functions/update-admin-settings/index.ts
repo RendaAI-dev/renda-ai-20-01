@@ -76,8 +76,8 @@ serve(async (req) => {
     const sensitiveKeys = [
       "secret_key", 
       "webhook_secret", 
-      "stripe_secret_key",
-      "stripe_webhook_secret"
+      "api_key",
+      "asaas_api_key"
     ];
 
     const results = [];

@@ -114,7 +114,7 @@ const AdminDashboard: React.FC = () => {
                     </CardHeader>
                     <CardContent>
                       <p className="text-amber-700 mb-4">
-                        Configure as seções essenciais: <strong>Branding</strong>, <strong>Stripe</strong>, <strong>Planos</strong> e <strong>Contato</strong>.
+                        Configure as seções essenciais: <strong>Branding</strong>, <strong>Asaas</strong>, <strong>Planos</strong> e <strong>Contato</strong>.
                         O sistema está completamente operacional via banco de dados.
                       </p>
                     </CardContent>
@@ -178,7 +178,7 @@ const AdminDashboard: React.FC = () => {
                     </CardHeader>
                     <CardContent>
                       <p className="text-amber-700 mb-4">
-                        Configure as seções essenciais: <strong>Branding</strong>, <strong>Stripe</strong>, <strong>Planos</strong> e <strong>Contato</strong>.
+                        Configure as seções essenciais: <strong>Branding</strong>, <strong>Asaas</strong>, <strong>Planos</strong> e <strong>Contato</strong>.
                         O sistema está completamente operacional via banco de dados.
                       </p>
                     </CardContent>

@@ -115,20 +115,21 @@ const PlanCard: React.FC<PlanCardProps> = ({
 
         if (data?.success) {
           toast({
-            title: "Solicitação Criada",
-            description: data.message || "Solicitação de mudança de plano criada com sucesso",
+            title: "✅ Plano Alterado!",
+            description: data.message || "Seu plano foi alterado com sucesso!",
           });
 
-          // Sempre redirecionar para o pagamento
-          if (data.paymentUrl) {
-            window.open(data.paymentUrl, '_blank');
-          }
+          // Aguardar um momento para o webhook processar e recarregar
+          setTimeout(() => {
+            checkSubscription(); // Atualizar contexto da assinatura
+            window.location.reload();
+          }, 2000);
 
           return;
         } else {
           toast({
             title: "Erro",
-            description: data?.error || "Erro ao criar solicitação de mudança",
+            description: data?.error || "Erro ao alterar plano",
             variant: "destructive",
           });
           return;

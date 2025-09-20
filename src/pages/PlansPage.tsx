@@ -5,7 +5,6 @@ import MainLayout from '@/components/layout/MainLayout';
 import SubscriptionStatusCard from '@/components/subscription/SubscriptionStatusCard';
 import PlanCard from '@/components/subscription/PlanCard';
 import AsaasManageSubscriptionButton from '@/components/subscription/AsaasManageSubscriptionButton';
-import PendingPlanChange from '@/components/subscription/PendingPlanChange';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -80,11 +79,6 @@ const PlansPage = () => {
       <div className="max-w-6xl mx-auto">
         {/* Subscription Status Card */}
         <SubscriptionStatusCard />
-
-        {/* Pending Plan Changes */}
-        <div className="mb-8">
-          <PendingPlanChange />
-        </div>
 
         {/* Page Header */}
         <div className="text-center mb-8">

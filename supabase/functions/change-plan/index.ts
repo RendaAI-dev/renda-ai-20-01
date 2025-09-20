@@ -93,7 +93,11 @@ serve(async (req) => {
     const newValue = newPlanType === 'monthly' ? monthlyPrice : annualPrice;
     const newCycle = newPlanType === 'monthly' ? 'MONTHLY' : 'YEARLY';
     
-    console.log('[CHANGE-PLAN] Alterando para:', { newValue, newCycle });
+    console.log('[CHANGE-PLAN] Cancelando assinatura atual e criando nova:', { 
+      oldSubscription: subscription.asaas_subscription_id,
+      newValue, 
+      newCycle 
+    });
 
     // Buscar customer do Asaas para o usuário
     const { data: asaasCustomer } = await supabase
@@ -106,10 +110,35 @@ serve(async (req) => {
       throw new Error('Cliente Asaas não encontrado');
     }
 
+    // PASSO 1: Cancelar assinatura atual no Asaas
+    if (subscription.asaas_subscription_id) {
+      console.log('[CHANGE-PLAN] Cancelando assinatura atual:', subscription.asaas_subscription_id);
+      
+      const cancelResponse = await fetch(`${asaasUrl}/subscriptions/${subscription.asaas_subscription_id}`, {
+        method: 'DELETE',
+        headers: {
+          'access_token': apiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!cancelResponse.ok) {
+        const error = await cancelResponse.text();
+        console.error('[CHANGE-PLAN] Erro ao cancelar assinatura:', error);
+        throw new Error(`Erro ao cancelar assinatura atual: ${error}`);
+      }
+
+      console.log('[CHANGE-PLAN] ✅ Assinatura atual cancelada com sucesso');
+    }
+
+    // PASSO 2: Criar nova assinatura no Asaas
     const today = new Date();
+    const nextDueDate = new Date(today);
+    nextDueDate.setDate(today.getDate() + 1); // Próximo dia útil
+
+    console.log('[CHANGE-PLAN] Criando nova assinatura');
     
-    // Criar pagamento único com valor total do novo plano
-    const paymentResponse = await fetch(`${asaasUrl}/payments`, {
+    const subscriptionResponse = await fetch(`${asaasUrl}/subscriptions`, {
       method: 'POST',
       headers: {
         'access_token': apiKey,
@@ -119,50 +148,49 @@ serve(async (req) => {
         customer: asaasCustomer.asaas_customer_id,
         billingType: 'CREDIT_CARD',
         value: newValue,
-        dueDate: today.toISOString().split('T')[0],
-        description: `Mudança para plano ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}`,
-        externalReference: `plan_change_${subscription.id}_${Date.now()}`
+        nextDueDate: nextDueDate.toISOString().split('T')[0],
+        cycle: newCycle,
+        description: `Plano ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}`,
+        externalReference: `subscription_change_${subscription.id}_${Date.now()}`
       })
     });
 
-    if (!paymentResponse.ok) {
-      const error = await paymentResponse.text();
-      throw new Error(`Erro ao criar pagamento: ${error}`);
+    if (!subscriptionResponse.ok) {
+      const error = await subscriptionResponse.text();
+      console.error('[CHANGE-PLAN] Erro ao criar nova assinatura:', error);
+      throw new Error(`Erro ao criar nova assinatura: ${error}`);
     }
 
-    const payment = await paymentResponse.json();
+    const newSubscription = await subscriptionResponse.json();
+    console.log('[CHANGE-PLAN] ✅ Nova assinatura criada:', newSubscription.id);
 
-    // Criar registro de mudança de plano pendente
-    const { data: changeRequest, error: changeRequestError } = await supabase
-      .from('poupeja_plan_change_requests')
-      .insert({
-        user_id: user.id,
-        subscription_id: subscription.id,
-        current_plan_type: subscription.plan_type,
-        new_plan_type: newPlanType,
-        new_plan_value: newValue,
-        asaas_payment_id: payment.id,
-        payment_url: payment.invoiceUrl,
-        status: 'pending'
+    // PASSO 3: Atualizar assinatura no banco de dados
+    const { error: updateError } = await supabase
+      .from('poupeja_subscriptions')
+      .update({
+        asaas_subscription_id: newSubscription.id,
+        plan_type: newPlanType,
+        status: 'active',
+        current_period_start: new Date().toISOString(),
+        current_period_end: new Date(nextDueDate.getTime() + (newPlanType === 'monthly' ? 30 : 365) * 24 * 60 * 60 * 1000).toISOString(),
+        updated_at: new Date().toISOString()
       })
-      .select('*')
-      .single();
+      .eq('id', subscription.id);
 
-    if (changeRequestError) {
-      throw new Error(`Erro ao criar solicitação de mudança: ${changeRequestError.message}`);
+    if (updateError) {
+      console.error('[CHANGE-PLAN] Erro ao atualizar assinatura no banco:', updateError);
+      throw new Error(`Erro ao atualizar assinatura no banco: ${updateError.message}`);
     }
 
-    console.log('[CHANGE-PLAN] ✅ Solicitação de mudança criada com sucesso');
+    console.log('[CHANGE-PLAN] ✅ Mudança de plano concluída com sucesso');
 
     return new Response(JSON.stringify({
       success: true,
-      message: `Solicitação de mudança para plano ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'} criada. Complete o pagamento para confirmar.`,
-      changeRequestId: changeRequest.id,
+      message: `Plano alterado com sucesso para ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}!`,
       newPlanType,
       newValue,
-      paymentUrl: payment.invoiceUrl,
-      paymentId: payment.id,
-      status: 'pending_payment'
+      subscriptionId: newSubscription.id,
+      status: 'completed'
     }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });

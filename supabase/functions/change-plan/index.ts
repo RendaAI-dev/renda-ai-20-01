@@ -78,13 +78,19 @@ serve(async (req) => {
       ? 'https://www.asaas.com/api/v3' 
       : 'https://sandbox.asaas.com/api/v3';
 
-    // Buscar novos preços
-    const { data: priceData } = await supabase.functions.invoke('get-asaas-config');
+    // Buscar novos preços das configurações públicas
+    const { data: priceData } = await supabase.functions.invoke('get-public-settings', {
+      body: { category: 'pricing' }
+    });
     if (!priceData?.success) {
       throw new Error('Erro ao buscar configurações de preço');
     }
 
-    const newValue = newPlanType === 'monthly' ? priceData.prices.monthly_value : priceData.prices.annual_value;
+    const pricing = priceData.settings?.pricing || {};
+    const monthlyPrice = pricing.monthly_price?.value || pricing.plan_price_monthly?.value || 49.9;
+    const annualPrice = pricing.annual_price?.value || pricing.plan_price_annual?.value || 538.9;
+    
+    const newValue = newPlanType === 'monthly' ? monthlyPrice : annualPrice;
     const newCycle = newPlanType === 'monthly' ? 'MONTHLY' : 'YEARLY';
     
     console.log('[CHANGE-PLAN] Alterando para:', { newValue, newCycle });
@@ -99,11 +105,11 @@ serve(async (req) => {
     // Se há dias restantes no período atual, calcular proporcional
     if (daysRemaining > 0) {
       const isUpgrade = (subscription.plan_type === 'monthly' && newPlanType === 'annual') ||
-                       (newValue > (subscription.plan_type === 'monthly' ? priceData.prices.monthly_value : priceData.prices.annual_value));
+                       (newValue > (subscription.plan_type === 'monthly' ? monthlyPrice : annualPrice));
       
       if (isUpgrade) {
         // Para upgrade, cobra a diferença proporcional
-        const oldValue = subscription.plan_type === 'monthly' ? priceData.prices.monthly_value : priceData.prices.annual_value;
+        const oldValue = subscription.plan_type === 'monthly' ? monthlyPrice : annualPrice;
         const dailyDifference = (newValue - oldValue) / (newPlanType === 'monthly' ? 30 : 365);
         proportionalValue = dailyDifference * daysRemaining;
       } else {

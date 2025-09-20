@@ -92,7 +92,46 @@ const PlanCard: React.FC<PlanCardProps> = ({
       console.log('Usuário autenticado com sucesso');
       console.log('Token disponível:', !!session.access_token);
 
-      // Invocar a função com o token explícito
+      // Se o usuário tem assinatura ativa e está fazendo upgrade/downgrade, usar change-plan
+      if (hasActiveSubscription && (canUpgrade || canDowngrade)) {
+        console.log('Alterando plano existente para:', planType);
+        
+        const { data, error } = await supabase.functions.invoke('change-plan', {
+          body: { newPlanType: planType },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          }
+        });
+
+        if (error) {
+          console.error('Erro ao alterar plano:', error);
+          toast({
+            title: "Erro ao alterar plano",
+            description: error.message || "Erro interno do servidor. Tente novamente.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (data?.success) {
+          toast({
+            title: "Plano alterado com sucesso!",
+            description: data.message,
+            variant: "default",
+          });
+
+          // Se há URL de pagamento (cobrança proporcional), redirecionar
+          if (data.paymentUrl) {
+            window.open(data.paymentUrl, '_blank');
+          }
+
+          // Recarregar dados da assinatura
+          window.location.reload();
+          return;
+        }
+      }
+
+      // Caso contrário, criar novo checkout
       const { data, error } = await supabase.functions.invoke('create-asaas-checkout', {
         body: { 
           planType,

@@ -202,7 +202,7 @@ serve(async (req) => {
 
     // Criar Checkout do Asaas para ASSINATURA recorrente com cartão de crédito
     const reference = `${user.id}_${planType}_${Date.now()}`;
-    const cycle = planType === 'monthly' ? 'MONTHLY' : 'ANNUALLY';
+    const cycle = planType === 'monthly' ? 'MONTHLY' : 'YEARLY';
     const planName = planType === 'monthly' ? 'Plano Premium Mensal' : 'Plano Premium Anual';
     const planDescription = planType === 'monthly' ? 'Assinatura Mensal - Renda AI' : 'Assinatura Anual - Renda AI';
 

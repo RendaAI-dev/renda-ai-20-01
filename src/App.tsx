@@ -26,7 +26,6 @@ import SchedulePage from "./pages/SchedulePage";
 import SettingsPage from "./pages/SettingsPage";
 import CategoriesPage from "./pages/CategoriesPage";
 import PlansPage from "./pages/PlansPage";
-import CheckoutPage from "./pages/CheckoutPage";
 import PaymentSuccessPage from "./pages/PaymentSuccessPage";
 import ThankYouPage from "./pages/ThankYouPage";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -66,7 +65,6 @@ function App() {
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/categories" element={<CategoriesPage />} />
                         <Route path="/plans" element={<PlansPage />} />
-                        <Route path="/checkout/:planType" element={<CheckoutPage />} />
                         <Route path="/payment-success" element={<PaymentSuccessPage />} />
                         <Route path="/thank-you" element={<ThankYouPage />} />
                         <Route path="/achievements" element={<AchievementsPage />} />

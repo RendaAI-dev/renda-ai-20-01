@@ -146,54 +146,10 @@ const RegisterPage = () => {
     }
   };
 
-  // Função para fazer polling do redirecionamento de pagamento
-  const pollForPaymentRedirect = async (): Promise<string | null> => {
-    const maxAttempts = 30; // 30 tentativas
-    const intervalMs = 2000; // 2 segundos entre tentativas
-    
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      console.log(`[POLL] Tentativa ${attempt}/${maxAttempts} - Verificando redirecionamento...`);
-      
-      try {
-        const { data: redirects, error } = await supabase
-          .from('poupeja_payment_redirects')
-          .select('invoice_url, processed')
-          .eq('processed', false)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (error) {
-          console.error('[POLL] Erro ao verificar redirecionamentos:', error);
-          continue;
-        }
-
-        if (redirects && redirects.length > 0) {
-          const redirect = redirects[0];
-          console.log('[POLL] ✅ URL encontrada:', redirect.invoice_url);
-          
-          // Marcar como processado
-          await supabase
-            .from('poupeja_payment_redirects')
-            .update({ processed: true })
-            .eq('invoice_url', redirect.invoice_url);
-          
-          return redirect.invoice_url;
-        }
-
-        // Aguardar antes da próxima tentativa
-        if (attempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, intervalMs));
-        }
-      } catch (error) {
-        console.error('[POLL] Erro durante polling:', error);
-        await new Promise(resolve => setTimeout(resolve, intervalMs));
-      }
-    }
-    
-    console.log('[POLL] ❌ Timeout - URL não encontrada após todas as tentativas');
-    return null;
-  };
-
+  // Função para fazer polling do redirecionamento de pagamento - REMOVIDO
+  // const pollForPaymentRedirect = async (): Promise<string | null> => {
+  // Toda a lógica de polling foi removida
+  
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
@@ -275,7 +231,7 @@ const RegisterPage = () => {
             
             toast({
               title: "Conta criada e login realizado!",
-              description: "Prosseguindo para checkout...",
+              description: "Prosseguindo para pagamento...",
             });
           } else {
             throw new Error('Login automático falhou');
@@ -306,7 +262,7 @@ const RegisterPage = () => {
         throw new Error('Sessão inválida após registro. Tente fazer login manualmente.');
       }
 
-      console.log('Sessão estabelecida com sucesso, preparando checkout...');
+      console.log('Sessão estabelecida com sucesso, preparando pagamento...');
       
       // Usar planType da URL ou converter priceId para planType
       let finalPlanType = planType;
@@ -321,16 +277,15 @@ const RegisterPage = () => {
       // Atualizar feedback de progresso
       toast({
         title: "Sessão estabelecida!",
-        description: "Preparando checkout...",
+        description: "Preparando pagamento...",
       });
       
-      // Chamar edge function para criar checkout
+      // Chamar edge function para criar pagamento direto
       const response = await supabase.functions.invoke('create-asaas-checkout', {
         body: { 
           planType: finalPlanType,
           successUrl: `${window.location.origin}/payment-success?email=${encodeURIComponent(validSession.user.email || '')}`,
-          cancelUrl: `${window.location.origin}/register?canceled=true`,
-          waitForPaymentCreated: true 
+          cancelUrl: `${window.location.origin}/register?canceled=true`
         },
         headers: {
           Authorization: `Bearer ${validSession.access_token}`,
@@ -338,51 +293,30 @@ const RegisterPage = () => {
       });
 
       if (response.error) {
-        console.error('Erro ao criar checkout:', response.error);
-        throw new Error('Erro ao criar checkout');
+        console.error('Erro ao criar pagamento:', response.error);
+        throw new Error('Erro ao criar pagamento');
       }
 
       const functionData = response.data;
       console.log('Dados retornados pela função create-asaas-checkout:', functionData);
 
-      if (functionData && functionData.checkoutUrl) {
-        console.log('✅ Checkout URL recebida:', functionData.checkoutUrl);
+      if (functionData && functionData.invoiceUrl) {
+        console.log('✅ Invoice URL recebida:', functionData.invoiceUrl);
         
         // Garantir que o overlay de carregamento permaneça visível
         document.body.classList.add('overflow-hidden');
         
-        // Adicionar um pequeno atraso antes do redirecionamento
+        // Redirecionar para a fatura do Asaas
         setTimeout(() => {
-          window.location.href = functionData.checkoutUrl;
-        }, 500);
-        
-        return;
-      } else if (functionData && functionData.checkoutId) {
-        // Fallback: construir URL manualmente se checkoutUrl não estiver presente
-        console.log('CheckoutId presente mas checkoutUrl ausente, construindo fallback');
-        toast({
-          title: "Localizando link de pagamento...",
-          description: "Redirecionando para o checkout.",
-        });
-        const baseUrl = window.location.hostname.includes('localhost') || window.location.hostname.includes('preview') 
-          ? 'https://sandbox.asaas.com'
-          : 'https://www.asaas.com';
-        const fallbackUrl = `${baseUrl}/checkoutSession/show/${functionData.checkoutId}`;
-        console.log('Using fallback URL:', fallbackUrl);
-        
-        // Garantir que o overlay de carregamento permaneça visível
-        document.body.classList.add('overflow-hidden');
-        
-        setTimeout(() => {
-          window.location.href = fallbackUrl;
+          window.location.href = functionData.invoiceUrl;
         }, 500);
         
         return;
       } else {
-        throw new Error('Não foi possível obter a URL de checkout.');
+        throw new Error('Não foi possível obter a URL da fatura.');
       }
     } catch (err: any) {
-      console.error('Erro no processo de registro ou checkout:', err);
+      console.error('Erro no processo de registro ou pagamento:', err);
       setError(err.message || 'Ocorreu um erro desconhecido.');
       setIsLoading(false);
       
@@ -403,7 +337,7 @@ const RegisterPage = () => {
         <div className="flex flex-col items-center gap-2">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
           <p className="text-sm font-medium">
-            {isLoading && error ? 'Processando...' : 'Criando conta e preparando checkout...'}
+            {isLoading && error ? 'Processando...' : 'Criando conta e preparando pagamento...'}
           </p>
         </div>
       </div>

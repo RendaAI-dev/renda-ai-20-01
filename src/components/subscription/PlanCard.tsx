@@ -136,7 +136,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
         }
       }
 
-      // Caso contrário, criar novo checkout
+      // Caso contrário, criar novo pagamento direto
       const { data, error } = await supabase.functions.invoke('create-asaas-checkout', {
         body: { 
           planType,
@@ -149,7 +149,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
       });
 
       if (error) {
-        console.error('Error creating checkout session:', error);
+        console.error('Error creating payment:', error);
         
         // Verificar se é erro de autenticação
         if (error.message?.includes('Token de autenticação inválido') || 
@@ -165,35 +165,20 @@ const PlanCard: React.FC<PlanCardProps> = ({
         }
         
         toast({
-          title: "Erro no checkout",
+          title: "Erro no pagamento",
           description: `Erro: ${error.message}. Verifique se suas chaves do Asaas estão configuradas.`,
           variant: "destructive",
         });
         return;
       }
 
-      if (data?.checkoutUrl) {
-        console.log('Redirecting to Asaas checkout:', data.checkoutUrl);
+      if (data?.invoiceUrl) {
+        console.log('Redirecting to Asaas invoice:', data.invoiceUrl);
         
-        // Redirecionar para Asaas na mesma aba
-        window.location.href = data.checkoutUrl;
-      } else if (data?.checkoutId) {
-        // Fallback: construir URL manualmente se checkoutUrl não estiver presente
-        console.log('CheckoutId presente mas checkoutUrl ausente, construindo fallback');
-        toast({
-          title: "Localizando link de pagamento...",
-          description: "Redirecionando para o checkout.",
-        });
-        const baseUrl = window.location.hostname.includes('localhost') || window.location.hostname.includes('preview') 
-          ? 'https://sandbox.asaas.com'
-          : 'https://www.asaas.com';
-        const fallbackUrl = `${baseUrl}/checkoutSession/show/${data.checkoutId}`;
-        console.log('Using fallback URL:', fallbackUrl);
-        
-        // Redirecionar para Asaas na mesma aba
-        window.location.href = fallbackUrl;
+        // Redirecionar para a fatura do Asaas
+        window.location.href = data.invoiceUrl;
       } else {
-        throw new Error('URL de checkout não retornada');
+        throw new Error('URL da fatura não retornada');
       }
     } catch (error) {
       console.error('Checkout error:', error);

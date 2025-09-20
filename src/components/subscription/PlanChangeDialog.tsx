@@ -51,11 +51,11 @@ const PlanChangeDialog: React.FC<PlanChangeDialogProps> = ({
 
       toast.success(data.message || 'Plano alterado com sucesso');
       
-      if (data.paymentUrl) {
-        toast.info('Redirecionando para pagamento do ajuste...');
-        setTimeout(() => {
-          window.open(data.paymentUrl, '_blank');
-        }, 1000);
+      // Mostrar informação sobre ajuste de valor se houver
+      if (data.adjustmentAmount && data.adjustmentAmount > 0) {
+        toast.info(`Ajuste proporcional de ${formatCurrency(data.adjustmentAmount)} processado automaticamente.`);
+      } else if (currentPlan === 'annual' && newPlanType === 'monthly') {
+        toast.info('Crédito será aplicado na sua próxima fatura.');
       }
 
       onPlanChanged();
@@ -181,10 +181,10 @@ const PlanChangeDialog: React.FC<PlanChangeDialogProps> = ({
         <div className="mt-6 p-4 bg-muted/50 rounded-lg">
           <h4 className="font-medium mb-2">Como funciona a alteração:</h4>
           <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• <strong>Upgrade:</strong> Você paga apenas a diferença proporcional pelo período restante</li>
-            <li>• <strong>Downgrade:</strong> O crédito será aplicado na próxima fatura</li>
-            <li>• A alteração é efetiva imediatamente</li>
-            <li>• A próxima cobrança será no novo valor escolhido</li>
+            <li>• <strong>Upgrade:</strong> Cobrança automática da diferença proporcional</li>
+            <li>• <strong>Downgrade:</strong> Crédito aplicado na próxima fatura automaticamente</li>
+            <li>• <strong>Processamento:</strong> Alteração instantânea sem redirecionamentos</li>
+            <li>• <strong>Cobrança:</strong> Próximo ciclo no novo valor escolhido</li>
           </ul>
         </div>
       </DialogContent>

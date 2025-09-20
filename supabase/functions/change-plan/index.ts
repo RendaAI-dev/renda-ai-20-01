@@ -91,10 +91,35 @@ serve(async (req) => {
     const annualPrice = pricing.annual_price?.value || pricing.plan_price_annual?.value || 538.9;
     
     const newValue = newPlanType === 'monthly' ? monthlyPrice : annualPrice;
+    const currentValue = subscription.plan_type === 'monthly' ? monthlyPrice : annualPrice;
     const newCycle = newPlanType === 'monthly' ? 'MONTHLY' : 'YEARLY';
     
-    console.log('[CHANGE-PLAN] Cancelando assinatura atual e criando nova:', { 
-      oldSubscription: subscription.asaas_subscription_id,
+    // Calcular diferença proporcional
+    const currentPeriodEnd = new Date(subscription.current_period_end || new Date());
+    const daysRemaining = Math.max(0, Math.ceil((currentPeriodEnd.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
+    
+    let adjustmentAmount = 0;
+    let adjustmentDescription = '';
+    
+    if (subscription.plan_type === 'monthly' && newPlanType === 'annual') {
+      // Upgrade: mensal para anual - calcular diferença proporcional
+      const dailyCurrentRate = monthlyPrice / 30;
+      const currentPeriodValue = dailyCurrentRate * daysRemaining;
+      const dailyAnnualRate = annualPrice / 365;
+      const annualPeriodValue = dailyAnnualRate * daysRemaining;
+      adjustmentAmount = Math.max(0, annualPeriodValue - currentPeriodValue);
+      adjustmentDescription = `Upgrade para plano anual - ajuste proporcional (${daysRemaining} dias restantes)`;
+    } else if (subscription.plan_type === 'annual' && newPlanType === 'monthly') {
+      // Downgrade: anual para mensal - crédito será aplicado na próxima fatura
+      adjustmentAmount = 0; // Não cobramos extra, aplicamos crédito
+      adjustmentDescription = `Downgrade para plano mensal - crédito aplicado na próxima fatura`;
+    }
+    
+    console.log('[CHANGE-PLAN] Processando alteração interna:', { 
+      oldPlan: subscription.plan_type,
+      newPlan: newPlanType,
+      daysRemaining,
+      adjustmentAmount,
       newValue, 
       newCycle 
     });
@@ -131,10 +156,39 @@ serve(async (req) => {
       console.log('[CHANGE-PLAN] ✅ Assinatura atual cancelada com sucesso');
     }
 
-    // PASSO 2: Criar nova assinatura no Asaas
+    // PASSO 2: Processar ajuste proporcional (se necessário)
+    let adjustmentPaymentId = null;
+    
+    if (adjustmentAmount > 0) {
+      console.log('[CHANGE-PLAN] Gerando cobrança de ajuste:', adjustmentAmount);
+      
+      const adjustmentPayment = await fetch(`${asaasUrl}/payments`, {
+        method: 'POST',
+        headers: {
+          'access_token': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          customer: asaasCustomer.asaas_customer_id,
+          billingType: 'CREDIT_CARD',
+          value: adjustmentAmount,
+          dueDate: new Date().toISOString().split('T')[0],
+          description: adjustmentDescription,
+          externalReference: `adjustment_${subscription.id}_${Date.now()}`
+        })
+      });
+      
+      if (adjustmentPayment.ok) {
+        const paymentData = await adjustmentPayment.json();
+        adjustmentPaymentId = paymentData.id;
+        console.log('[CHANGE-PLAN] ✅ Cobrança de ajuste criada:', adjustmentPaymentId);
+      }
+    }
+
+    // PASSO 3: Criar nova assinatura no Asaas
     const today = new Date();
     const nextDueDate = new Date(today);
-    nextDueDate.setDate(today.getDate() + 1); // Próximo dia útil
+    nextDueDate.setDate(today.getDate() + (newPlanType === 'monthly' ? 30 : 365));
 
     console.log('[CHANGE-PLAN] Criando nova assinatura');
     
@@ -164,7 +218,7 @@ serve(async (req) => {
     const newSubscription = await subscriptionResponse.json();
     console.log('[CHANGE-PLAN] ✅ Nova assinatura criada:', newSubscription.id);
 
-    // PASSO 3: Atualizar assinatura no banco de dados
+    // PASSO 4: Atualizar assinatura no banco de dados
     const { error: updateError } = await supabase
       .from('poupeja_subscriptions')
       .update({
@@ -172,7 +226,7 @@ serve(async (req) => {
         plan_type: newPlanType,
         status: 'active',
         current_period_start: new Date().toISOString(),
-        current_period_end: new Date(nextDueDate.getTime() + (newPlanType === 'monthly' ? 30 : 365) * 24 * 60 * 60 * 1000).toISOString(),
+        current_period_end: nextDueDate.toISOString(),
         updated_at: new Date().toISOString()
       })
       .eq('id', subscription.id);
@@ -190,6 +244,8 @@ serve(async (req) => {
       newPlanType,
       newValue,
       subscriptionId: newSubscription.id,
+      adjustmentAmount,
+      adjustmentPaymentId,
       status: 'completed'
     }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

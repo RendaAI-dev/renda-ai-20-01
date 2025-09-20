@@ -219,6 +219,39 @@ export type Database = {
         }
         Relationships: []
       }
+      poupeja_payment_redirects: {
+        Row: {
+          asaas_payment_id: string
+          checkout_id: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          invoice_url: string
+          processed: boolean | null
+          user_id: string
+        }
+        Insert: {
+          asaas_payment_id: string
+          checkout_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          invoice_url: string
+          processed?: boolean | null
+          user_id: string
+        }
+        Update: {
+          asaas_payment_id?: string
+          checkout_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          invoice_url?: string
+          processed?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       poupeja_plan_change_requests: {
         Row: {
           asaas_payment_id: string | null

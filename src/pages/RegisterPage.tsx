@@ -146,6 +146,54 @@ const RegisterPage = () => {
     }
   };
 
+  // Função para fazer polling do redirecionamento de pagamento
+  const pollForPaymentRedirect = async (): Promise<string | null> => {
+    const maxAttempts = 30; // 30 tentativas
+    const intervalMs = 2000; // 2 segundos entre tentativas
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      console.log(`[POLL] Tentativa ${attempt}/${maxAttempts} - Verificando redirecionamento...`);
+      
+      try {
+        const { data: redirects, error } = await supabase
+          .from('poupeja_payment_redirects')
+          .select('invoice_url, processed')
+          .eq('processed', false)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (error) {
+          console.error('[POLL] Erro ao verificar redirecionamentos:', error);
+          continue;
+        }
+
+        if (redirects && redirects.length > 0) {
+          const redirect = redirects[0];
+          console.log('[POLL] ✅ URL encontrada:', redirect.invoice_url);
+          
+          // Marcar como processado
+          await supabase
+            .from('poupeja_payment_redirects')
+            .update({ processed: true })
+            .eq('invoice_url', redirect.invoice_url);
+          
+          return redirect.invoice_url;
+        }
+
+        // Aguardar antes da próxima tentativa
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, intervalMs));
+        }
+      } catch (error) {
+        console.error('[POLL] Erro durante polling:', error);
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+      }
+    }
+    
+    console.log('[POLL] ❌ Timeout - URL não encontrada após todas as tentativas');
+    return null;
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
@@ -282,7 +330,8 @@ const RegisterPage = () => {
         body: { 
           planType: finalPlanType,
           successUrl: `${window.location.origin}/payment-success?email=${encodeURIComponent(validSession.user.email || '')}`,
-          cancelUrl: `${window.location.origin}/register?canceled=true`
+          cancelUrl: `${window.location.origin}/register?canceled=true`,
+          waitForPaymentCreated: true
         },
         headers: {
           Authorization: `Bearer ${validSession.access_token}`,
@@ -296,7 +345,22 @@ const RegisterPage = () => {
 
       console.log('Dados retornados pela função create-asaas-checkout:', functionData);
 
-      if (functionData && functionData.checkoutUrl) {
+      if (functionData && functionData.waiting) {
+        // Aguardar o webhook processar PAYMENT_CREATED
+        toast({
+          title: "Aguardando pagamento...",
+          description: "Preparando sua fatura personalizada...",
+        });
+        
+        const redirectUrl = await pollForPaymentRedirect();
+        
+        if (redirectUrl) {
+          console.log('Redirecionando para fatura:', redirectUrl);
+          window.location.href = redirectUrl;
+        } else {
+          throw new Error('Timeout aguardando criação do pagamento');
+        }
+      } else if (functionData && functionData.checkoutUrl) {
         console.log('Redirecionando para:', functionData.checkoutUrl);
         
         // Garantir que o overlay de carregamento permaneça visível

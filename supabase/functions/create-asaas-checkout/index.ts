@@ -54,7 +54,7 @@ serve(async (req) => {
     }
 
     // Parse do body
-    const { planType, successUrl, cancelUrl } = await req.json();
+    const { planType, successUrl, cancelUrl, waitForPaymentCreated = false } = await req.json();
     
     if (!planType || !successUrl || !cancelUrl) {
       throw new Error('Parâmetros obrigatórios: planType, successUrl, cancelUrl');
@@ -448,6 +448,23 @@ serve(async (req) => {
         checkoutId: checkout.id,
         reference,
         source: 'invoice_found'
+      }), {
+        headers: { 
+          'Content-Type': 'application/json',
+          ...corsHeaders 
+        }
+      });
+    }
+
+    // Se waitForPaymentCreated é true, não retornar checkoutUrl
+    if (waitForPaymentCreated) {
+      console.log(`[ASAAS-CHECKOUT] 🕒 Aguardando PAYMENT_CREATED para checkout: ${checkout.id}`);
+      return new Response(JSON.stringify({
+        success: true,
+        checkoutId: checkout.id,
+        reference,
+        waiting: true,
+        message: "Aguardando criação do pagamento..."
       }), {
         headers: { 
           'Content-Type': 'application/json',

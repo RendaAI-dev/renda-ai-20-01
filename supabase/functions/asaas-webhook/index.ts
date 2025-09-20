@@ -338,8 +338,26 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
 
   switch (event) {
     case 'PAYMENT_CREATED':
-      // Pagamento criado - apenas log
+      // Pagamento criado - salvar URL para redirecionamento
       console.log('[ASAAS-WEBHOOK] ✨ Pagamento criado:', payment.id);
+      
+      // Salvar URL de redirecionamento para o usuário
+      if (payment.invoiceUrl) {
+        const redirectResult = await supabase
+          .from('poupeja_payment_redirects')
+          .insert({
+            user_id: userId,
+            asaas_payment_id: payment.id,
+            invoice_url: payment.invoiceUrl,
+            checkout_id: payment.checkoutSession
+          });
+        
+        if (redirectResult.error) {
+          console.error(`[ASAAS-WEBHOOK] Erro ao salvar redirecionamento:`, redirectResult.error);
+        } else {
+          console.log(`[ASAAS-WEBHOOK] 🔗 URL de redirecionamento salva para usuário ${userId}: ${payment.invoiceUrl}`);
+        }
+      }
       break;
 
     case 'PAYMENT_CONFIRMED':

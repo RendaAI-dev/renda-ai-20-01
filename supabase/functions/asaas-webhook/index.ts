@@ -339,24 +339,32 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
   switch (event) {
     case 'PAYMENT_CREATED':
       // Pagamento criado - salvar URL para redirecionamento
-      console.log('[ASAAS-WEBHOOK] ✨ Pagamento criado:', payment.id);
+      console.log('[ASAAS-WEBHOOK] ✨ Pagamento criado:', payment.id, {
+        invoiceUrl: payment.invoiceUrl,
+        bankSlipUrl: payment.bankSlipUrl,
+        paymentValue: payment.value,
+        customerId: payment.customer
+      });
       
-      // Salvar URL de redirecionamento para o usuário
-      if (payment.invoiceUrl) {
+      // Salvar URL de redirecionamento para o usuário (priorizar invoiceUrl, fallback para bankSlipUrl)
+      const redirectUrl = payment.invoiceUrl || payment.bankSlipUrl;
+      if (redirectUrl) {
         const redirectResult = await supabase
           .from('poupeja_payment_redirects')
           .insert({
             user_id: userId,
             asaas_payment_id: payment.id,
-            invoice_url: payment.invoiceUrl,
+            invoice_url: redirectUrl,
             checkout_id: payment.checkoutSession
           });
         
         if (redirectResult.error) {
           console.error(`[ASAAS-WEBHOOK] Erro ao salvar redirecionamento:`, redirectResult.error);
         } else {
-          console.log(`[ASAAS-WEBHOOK] 🔗 URL de redirecionamento salva para usuário ${userId}: ${payment.invoiceUrl}`);
+          console.log(`[ASAAS-WEBHOOK] 🔗 URL de redirecionamento salva para usuário ${userId}: ${redirectUrl}`);
         }
+      } else {
+        console.warn(`[ASAAS-WEBHOOK] ⚠️ Nenhuma URL de redirecionamento encontrada para pagamento ${payment.id}`);
       }
       break;
 

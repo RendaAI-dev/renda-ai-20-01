@@ -324,49 +324,34 @@ const RegisterPage = () => {
         description: "Preparando checkout...",
       });
       
-      // Chamar a Supabase Function para criar a sessão de checkout do Asaas
-      console.log('Chamando create-asaas-checkout com sessão válida...');
-      const { data: functionData, error: functionError } = await supabase.functions.invoke('create-asaas-checkout', {
+      // Chamar edge function para criar checkout
+      const response = await supabase.functions.invoke('create-asaas-checkout', {
         body: { 
           planType: finalPlanType,
           successUrl: `${window.location.origin}/payment-success?email=${encodeURIComponent(validSession.user.email || '')}`,
           cancelUrl: `${window.location.origin}/register?canceled=true`,
-          waitForPaymentCreated: true
+          waitForPaymentCreated: true 
         },
         headers: {
           Authorization: `Bearer ${validSession.access_token}`,
         }
       });
-      
-      if (functionError) {
-        console.error('Erro na função de checkout:', functionError);
-        throw new Error(`Erro no checkout: ${functionError.message}`);
+
+      if (response.error) {
+        console.error('Erro ao criar checkout:', response.error);
+        throw new Error('Erro ao criar checkout');
       }
 
+      const functionData = response.data;
       console.log('Dados retornados pela função create-asaas-checkout:', functionData);
 
-      if (functionData && functionData.waiting) {
-        // Aguardar o webhook processar PAYMENT_CREATED
-        toast({
-          title: "Aguardando pagamento...",
-          description: "Preparando sua fatura personalizada...",
-        });
-        
-        const redirectUrl = await pollForPaymentRedirect();
-        
-        if (redirectUrl) {
-          console.log('Redirecionando para fatura:', redirectUrl);
-          window.location.href = redirectUrl;
-        } else {
-          throw new Error('Timeout aguardando criação do pagamento');
-        }
-      } else if (functionData && functionData.checkoutUrl) {
-        console.log('Redirecionando para:', functionData.checkoutUrl);
+      if (functionData && functionData.checkoutUrl) {
+        console.log('✅ Checkout URL recebida:', functionData.checkoutUrl);
         
         // Garantir que o overlay de carregamento permaneça visível
         document.body.classList.add('overflow-hidden');
         
-        // Adicionar um pequeno atraso antes do redirecionamento para garantir que o overlay seja exibido
+        // Adicionar um pequeno atraso antes do redirecionamento
         setTimeout(() => {
           window.location.href = functionData.checkoutUrl;
         }, 500);

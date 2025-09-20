@@ -456,22 +456,100 @@ serve(async (req) => {
       });
     }
 
-    // Se waitForPaymentCreated é true, não retornar checkoutUrl
-    if (waitForPaymentCreated) {
-      console.log(`[ASAAS-CHECKOUT] 🕒 Aguardando PAYMENT_CREATED para checkout: ${checkout.id}`);
-      return new Response(JSON.stringify({
-        success: true,
-        checkoutId: checkout.id,
-        reference,
-        waiting: true,
-        message: "Aguardando criação do pagamento..."
-      }), {
-        headers: { 
-          'Content-Type': 'application/json',
-          ...corsHeaders 
+  // Se waitForPaymentCreated foi solicitado, aguardar pela URL da fatura
+  if (waitForPaymentCreated) {
+    console.log(`[ASAAS-CHECKOUT] 🔄 Aguardando PAYMENT_CREATED para user ${user.id}...`);
+    
+    // Aguardar um pouco para o webhook processar
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Tentar buscar URL da fatura na tabela de redirects por até 60 segundos
+    let attempts = 0;
+    const maxAttempts = 12; // 12 tentativas x 5s = 60s
+    const delayMs = 5000; // 5 segundos entre tentativas
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      console.log(`[ASAAS-CHECKOUT] Tentativa ${attempts}/${maxAttempts} - Buscando URL da fatura para user ${user.id}...`);
+      
+      try {
+        // Buscar URL da fatura na tabela de redirects
+        const { data: redirectData, error: redirectError } = await supabase
+          .from('poupeja_payment_redirects')
+          .select('invoice_url, asaas_payment_id')
+          .eq('user_id', user.id)
+          .eq('processed', false)
+          .gt('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (!redirectError && redirectData) {
+          console.log(`[ASAAS-CHECKOUT] ✅ URL da fatura encontrada via webhook: ${redirectData.invoice_url}`);
+          
+          // Marcar como processado
+          await supabase
+            .from('poupeja_payment_redirects')
+            .update({ processed: true })
+            .eq('user_id', user.id)
+            .eq('asaas_payment_id', redirectData.asaas_payment_id);
+          
+          return new Response(JSON.stringify({
+            success: true,
+            checkoutUrl: redirectData.invoice_url,
+            paymentId: redirectData.asaas_payment_id,
+            customerId: asaasCustomer.id,
+            source: 'webhook_redirect'
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
         }
-      });
+        
+        // Fallback: tentar buscar diretamente da API Asaas
+        if (attempts > 6) { // Após 30s, tentar fallback
+          const paymentsResponse = await fetch(`${asaasUrl}/payments?customer=${asaasCustomer.id}&limit=1`, {
+            method: 'GET',
+            headers: {
+              'access_token': apiKey,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (paymentsResponse.ok) {
+            const paymentsData = await paymentsResponse.json();
+            
+            if (paymentsData.data && paymentsData.data.length > 0) {
+              const latestPayment = paymentsData.data[0];
+              const invoiceUrl = latestPayment.invoiceUrl || latestPayment.bankSlipUrl;
+              
+              if (invoiceUrl) {
+                console.log(`[ASAAS-CHECKOUT] ✅ URL da fatura encontrada via API fallback: ${invoiceUrl}`);
+                return new Response(JSON.stringify({
+                  success: true,
+                  checkoutUrl: invoiceUrl,
+                  paymentId: latestPayment.id,
+                  customerId: asaasCustomer.id,
+                  source: 'api_fallback'
+                }), {
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                });
+              }
+            }
+          }
+        }
+        
+      } catch (error) {
+        console.log(`[ASAAS-CHECKOUT] Erro na tentativa ${attempts}:`, error);
+      }
+      
+      // Aguardar antes da próxima tentativa
+      if (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
     }
+    
+    console.log(`[ASAAS-CHECKOUT] ❌ Timeout: Não foi possível encontrar URL da fatura após ${maxAttempts} tentativas`);
+  }
 
     // Usar URL garantida do checkout
     console.log('[ASAAS-CHECKOUT] ✅ Redirecionando para checkout URL garantida');

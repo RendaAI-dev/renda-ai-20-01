@@ -269,7 +269,9 @@ serve(async (req) => {
       ? 'https://www.asaas.com'
       : 'https://sandbox.asaas.com';
     
-    const invoiceUrl = `${baseUrl}/i/${paymentId}`;
+    // Remover prefixo "pay_" do paymentId para construir URL correta
+    const invoiceSuffix = paymentId.replace('pay_', '');
+    const invoiceUrl = `${baseUrl}/i/${invoiceSuffix}`;
     console.log('[ASAAS-PAYMENT] ✅ URL da fatura gerada:', invoiceUrl);
 
     return new Response(JSON.stringify({

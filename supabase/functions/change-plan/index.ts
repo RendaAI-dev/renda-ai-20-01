@@ -111,103 +111,56 @@ serve(async (req) => {
       throw new Error('Cliente Asaas não encontrado');
     }
 
-    // PASSO 1: Cancelar assinatura atual no Asaas
-    if (subscription.asaas_subscription_id) {
-      console.log('[CHANGE-PLAN] Cancelando assinatura atual:', subscription.asaas_subscription_id);
-      
-      const cancelResponse = await fetch(`${asaasUrl}/subscriptions/${subscription.asaas_subscription_id}`, {
-        method: 'DELETE',
-        headers: {
-          'access_token': apiKey,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!cancelResponse.ok) {
-        const error = await cancelResponse.text();
-        console.error('[CHANGE-PLAN] Erro ao cancelar assinatura:', error);
-        throw new Error(`Erro ao cancelar assinatura atual: ${error}`);
-      }
-
-      console.log('[CHANGE-PLAN] ✅ Assinatura atual cancelada com sucesso');
+    // PASSO 1: Atualizar assinatura existente no Asaas
+    if (!subscription.asaas_subscription_id) {
+      throw new Error('ID da assinatura Asaas não encontrado');
     }
-
-    // PASSO 2: Criar pagamento imediato para o novo plano
-    console.log('[CHANGE-PLAN] Criando pagamento imediato para o novo plano:', newValue);
     
-    const immediatePayment = await fetch(`${asaasUrl}/payments`, {
-      method: 'POST',
-      headers: {
-        'access_token': apiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        customer: asaasCustomer.asaas_customer_id,
-        billingType: 'CREDIT_CARD',
-        value: newValue,
-        dueDate: new Date().toISOString().split('T')[0], // Vencimento hoje
-        description: `Cobrança imediata - Plano ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}`,
-        externalReference: `immediate_change_${subscription.id}_${Date.now()}`
-      })
-    });
-
-    if (!immediatePayment.ok) {
-      const error = await immediatePayment.text();
-      console.error('[CHANGE-PLAN] Erro ao criar pagamento imediato:', error);
-      throw new Error(`Erro ao criar pagamento imediato: ${error}`);
-    }
-
-    const immediatePaymentData = await immediatePayment.json();
-    console.log('[CHANGE-PLAN] ✅ Pagamento imediato criado:', immediatePaymentData.id);
-
-    // PASSO 4: Criar nova assinatura no Asaas (com vencimento hoje)
     const today = new Date();
-    const nextDueDate = new Date(today); // Vencimento no mesmo dia da troca
-
-    console.log('[CHANGE-PLAN] Criando nova assinatura');
+    const nextDueDate = today.toISOString().split('T')[0]; // Vencimento hoje para cobrança imediata
     
-    const subscriptionResponse = await fetch(`${asaasUrl}/subscriptions`, {
-      method: 'POST',
+    console.log('[CHANGE-PLAN] Atualizando assinatura existente:', subscription.asaas_subscription_id);
+    console.log('[CHANGE-PLAN] Novos valores:', { value: newValue, cycle: newCycle, nextDueDate });
+
+    const updateResponse = await fetch(`${asaasUrl}/subscriptions/${subscription.asaas_subscription_id}`, {
+      method: 'PUT',
       headers: {
         'access_token': apiKey,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        customer: asaasCustomer.asaas_customer_id,
-        billingType: 'CREDIT_CARD',
         value: newValue,
-        nextDueDate: nextDueDate.toISOString().split('T')[0],
         cycle: newCycle,
+        nextDueDate: nextDueDate,
+        updatePendingPayments: true, // Cobra imediatamente a diferença/novo valor
         description: `Plano ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}`,
-        externalReference: `subscription_change_${subscription.id}_${Date.now()}`
-      })
+      }),
     });
 
-    if (!subscriptionResponse.ok) {
-      const error = await subscriptionResponse.text();
-      console.error('[CHANGE-PLAN] Erro ao criar nova assinatura:', error);
-      throw new Error(`Erro ao criar nova assinatura: ${error}`);
+    if (!updateResponse.ok) {
+      const updateError = await updateResponse.text();
+      console.error('[CHANGE-PLAN] ❌ Erro ao atualizar assinatura:', updateError);
+      throw new Error(`Erro ao atualizar assinatura: ${updateError}`);
     }
 
-    const newSubscription = await subscriptionResponse.json();
-    console.log('[CHANGE-PLAN] ✅ Nova assinatura criada:', newSubscription.id);
+    const updatedSubscriptionData = await updateResponse.json();
+    console.log('[CHANGE-PLAN] ✅ Assinatura atualizada com sucesso:', updatedSubscriptionData.id);
 
-    // PASSO 5: Atualizar assinatura no banco de dados
-    const { error: updateError } = await supabase
+    // PASSO 2: Atualizar assinatura no banco de dados
+    const { error: dbUpdateError } = await supabase
       .from('poupeja_subscriptions')
       .update({
-        asaas_subscription_id: newSubscription.id,
         plan_type: newPlanType,
         status: 'active',
         current_period_start: new Date().toISOString(),
-        current_period_end: nextDueDate.toISOString(),
+        current_period_end: new Date(Date.now() + (newPlanType === 'monthly' ? 30 : 365) * 24 * 60 * 60 * 1000).toISOString(),
         updated_at: new Date().toISOString()
       })
       .eq('id', subscription.id);
 
-    if (updateError) {
-      console.error('[CHANGE-PLAN] Erro ao atualizar assinatura no banco:', updateError);
-      throw new Error(`Erro ao atualizar assinatura no banco: ${updateError.message}`);
+    if (dbUpdateError) {
+      console.error('[CHANGE-PLAN] Erro ao atualizar assinatura no banco:', dbUpdateError);
+      throw new Error(`Erro ao atualizar assinatura no banco: ${dbUpdateError.message}`);
     }
 
     console.log('[CHANGE-PLAN] ✅ Mudança de plano concluída com sucesso');
@@ -217,9 +170,7 @@ serve(async (req) => {
       message: `Plano alterado com sucesso para ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}! Pagamento processado imediatamente.`,
       newPlanType,
       newValue,
-      subscriptionId: newSubscription.id,
-      immediatePaymentId: immediatePaymentData.id,
-      immediatePaymentUrl: immediatePaymentData.invoiceUrl,
+      subscriptionId: updatedSubscriptionData.id,
       status: 'completed'
     }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

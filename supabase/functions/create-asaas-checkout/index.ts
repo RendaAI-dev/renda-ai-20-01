@@ -264,15 +264,44 @@ serve(async (req) => {
       throw new Error('Não foi possível obter ID do pagamento');
     }
 
-    // Construir URL da fatura diretamente
-    const baseUrl = environment === 'production' 
-      ? 'https://www.asaas.com'
-      : 'https://sandbox.asaas.com';
+    // Buscar detalhes do pagamento para obter a URL correta da fatura
+    let invoiceUrl = null;
+    let retryCount = 0;
+    const maxRetries = 3;
     
-    // Remover prefixo "pay_" do paymentId para construir URL correta
-    const invoiceSuffix = paymentId.replace('pay_', '');
-    const invoiceUrl = `${baseUrl}/i/${invoiceSuffix}`;
-    console.log('[ASAAS-PAYMENT] ✅ URL da fatura gerada:', invoiceUrl);
+    while (!invoiceUrl && retryCount < maxRetries) {
+      try {
+        const paymentResponse = await fetch(`${asaasUrl}/payments/${paymentId}`, {
+          headers: {
+            'access_token': apiKey,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (paymentResponse.ok) {
+          const paymentData = await paymentResponse.json();
+          invoiceUrl = paymentData.invoiceUrl || paymentData.bankSlipUrl;
+          
+          if (invoiceUrl) {
+            console.log('[ASAAS-PAYMENT] ✅ URL da fatura obtida do Asaas:', invoiceUrl);
+            break;
+          } else {
+            console.log(`[ASAAS-PAYMENT] ⚠️ Tentativa ${retryCount + 1}: URL ainda não disponível, aguardando...`);
+          }
+        }
+      } catch (error) {
+        console.log(`[ASAAS-PAYMENT] ❌ Erro na tentativa ${retryCount + 1}: ${error.message}`);
+      }
+      
+      retryCount++;
+      if (retryCount < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Aguardar 1 segundo
+      }
+    }
+
+    if (!invoiceUrl) {
+      throw new Error('Não foi possível obter URL da fatura do Asaas após múltiplas tentativas');
+    }
 
     return new Response(JSON.stringify({
       success: true,

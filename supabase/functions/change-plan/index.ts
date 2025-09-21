@@ -91,35 +91,11 @@ serve(async (req) => {
     const annualPrice = pricing.annual_price?.value || pricing.plan_price_annual?.value || 538.9;
     
     const newValue = newPlanType === 'monthly' ? monthlyPrice : annualPrice;
-    const currentValue = subscription.plan_type === 'monthly' ? monthlyPrice : annualPrice;
     const newCycle = newPlanType === 'monthly' ? 'MONTHLY' : 'YEARLY';
     
-    // Calcular diferença proporcional
-    const currentPeriodEnd = new Date(subscription.current_period_end || new Date());
-    const daysRemaining = Math.max(0, Math.ceil((currentPeriodEnd.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
-    
-    let adjustmentAmount = 0;
-    let adjustmentDescription = '';
-    
-    if (subscription.plan_type === 'monthly' && newPlanType === 'annual') {
-      // Upgrade: mensal para anual - calcular diferença proporcional
-      const dailyCurrentRate = monthlyPrice / 30;
-      const currentPeriodValue = dailyCurrentRate * daysRemaining;
-      const dailyAnnualRate = annualPrice / 365;
-      const annualPeriodValue = dailyAnnualRate * daysRemaining;
-      adjustmentAmount = Math.max(0, annualPeriodValue - currentPeriodValue);
-      adjustmentDescription = `Upgrade para plano anual - ajuste proporcional (${daysRemaining} dias restantes)`;
-    } else if (subscription.plan_type === 'annual' && newPlanType === 'monthly') {
-      // Downgrade: anual para mensal - crédito será aplicado na próxima fatura
-      adjustmentAmount = 0; // Não cobramos extra, aplicamos crédito
-      adjustmentDescription = `Downgrade para plano mensal - crédito aplicado na próxima fatura`;
-    }
-    
-    console.log('[CHANGE-PLAN] Processando alteração interna:', { 
+    console.log('[CHANGE-PLAN] Processando alteração com cobrança imediata:', { 
       oldPlan: subscription.plan_type,
       newPlan: newPlanType,
-      daysRemaining,
-      adjustmentAmount,
       newValue, 
       newCycle 
     });
@@ -156,36 +132,35 @@ serve(async (req) => {
       console.log('[CHANGE-PLAN] ✅ Assinatura atual cancelada com sucesso');
     }
 
-    // PASSO 2: Processar ajuste proporcional (se necessário)
-    let adjustmentPaymentId = null;
+    // PASSO 2: Criar pagamento imediato para o novo plano
+    console.log('[CHANGE-PLAN] Criando pagamento imediato para o novo plano:', newValue);
     
-    if (adjustmentAmount > 0) {
-      console.log('[CHANGE-PLAN] Gerando cobrança de ajuste:', adjustmentAmount);
-      
-      const adjustmentPayment = await fetch(`${asaasUrl}/payments`, {
-        method: 'POST',
-        headers: {
-          'access_token': apiKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          customer: asaasCustomer.asaas_customer_id,
-          billingType: 'CREDIT_CARD',
-          value: adjustmentAmount,
-          dueDate: new Date().toISOString().split('T')[0],
-          description: adjustmentDescription,
-          externalReference: `adjustment_${subscription.id}_${Date.now()}`
-        })
-      });
-      
-      if (adjustmentPayment.ok) {
-        const paymentData = await adjustmentPayment.json();
-        adjustmentPaymentId = paymentData.id;
-        console.log('[CHANGE-PLAN] ✅ Cobrança de ajuste criada:', adjustmentPaymentId);
-      }
+    const immediatePayment = await fetch(`${asaasUrl}/payments`, {
+      method: 'POST',
+      headers: {
+        'access_token': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        customer: asaasCustomer.asaas_customer_id,
+        billingType: 'CREDIT_CARD',
+        value: newValue,
+        dueDate: new Date().toISOString().split('T')[0], // Vencimento hoje
+        description: `Cobrança imediata - Plano ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}`,
+        externalReference: `immediate_change_${subscription.id}_${Date.now()}`
+      })
+    });
+
+    if (!immediatePayment.ok) {
+      const error = await immediatePayment.text();
+      console.error('[CHANGE-PLAN] Erro ao criar pagamento imediato:', error);
+      throw new Error(`Erro ao criar pagamento imediato: ${error}`);
     }
 
-    // PASSO 3: Criar nova assinatura no Asaas
+    const immediatePaymentData = await immediatePayment.json();
+    console.log('[CHANGE-PLAN] ✅ Pagamento imediato criado:', immediatePaymentData.id);
+
+    // PASSO 4: Criar nova assinatura no Asaas (começando no próximo ciclo)
     const today = new Date();
     const nextDueDate = new Date(today);
     nextDueDate.setDate(today.getDate() + (newPlanType === 'monthly' ? 30 : 365));
@@ -218,7 +193,7 @@ serve(async (req) => {
     const newSubscription = await subscriptionResponse.json();
     console.log('[CHANGE-PLAN] ✅ Nova assinatura criada:', newSubscription.id);
 
-    // PASSO 4: Atualizar assinatura no banco de dados
+    // PASSO 5: Atualizar assinatura no banco de dados
     const { error: updateError } = await supabase
       .from('poupeja_subscriptions')
       .update({
@@ -240,12 +215,12 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      message: `Plano alterado com sucesso para ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}!`,
+      message: `Plano alterado com sucesso para ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}! Pagamento processado imediatamente.`,
       newPlanType,
       newValue,
       subscriptionId: newSubscription.id,
-      adjustmentAmount,
-      adjustmentPaymentId,
+      immediatePaymentId: immediatePaymentData.id,
+      immediatePaymentUrl: immediatePaymentData.invoiceUrl,
       status: 'completed'
     }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

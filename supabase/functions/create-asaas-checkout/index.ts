@@ -198,7 +198,11 @@ serve(async (req) => {
       cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
       description: planType === 'monthly' ? 'Assinatura Mensal - Renda AI' : 'Assinatura Anual - Renda AI',
       nextDueDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD
-      externalReference: `${user.id}_${planType}_${Date.now()}`
+      externalReference: `${user.id}_${planType}_${Date.now()}`,
+      callback: {
+        successUrl: successUrl,
+        autoRedirect: true
+      }
     };
 
     console.log('[ASAAS-PAYMENT] Criando assinatura:', JSON.stringify(subscriptionData, null, 2));

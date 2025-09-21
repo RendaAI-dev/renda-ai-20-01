@@ -343,8 +343,50 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
         invoiceUrl: payment.invoiceUrl,
         bankSlipUrl: payment.bankSlipUrl,
         paymentValue: payment.value,
-        customerId: payment.customer
+        customerId: payment.customer,
+        subscription: payment.subscription,
+        billingType: payment.billingType
       });
+      
+      // Verificar se é uma mudança de plano
+      const isPlanChange = !!payment.subscription;
+      console.log(`[ASAAS-WEBHOOK] ${isPlanChange ? '🔄' : '💳'} Tipo de pagamento:`, 
+        isPlanChange ? 'MUDANÇA DE PLANO' : 'NOVA ASSINATURA', {
+          hasSubscription: isPlanChange,
+          billingType: payment.billingType
+        });
+      
+      if (isPlanChange) {
+        // Verificar se existe uma solicitação de mudança de plano pendente
+        const { data: planChangeRequest } = await supabase
+          .from('poupeja_plan_change_requests')
+          .select('*')
+          .eq('asaas_payment_id', payment.id)
+          .eq('status', 'pending')
+          .maybeSingle();
+        
+        if (planChangeRequest) {
+          console.log('[ASAAS-WEBHOOK] 🔄 MUDANÇA DE PLANO DETECTADA:', {
+            planChangeRequestId: planChangeRequest.id,
+            newPlanType: planChangeRequest.new_plan_type,
+            currentPlanType: planChangeRequest.current_plan_type,
+            paymentId: payment.id,
+            billingType: payment.billingType,
+            userId
+          });
+          
+          // Para cartão de crédito, processar imediatamente
+          if (payment.billingType === 'CREDIT_CARD') {
+            console.log('[ASAAS-WEBHOOK] 💳 Cartão de crédito detectado - processando mudança imediatamente');
+            await handlePlanChangePayment(supabase, planChangeRequest, payment);
+            console.log('[ASAAS-WEBHOOK] ✅ MUDANÇA DE PLANO (CARTÃO) PROCESSADA com sucesso');
+          } else {
+            console.log(`[ASAAS-WEBHOOK] 📋 ${payment.billingType} detectado - aguardando confirmação para processar mudança`);
+          }
+        } else {
+          console.warn('[ASAAS-WEBHOOK] ⚠️ Pagamento com subscription mas sem plan_change_request:', payment.id);
+        }
+      }
       
       // Salvar URL de redirecionamento para o usuário (priorizar invoiceUrl, fallback para bankSlipUrl)
       const redirectUrl = payment.invoiceUrl || payment.bankSlipUrl;
@@ -371,13 +413,28 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
     case 'PAYMENT_CONFIRMED':
     case 'PAYMENT_RECEIVED':
       // Pagamento confirmado/recebido - ativar assinatura
-      console.log('[ASAAS-WEBHOOK] ✅ PAGAMENTO CONFIRMADO/RECEBIDO - Chamando handlePaymentSuccess:', {
+      console.log('[ASAAS-WEBHOOK] ✅ PAGAMENTO CONFIRMADO/RECEBIDO - Verificando se precisa processar:', {
         event,
         paymentId: payment.id,
         userId,
         paymentValue: payment.value,
-        paymentStatus: payment.status
+        paymentStatus: payment.status,
+        hasSubscription: !!payment.subscription
       });
+      
+      // Verificar se é mudança de plano já processada
+      if (payment.subscription) {
+        const { data: planChangeRequest } = await supabase
+          .from('poupeja_plan_change_requests')
+          .select('*')
+          .eq('asaas_payment_id', payment.id)
+          .maybeSingle();
+        
+        if (planChangeRequest && planChangeRequest.status === 'paid') {
+          console.log('[ASAAS-WEBHOOK] ⚠️ Mudança de plano já processada anteriormente - pulando');
+          break;
+        }
+      }
       
       await handlePaymentSuccess(supabase, userId, payment, paymentRecord);
       

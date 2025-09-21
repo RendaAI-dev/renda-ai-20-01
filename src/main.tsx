@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { registerSW } from 'virtual:pwa-register'
+import { MobileAppInitializer } from './components/mobile/MobileAppInitializer'
 
 // Register service worker
 const updateSW = registerSW({
@@ -16,4 +17,9 @@ const updateSW = registerSW({
   },
 })
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <>
+    <MobileAppInitializer />
+    <App />
+  </>
+);

@@ -11,6 +11,19 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  build: {
+    outDir: 'dist',
+    sourcemap: mode === 'development',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          supabase: ['@supabase/supabase-js'],
+          ui: ['lucide-react', 'framer-motion']
+        }
+      }
+    }
+  },
   plugins: [
     react(),
     mode === 'development' &&
@@ -19,24 +32,24 @@ export default defineConfig(({ mode }) => ({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'PoupeJá',
-        short_name: 'PoupeJá',
-        description: 'Gerencie suas finanças com PoupeJá',
-        theme_color: '#005C6E',
+        name: 'Renda AI',
+        short_name: 'Renda AI',
+        description: 'Gerencie suas finanças com o Renda AI',
+        theme_color: '#4ECDC4',
         background_color: '#ffffff',
         icons: [
           {
-            src: '/lovable-uploads/feb4b0d7-9e89-45bc-bae1-72b1af54eacd.png',
+            src: '/icon-192x192.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: '/lovable-uploads/feb4b0d7-9e89-45bc-bae1-72b1af54eacd.png',
+            src: '/icon-512x512.png',
             sizes: '512x512',
             type: 'image/png'
           },
           {
-            src: '/lovable-uploads/feb4b0d7-9e89-45bc-bae1-72b1af54eacd.png',
+            src: '/icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'

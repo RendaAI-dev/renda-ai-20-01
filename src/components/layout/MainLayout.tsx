@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import MobileNavBar from './MobileNavBar';
 import MobileHeader from './MobileHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useCapacitor } from '@/hooks/use-capacitor';
 import WhatsAppActivationButton from '@/components/common/WhatsAppActivationButton';
 
 import { useAppContext } from '@/contexts/AppContext';
@@ -24,6 +25,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   onConfigClick
 }) => {
   const isMobile = useIsMobile();
+  const { isNative } = useCapacitor();
   const { hideValues, toggleHideValues } = useAppContext();
   
   const handleAddTransaction = (type: 'income' | 'expense') => {
@@ -56,8 +58,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           </main>
         </div>}
       
-      {/* WhatsApp Floating Button */}
-      <WhatsAppActivationButton />
+      {/* WhatsApp Floating Button - only show on web */}
+      {!isNative && <WhatsAppActivationButton />}
     </div>;
 };
 

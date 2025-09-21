@@ -160,10 +160,9 @@ serve(async (req) => {
     const immediatePaymentData = await immediatePayment.json();
     console.log('[CHANGE-PLAN] ✅ Pagamento imediato criado:', immediatePaymentData.id);
 
-    // PASSO 4: Criar nova assinatura no Asaas (começando no próximo ciclo)
+    // PASSO 4: Criar nova assinatura no Asaas (com vencimento hoje)
     const today = new Date();
-    const nextDueDate = new Date(today);
-    nextDueDate.setDate(today.getDate() + (newPlanType === 'monthly' ? 30 : 365));
+    const nextDueDate = new Date(today); // Vencimento no mesmo dia da troca
 
     console.log('[CHANGE-PLAN] Criando nova assinatura');
     

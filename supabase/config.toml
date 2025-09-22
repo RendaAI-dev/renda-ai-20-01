@@ -14,3 +14,12 @@ verify_jwt = true
 
 [functions.transparent-checkout]
 verify_jwt = true
+
+[functions.sync-pending-payments]
+verify_jwt = false
+
+[functions.validate-test-cards]
+verify_jwt = false
+
+[functions.check-webhook-config]
+verify_jwt = false

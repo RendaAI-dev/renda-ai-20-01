@@ -28,15 +28,33 @@ serve(async (req) => {
     const webhookData = await req.json();
     const { event, payment, checkout } = webhookData;
     
-    console.log('[ASAAS-WEBHOOK] 🚀 EVENTO RECEBIDO:', event, {
+  console.log('[ASAAS-WEBHOOK] 🚀 EVENTO RECEBIDO:', event, {
+    paymentId: payment?.id,
+    checkoutId: checkout?.id,
+    customerId: payment?.customer || checkout?.customer,
+    paymentStatus: payment?.status,
+    paymentValue: payment?.value,
+    billingType: payment?.billingType,
+    subscription: payment?.subscription,
+    timestamp: new Date().toISOString(),
+    fullPayload: JSON.stringify({ event, payment, checkout }, null, 2)
+  });
+
+  // ✅ ADICIONAR LOG CRÍTICO: Se for evento PAYMENT_CONFIRMED, logar detalhadamente
+  if (event === 'PAYMENT_CONFIRMED') {
+    console.log('[ASAAS-WEBHOOK] 🎯 PAYMENT_CONFIRMED RECEBIDO:', {
       paymentId: payment?.id,
-      checkoutId: checkout?.id,
-      customerId: payment?.customer || checkout?.customer,
       paymentStatus: payment?.status,
+      billingType: payment?.billingType,
+      customerId: payment?.customer,
       paymentValue: payment?.value,
-      timestamp: new Date().toISOString(),
-      fullPayload: JSON.stringify({ event, payment, checkout }, null, 2)
+      confirmedDate: payment?.confirmedDate,
+      paymentDate: payment?.paymentDate,
+      subscription: payment?.subscription,
+      externalReference: payment?.externalReference,
+      timestamp: new Date().toISOString()
     });
+  }
 
     // Processar eventos de CHECKOUT
     if (event?.startsWith('CHECKOUT_')) {
@@ -419,7 +437,11 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
         userId,
         paymentValue: payment.value,
         paymentStatus: payment.status,
-        hasSubscription: !!payment.subscription
+        billingType: payment.billingType,
+        confirmedDate: payment.confirmedDate,
+        paymentDate: payment.paymentDate,
+        hasSubscription: !!payment.subscription,
+        externalReference: payment.externalReference
       });
       
       // Verificar se é mudança de plano já processada

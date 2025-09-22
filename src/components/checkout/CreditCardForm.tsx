@@ -1,6 +1,7 @@
 import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CreditCardData {
   number: string;
@@ -76,7 +77,39 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
 
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatCardNumber(e.target.value);
-    onChange('number', formatted);
+    const cleanNumber = formatted.replace(/\s/g, '');
+    
+    onChange('number', cleanNumber);
+
+    // Validar cartão de teste em tempo real (apenas no sandbox)
+    const isAsaasSandbox = window.location.hostname.includes('localhost') || 
+                          window.location.hostname.includes('dev') ||
+                          window.location.hostname.includes('staging');
+
+    if (isAsaasSandbox && cleanNumber.length >= 16) {
+      validateTestCard(cleanNumber);
+    }
+  };
+
+  const validateTestCard = async (cardNumber: string) => {
+    try {
+      const { data: validationResult } = await supabase.functions.invoke('validate-test-cards', {
+        body: { cardNumber }
+      });
+
+      if (validationResult?.success) {
+        const validation = validationResult.validation;
+        
+        if (validation.isValidTestCard && validation.expectedResult === 'approved') {
+          // Cartão será aprovado automaticamente
+          console.log('✅ Cartão de teste válido - será aprovado automaticamente');
+        } else if (validation.isTestCard && validation.expectedResult === 'pending') {
+          console.warn('⚠️ Cartão pode ficar pendente - considere usar um cartão aprovado automaticamente');
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao validar cartão de teste:', error);
+    }
   };
 
   const handleExpiryMonthChange = (e: React.ChangeEvent<HTMLInputElement>) => {

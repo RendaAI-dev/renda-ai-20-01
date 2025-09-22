@@ -18,6 +18,7 @@ interface CreditCardData {
   expiryYear: string;
   ccv: string;
   holderName: string;
+  holderCpf: string;
 }
 
 interface CheckoutState {
@@ -44,7 +45,8 @@ const CheckoutPage = () => {
     expiryMonth: '',
     expiryYear: '',
     ccv: '',
-    holderName: ''
+    holderName: '',
+    holderCpf: ''
   });
 
   // Estado do checkout passado via location, localStorage ou URL params
@@ -167,12 +169,22 @@ const CheckoutPage = () => {
   };
 
   const validateCreditCard = (): boolean => {
-    const { number, expiryMonth, expiryYear, ccv, holderName } = creditCardData;
+    const { number, expiryMonth, expiryYear, ccv, holderName, holderCpf } = creditCardData;
     
-    if (!number || !expiryMonth || !expiryYear || !ccv || !holderName) {
+    if (!number || !expiryMonth || !expiryYear || !ccv || !holderName || !holderCpf) {
       toast({
         title: "Campos obrigatórios",
-        description: "Por favor, preencha todos os dados do cartão",
+        description: "Por favor, preencha todos os dados do cartão, incluindo o CPF do titular",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Validate CPF length
+    if (holderCpf.length !== 11) {
+      toast({
+        title: "CPF inválido",
+        description: "O CPF do titular deve ter 11 dígitos",
         variant: "destructive"
       });
       return false;

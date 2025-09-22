@@ -271,7 +271,7 @@ serve(async (req) => {
         creditCardHolderInfo: {
           name: userData.name || creditCard.holderName,
           email: userData.email,
-          cpfCnpj: userData.cpf || '',
+          cpfCnpj: creditCard.holderCpf || userData.cpf || '',
           postalCode: userData.cep || '',
           addressNumber: userData.number || '',
           addressComplement: userData.complement || '',

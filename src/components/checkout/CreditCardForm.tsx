@@ -9,6 +9,7 @@ interface CreditCardData {
   expiryYear: string;
   ccv: string;
   holderName: string;
+  holderCpf: string;
 }
 
 interface CreditCardFormProps {
@@ -60,6 +61,14 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
   const formatCCV = (value: string) => {
     const v = value.replace(/\D/g, '');
     return v.substring(0, 4);
+  };
+
+  const formatCPF = (value: string) => {
+    const v = value.replace(/\D/g, '');
+    if (v.length <= 11) {
+      return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    return v.substring(0, 11).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
   };
 
   const detectCardBrand = (number: string) => {
@@ -131,6 +140,11 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
     onChange('holderName', e.target.value.toUpperCase());
   };
 
+  const handleHolderCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCPF(e.target.value);
+    onChange('holderCpf', formatted.replace(/\D/g, ''));
+  };
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -168,6 +182,19 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
           value={data.holderName}
           onChange={handleHolderNameChange}
           disabled={disabled}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="holderCpf">CPF do Titular do Cartão</Label>
+        <Input
+          id="holderCpf"
+          type="text"
+          placeholder="000.000.000-00"
+          value={formatCPF(data.holderCpf)}
+          onChange={handleHolderCpfChange}
+          disabled={disabled}
+          maxLength={14}
         />
       </div>
 

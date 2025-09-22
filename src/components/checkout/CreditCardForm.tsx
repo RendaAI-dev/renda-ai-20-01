@@ -71,6 +71,44 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
     return v.substring(0, 11).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
   };
 
+  const validateCPF = (cpf: string): boolean => {
+    const cleanCpf = cpf.replace(/\D/g, '');
+    
+    if (cleanCpf.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(cleanCpf)) return false; // All same digits
+    
+    // Basic CPF algorithm validation
+    let add = 0;
+    for (let i = 0; i < 9; i++) {
+      add += parseInt(cleanCpf.charAt(i)) * (10 - i);
+    }
+    let rev = 11 - (add % 11);
+    if (rev === 10 || rev === 11) rev = 0;
+    if (rev !== parseInt(cleanCpf.charAt(9))) return false;
+    
+    add = 0;
+    for (let i = 0; i < 10; i++) {
+      add += parseInt(cleanCpf.charAt(i)) * (11 - i);
+    }
+    rev = 11 - (add % 11);
+    if (rev === 10 || rev === 11) rev = 0;
+    if (rev !== parseInt(cleanCpf.charAt(10))) return false;
+    
+    return true;
+  };
+
+  const handleHolderCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCPF(e.target.value);
+    const cleanCpf = formatted.replace(/\D/g, '');
+    
+    // Real-time CPF validation feedback
+    if (cleanCpf.length === 11 && !validateCPF(cleanCpf)) {
+      console.warn('CPF inválido digitado');
+    }
+    
+    onChange('holderCpf', cleanCpf);
+  };
+
   const detectCardBrand = (number: string) => {
     const cleanNumber = number.replace(/\s/g, '');
     
@@ -138,11 +176,6 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
 
   const handleHolderNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange('holderName', e.target.value.toUpperCase());
-  };
-
-  const handleHolderCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCPF(e.target.value);
-    onChange('holderCpf', formatted.replace(/\D/g, ''));
   };
 
   return (

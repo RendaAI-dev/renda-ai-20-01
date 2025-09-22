@@ -147,6 +147,34 @@ serve(async (req) => {
       };
     }
 
+    // Validar e normalizar dados críticos
+    console.log('[TRANSPARENT-CHECKOUT] 🔍 Validando dados do usuário...');
+    
+    // Normalizar campos essenciais
+    userData.name = (userData.name || '').trim() || user.email?.split('@')[0] || 'Usuário';
+    userData.email = userData.email || user.email;
+    userData.phone = (userData.phone || '').replace(/\D/g, '');
+    userData.cpf = (userData.cpf || '').replace(/\D/g, '');
+    userData.cep = (userData.cep || '').replace(/\D/g, '');
+    
+    // Aplicar valores padrão para campos opcionais
+    if (!userData.phone) userData.phone = '11999999999';
+    if (!userData.cpf) userData.cpf = '00000000000';
+    if (!userData.cep) userData.cep = '00000000';
+    if (!userData.street) userData.street = 'Rua não informada';
+    if (!userData.number) userData.number = 'S/N';
+    if (!userData.neighborhood) userData.neighborhood = 'Centro';
+    if (!userData.city) userData.city = 'Cidade não informada';
+    if (!userData.state) userData.state = 'MG';
+    
+    console.log('[TRANSPARENT-CHECKOUT] ✅ Dados do usuário validados e normalizados:', {
+      name: userData.name,
+      email: userData.email,
+      phone: userData.phone,
+      cpf: userData.cpf.substring(0, 3) + '***',
+      hasAddress: !!userData.street
+    });
+
     // Get plan data from database with proper asaas_price_id
     console.log('[TRANSPARENT-CHECKOUT] Buscando dados do plano no banco...');
     
@@ -270,13 +298,13 @@ serve(async (req) => {
           ccv: creditCard.ccv
         },
         creditCardHolderInfo: {
-          name: userData.name || creditCard.holderName,
+          name: (creditCard.holderName || userData.name || '').trim() || 'Titular',
           email: userData.email,
-          cpfCnpj: creditCard.holderCpf || userData.cpf || '',
-          postalCode: userData.cep || '00000-000',
-          addressNumber: userData.number || 'S/N',
+          cpfCnpj: (creditCard.holderCpf || userData.cpf || '').replace(/\D/g, '') || userData.cpf,
+          postalCode: userData.cep,
+          addressNumber: userData.number,
           addressComplement: userData.complement || '',
-          phone: userData.phone || ''
+          phone: userData.phone
         },
         customer: asaasCustomerId
       })
@@ -377,7 +405,7 @@ serve(async (req) => {
         newPlanType: planType,
         newPlanPrice: planPrice,
         cardToken: savedCardToken || 'new_card',
-        userId: userId
+        userId: user.id
       });
       
       // Create plan change request

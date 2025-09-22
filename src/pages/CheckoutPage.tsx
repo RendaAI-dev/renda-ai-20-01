@@ -190,11 +190,22 @@ const CheckoutPage = () => {
       return false;
     }
 
-    // Validate CPF length
-    if (holderCpf.length !== 11) {
+    // Validate CPF (enhanced validation)
+    const cleanCpf = holderCpf.replace(/\D/g, '');
+    if (cleanCpf.length !== 11) {
       toast({
         title: "CPF inválido",
         description: "O CPF do titular deve ter 11 dígitos",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Basic CPF validation (check for repeated digits)
+    if (/^(\d)\1{10}$/.test(cleanCpf)) {
+      toast({
+        title: "CPF inválido",
+        description: "CPF com todos os dígitos iguais não é válido",
         variant: "destructive"
       });
       return false;
@@ -211,6 +222,16 @@ const CheckoutPage = () => {
       return false;
     }
 
+    // Validate card holder name
+    if (holderName.trim().length < 3) {
+      toast({
+        title: "Nome inválido",
+        description: "Nome do titular deve ter pelo menos 3 caracteres",
+        variant: "destructive"
+      });
+      return false;
+    }
+
     // Validate expiry
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
@@ -221,7 +242,7 @@ const CheckoutPage = () => {
     if (expYear < currentYear || (expYear === currentYear && expMonth < currentMonth)) {
       toast({
         title: "Cartão expirado",
-        description: "O cartão está expirado",
+        description: "O cartão está vencido",
         variant: "destructive"
       });
       return false;

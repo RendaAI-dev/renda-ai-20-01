@@ -371,6 +371,15 @@ serve(async (req) => {
       const asaasSubscriptionId = subscriptionData.asaas_subscription_id;
       console.log(`[TRANSPARENT-CHECKOUT] ✅ Asaas subscription ID encontrado: ${asaasSubscriptionId}`);
       
+      // Validar dados críticos antes da atualização
+      console.log(`[TRANSPARENT-CHECKOUT] 🔍 Validando dados da mudança de plano:`, {
+        asaasSubscriptionId,
+        newPlanType: planType,
+        newPlanPrice: planPrice,
+        cardToken: savedCardToken || 'new_card',
+        userId: userId
+      });
+      
       // Create plan change request
       const { data: planChangeRequest } = await supabase
         .from('poupeja_plan_change_requests')
@@ -385,21 +394,29 @@ serve(async (req) => {
         .select()
         .single();
 
-      // Update subscription in Asaas with immediate charge
+      // Preparar dados para atualização da subscription no Asaas
+      const updatePayload = {
+        billingType: 'CREDIT_CARD',
+        value: planPrice,
+        cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
+        creditCard: {
+          creditCardToken: savedCardToken || creditCardToken,
+        }
+      };
+      
+      console.log(`[TRANSPARENT-CHECKOUT] 📤 Enviando atualização para Asaas:`, {
+        url: `${asaasBaseUrl}/subscriptions/${asaasSubscriptionId}`,
+        payload: updatePayload
+      });
+
+      // Update subscription in Asaas - REMOVENDO chargeNow e updatePendingPayments que podem causar erro
       const updateResponse = await fetch(`${asaasBaseUrl}/subscriptions/${asaasSubscriptionId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'access_token': asaasApiKey,
         },
-        body: JSON.stringify({
-          value: planPrice,
-          cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
-          billingType: 'CREDIT_CARD',
-          creditCardToken: tokenData.creditCardToken,
-          remoteIp,
-          chargeNow: true
-        })
+        body: JSON.stringify(updatePayload)
       });
 
       if (!updateResponse.ok) {

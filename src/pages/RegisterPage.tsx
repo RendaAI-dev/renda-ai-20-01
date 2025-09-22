@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import { getPlanTypeFromPriceId } from '@/utils/subscriptionUtils';
 import { useBrandingConfig } from '@/hooks/useBrandingConfig';
+import { useNewPlanConfig } from '@/hooks/useNewPlanConfig';
 import { CPFInput } from '@/components/common/CPFInput';
 import { CEPInput } from '@/components/common/CEPInput';
 import { AddressDisplay } from '@/components/common/AddressDisplay';
@@ -18,6 +19,7 @@ const RegisterPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { companyName, logoUrl, logoAltText } = useBrandingConfig();
+  const { config } = useNewPlanConfig();
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -274,6 +276,41 @@ const RegisterPage = () => {
         throw new Error("Tipo de plano inválido. Verifique as configurações.");
       }
       
+      // Construir dados completos do checkout usando a configuração de planos
+      let planName = 'Plano Premium';
+      let planPrice = 0;
+      
+      if (config?.plans) {
+        console.log('📋 Buscando dados do plano na configuração...', { finalPlanType, plans: config.plans });
+        
+        const planFamily = config.plans.find(plan => {
+          const planPeriod = finalPlanType === 'monthly' ? 'monthly' : 'annual';
+          return plan.pricing[planPeriod] && plan.pricing[planPeriod]!.amount > 0;
+        });
+        
+        if (planFamily) {
+          planName = planFamily.name;
+          const planPeriod = finalPlanType === 'monthly' ? 'monthly' : 'annual';
+          const pricingData = planFamily.pricing[planPeriod]!;
+          planPrice = pricingData.amount;
+          
+          console.log('✅ Dados do plano encontrados:', { planName, planPrice, planPeriod });
+        } else {
+          console.log('⚠️ Plano não encontrado na configuração, usando valores padrão');
+        }
+      }
+      
+      // Preparar dados do checkout
+      const checkoutState = {
+        planType: finalPlanType as 'monthly' | 'annual',
+        planName,
+        planPrice,
+        isUpgrade: false
+      };
+      
+      console.log('💾 Salvando dados do checkout no localStorage:', checkoutState);
+      localStorage.setItem('checkoutState', JSON.stringify(checkoutState));
+      
       // Atualizar feedback de progresso
       toast({
         title: "Sessão estabelecida!",
@@ -288,7 +325,7 @@ const RegisterPage = () => {
         description: "Redirecionando para finalizar pagamento...",
       });
       
-      // Redirecionar para nossa página de checkout
+      // Redirecionar para nossa página de checkout (mantém URL params como fallback)
       setTimeout(() => {
         navigate(`/checkout?planType=${finalPlanType}&email=${encodeURIComponent(validSession.user.email || '')}`);
       }, 1500);

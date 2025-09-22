@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useNewPlanConfig } from '@/hooks/useNewPlanConfig';
 import { CreditCardForm } from '@/components/checkout/CreditCardForm';
 import { PlanSummary } from '@/components/checkout/PlanSummary';
 import { CheckoutSteps } from '@/components/checkout/CheckoutSteps';
@@ -28,8 +29,10 @@ interface CheckoutState {
 const CheckoutPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { subscription, checkSubscription } = useSubscription();
+  const { config, isLoading: configLoading } = useNewPlanConfig();
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -41,51 +44,116 @@ const CheckoutPage = () => {
     holderName: ''
   });
 
-  // Estado do checkout passado via location ou localStorage
+  // Estado do checkout passado via location, localStorage ou URL params
   const getCheckoutState = (): CheckoutState | null => {
-    // Primeiro tenta obter do state da navegação
+    console.log('[Checkout Page] Iniciando busca por dados de checkout...');
+    
+    // 1. Primeiro tenta obter do state da navegação
     if (location.state) {
-      console.log('[Checkout Page] Dados obtidos via location.state:', location.state);
+      console.log('[Checkout Page] ✅ Dados obtidos via location.state:', location.state);
       return location.state as CheckoutState;
     }
     
-    // Fallback: tentar obter do localStorage
+    // 2. Fallback: tentar obter do localStorage
     const storedState = localStorage.getItem('checkoutState');
     if (storedState) {
       try {
         const parsed = JSON.parse(storedState);
-        console.log('[Checkout Page] Dados obtidos via localStorage:', parsed);
+        console.log('[Checkout Page] ✅ Dados obtidos via localStorage:', parsed);
         // Limpar após uso
         localStorage.removeItem('checkoutState');
         return parsed;
       } catch (error) {
-        console.error('[Checkout Page] Erro ao parsear dados do localStorage:', error);
+        console.error('[Checkout Page] ❌ Erro ao parsear dados do localStorage:', error);
       }
     }
     
-    console.log('[Checkout Page] Nenhum dado de checkout encontrado');
+    // 3. Fallback final: tentar construir a partir dos parâmetros da URL
+    const planTypeParam = searchParams.get('planType');
+    const emailParam = searchParams.get('email');
+    
+    if (planTypeParam && (planTypeParam === 'monthly' || planTypeParam === 'annual')) {
+      console.log('[Checkout Page] 🔄 Tentando construir dados a partir da URL:', { planTypeParam, emailParam });
+      
+      if (!config || configLoading) {
+        console.log('[Checkout Page] ⏳ Aguardando configuração de planos...');
+        return null; // Retorna null para mostrar loading
+      }
+      
+      // Encontrar o plano correspondente na configuração
+      const planFamily = config.plans.find(plan => {
+        const planPeriod = planTypeParam === 'monthly' ? 'monthly' : 'annual';
+        return plan.pricing[planPeriod] && plan.pricing[planPeriod]!.amount > 0;
+      });
+      
+      if (planFamily) {
+        const planPeriod = planTypeParam === 'monthly' ? 'monthly' : 'annual';
+        const pricingData = planFamily.pricing[planPeriod]!;
+        
+        const reconstructedState = {
+          planType: planTypeParam as 'monthly' | 'annual',
+          planName: planFamily.name,
+          planPrice: pricingData.amount,
+          isUpgrade: false
+        };
+        
+        console.log('[Checkout Page] ✅ Dados reconstruídos a partir da URL:', reconstructedState);
+        return reconstructedState;
+      } else {
+        console.log('[Checkout Page] ❌ Não foi possível encontrar plano correspondente na configuração');
+      }
+    }
+    
+    console.log('[Checkout Page] ❌ Nenhum dado de checkout encontrado em nenhuma fonte');
     return null;
   };
   
-  const checkoutData = getCheckoutState();
+  const [checkoutData, setCheckoutData] = useState<CheckoutState | null>(null);
+  const [dataLoading, setDataLoading] = useState(true);
   
   useEffect(() => {
-    if (!checkoutData) {
-      console.log('[Checkout Page] Dados do checkout não encontrados, redirecionando para /plans');
-      toast({
-        title: "Erro no checkout",
-        description: "Dados do plano não encontrados. Redirecionando...",
-        variant: "destructive"
-      });
-      navigate('/plans');
+    const loadCheckoutData = () => {
+      console.log('[Checkout Page] Carregando dados de checkout...');
+      const data = getCheckoutState();
+      
+      if (!data && !configLoading) {
+        console.log('[Checkout Page] ❌ Dados do checkout não encontrados após carregar configuração, redirecionando para /plans');
+        toast({
+          title: "Erro no checkout",
+          description: "Dados do plano não encontrados. Redirecionando...",
+          variant: "destructive"
+        });
+        navigate('/plans');
+        return;
+      }
+      
+      if (data) {
+        console.log('[Checkout Page] ✅ Checkout inicializado com dados:', data);
+        setCheckoutData(data);
+      }
+      
+      setDataLoading(false);
+    };
+
+    // Se a configuração ainda está carregando, aguardar
+    if (configLoading) {
+      console.log('[Checkout Page] ⏳ Aguardando configuração carregar...');
       return;
     }
-    
-    console.log('[Checkout Page] Checkout inicializado com dados:', checkoutData);
-  }, [checkoutData, navigate, toast]);
 
-  if (!checkoutData) {
-    return null;
+    loadCheckoutData();
+  }, [configLoading, config, navigate, toast, searchParams]);
+
+  // Mostrar loading enquanto carrega dados ou configuração
+  if (dataLoading || configLoading || !checkoutData) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando dados do checkout...</p>
+        </div>
+      </div>
+    );
   }
 
   const handleCreditCardChange = (field: keyof CreditCardData, value: string) => {

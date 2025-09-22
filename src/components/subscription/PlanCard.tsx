@@ -153,15 +153,16 @@ const PlanCard: React.FC<PlanCardProps> = ({
       
       console.log(`[Checkout Debug] Navegando para checkout com dados:`, checkoutState);
       
+      // SEMPRE salvar no localStorage antes da navegação
+      localStorage.setItem('checkoutState', JSON.stringify(checkoutState));
+      console.log(`[Checkout Debug] Dados salvos no localStorage`);
+      
       // Tentar navegação normal primeiro
       try {
         navigate('/checkout', { state: checkoutState });
         console.log('[Checkout Debug] Navegação realizada com sucesso');
       } catch (navError) {
-        console.error('[Checkout Debug] Erro na navegação, tentando fallback:', navError);
-        
-        // Fallback: armazenar no localStorage e navegar sem state
-        localStorage.setItem('checkoutState', JSON.stringify(checkoutState));
+        console.error('[Checkout Debug] Erro na navegação, usando fallback:', navError);
         navigate('/checkout');
       }
       

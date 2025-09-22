@@ -37,7 +37,7 @@ const CheckoutPage = () => {
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [useNewCard, setUseNewCard] = useState(false);
+  const [useNewCard, setUseNewCard] = useState(true); // Default to true for better UX
   const [selectedCardToken, setSelectedCardToken] = useState<string | null>(null);
   const [creditCardData, setCreditCardData] = useState<CreditCardData>({
     number: '',

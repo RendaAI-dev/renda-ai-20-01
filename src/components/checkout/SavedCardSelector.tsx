@@ -38,6 +38,15 @@ export const SavedCardSelector: React.FC<SavedCardSelectorProps> = ({
     loadSavedCards();
   }, []);
 
+  // Auto-select "new card" if no saved cards are loaded
+  useEffect(() => {
+    if (!loading && savedCards.length === 0) {
+      setSelectedCard('new');
+      onCardSelect(null);
+      onNewCard();
+    }
+  }, [loading, savedCards.length, onCardSelect, onNewCard]);
+
   const loadSavedCards = async () => {
     try {
       const { data, error } = await supabase

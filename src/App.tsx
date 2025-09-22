@@ -15,6 +15,7 @@ import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import RegisterWithPlanPage from "./pages/RegisterWithPlanPage";
+import CheckoutPage from "./pages/CheckoutPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -65,6 +66,7 @@ function App() {
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/categories" element={<CategoriesPage />} />
                         <Route path="/plans" element={<PlansPage />} />
+                        <Route path="/checkout" element={<CheckoutPage />} />
                         <Route path="/payment-success" element={<PaymentSuccessPage />} />
                         <Route path="/thank-you" element={<ThankYouPage />} />
                         <Route path="/achievements" element={<AchievementsPage />} />

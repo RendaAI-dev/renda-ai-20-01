@@ -1,0 +1,4 @@
+# Configuration for the transparent-checkout edge function
+[env]
+# This function requires authentication
+verify_jwt = true

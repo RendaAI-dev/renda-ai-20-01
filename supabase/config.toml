@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.change-plan]
 verify_jwt = true
+
+[functions.transparent-checkout]
+verify_jwt = true

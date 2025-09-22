@@ -78,119 +78,23 @@ const PlanCard: React.FC<PlanCardProps> = ({
         return;
       }
 
-      // Verificar se o token está válido
-      if (!session.access_token) {
-        toast({
-          title: "Sessão inválida",
-          description: "Sua sessão expirou. Faça login novamente.",
-          variant: "destructive",
-        });
-        navigate('/login');
-        return;
-      }
-
-      console.log('Usuário autenticado com sucesso');
-      console.log('Token disponível:', !!session.access_token);
-
-      // Se o usuário tem assinatura ativa e está fazendo upgrade/downgrade, usar change-plan
-      if (hasActiveSubscription && (canUpgrade || canDowngrade)) {
-        console.log('Alterando plano existente para:', planType);
-        
-        const { data, error } = await supabase.functions.invoke('change-plan', {
-          body: { newPlanType: planType },
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          }
-        });
-
-        if (error) {
-          console.error('Erro ao alterar plano:', error);
-          toast({
-            title: "Erro ao alterar plano",
-            description: error.message || "Erro interno do servidor. Tente novamente.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        if (data?.success) {
-          toast({
-            title: "✅ Plano Alterado!",
-            description: data.message || "Seu plano foi alterado com sucesso!",
-          });
-
-          // Aguardar um momento para o webhook processar e recarregar
-          setTimeout(() => {
-            checkSubscription(); // Atualizar contexto da assinatura
-            window.location.reload();
-          }, 2000);
-
-          return;
-        } else {
-          toast({
-            title: "Erro",
-            description: data?.error || "Erro ao alterar plano",
-            variant: "destructive",
-          });
-          return;
-        }
-      }
-
-      // Caso contrário, criar novo pagamento direto
-      const { data, error } = await supabase.functions.invoke('create-asaas-checkout', {
-        body: { 
+      // Navigate to transparent checkout page
+      const isUpgrade = hasActiveSubscription && (canUpgrade || canDowngrade);
+      
+      navigate('/checkout', {
+        state: {
           planType,
-          successUrl: `${window.location.origin}/payment-success?email=${encodeURIComponent(session.user.email)}`,
-          cancelUrl: `${window.location.origin}/plans?canceled=true`
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          planName: name,
+          planPrice: Number(price.replace('R$ ', '').replace(',', '.')),
+          isUpgrade
         }
       });
-
-      if (error) {
-        console.error('Error creating payment:', error);
-        
-        // Verificar se é erro de autenticação
-        if (error.message?.includes('Token de autenticação inválido') || 
-            error.message?.includes('User not authenticated') ||
-            error.message?.includes('invalid claim')) {
-          toast({
-            title: "Sessão expirada",
-            description: "Sua sessão expirou. Redirecionando para login...",
-            variant: "destructive",
-          });
-          navigate('/login');
-          return;
-        }
-        
-        // Exibir erro específico do Asaas se disponível
-        let errorDescription = error.message || "Erro interno do servidor";
-        if (error.message?.includes('Erro Asaas:')) {
-          errorDescription = error.message.replace('Erro Asaas: ', '');
-        }
-        
-        toast({
-          title: "Erro no pagamento",
-          description: errorDescription,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (data?.invoiceUrl) {
-        console.log('Redirecting to Asaas invoice:', data.invoiceUrl);
-        
-        // Redirecionar para a fatura do Asaas
-        window.location.href = data.invoiceUrl;
-      } else {
-        throw new Error('URL da fatura não retornada');
-      }
+      
     } catch (error) {
       console.error('Checkout error:', error);
       toast({
         title: "Erro no checkout",
-        description: "Algo deu errado. Verifique suas configurações do Asaas.",
+        description: "Algo deu errado. Tente novamente.",
         variant: "destructive",
       });
     } finally {

@@ -572,6 +572,57 @@ export type Database = {
         }
         Relationships: []
       }
+      poupeja_tokenized_cards: {
+        Row: {
+          asaas_customer_id: string
+          created_at: string
+          credit_card_brand: string
+          credit_card_last_four: string
+          credit_card_number: string
+          credit_card_token: string
+          expires_at: string | null
+          holder_name: string
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          last_used_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          asaas_customer_id: string
+          created_at?: string
+          credit_card_brand: string
+          credit_card_last_four: string
+          credit_card_number: string
+          credit_card_token: string
+          expires_at?: string | null
+          holder_name: string
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          last_used_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          asaas_customer_id?: string
+          created_at?: string
+          credit_card_brand?: string
+          credit_card_last_four?: string
+          credit_card_number?: string
+          credit_card_token?: string
+          expires_at?: string | null
+          holder_name?: string
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          last_used_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       poupeja_transactions: {
         Row: {
           amount: number

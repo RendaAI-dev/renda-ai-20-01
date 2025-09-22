@@ -163,9 +163,31 @@ const CheckoutPage = () => {
     } catch (error) {
       console.error('Checkout error:', error);
       
+      // Parse error message to provide more specific feedback
+      let errorTitle = "Erro no pagamento";
+      let errorDescription = "Ocorreu um erro ao processar o pagamento. Tente novamente.";
+      
+      if (error.message) {
+        if (error.message.includes('não encontrado')) {
+          errorTitle = "Plano não disponível";
+          errorDescription = "O plano selecionado não está disponível no momento.";
+        } else if (error.message.includes('configuração')) {
+          errorTitle = "Erro de configuração";
+          errorDescription = "Há um problema com a configuração do pagamento. Entre em contato com o suporte.";
+        } else if (error.message.includes('cartão') || error.message.includes('credit card')) {
+          errorTitle = "Erro no cartão";
+          errorDescription = "Verifique os dados do cartão e tente novamente.";
+        } else if (error.message.includes('customer')) {
+          errorTitle = "Erro nos dados do cliente";
+          errorDescription = "Verifique seus dados cadastrais e tente novamente.";
+        } else {
+          errorDescription = error.message;
+        }
+      }
+      
       toast({
-        title: "Erro no pagamento",
-        description: error.message || "Ocorreu um erro ao processar o pagamento. Tente novamente.",
+        title: errorTitle,
+        description: errorDescription,
         variant: "destructive"
       });
       

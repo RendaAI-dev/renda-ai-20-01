@@ -117,13 +117,40 @@ serve(async (req) => {
       };
     }
 
-    // Get plan pricing
-    const { data: publicSettings } = await supabase.functions.invoke('get-public-settings');
-    const monthlyPrice = publicSettings?.pricing?.monthlyPrice || 49.90;
-    const annualPrice = publicSettings?.pricing?.annualPrice || 399.90;
-    const planPrice = planType === 'monthly' ? monthlyPrice : annualPrice;
+    // Get plan data from database with proper asaas_price_id
+    console.log('[TRANSPARENT-CHECKOUT] Buscando dados do plano no banco...');
+    
+    const { data: planData, error: planError } = await supabase
+      .from('poupeja_plans')
+      .select('id, name, price, asaas_price_id, plan_period')
+      .eq('plan_period', planType)
+      .eq('is_active', true)
+      .maybeSingle();
 
-    console.log('[TRANSPARENT-CHECKOUT] Dados do plano:', { planType, planPrice });
+    if (planError) {
+      console.error('[TRANSPARENT-CHECKOUT] Erro ao buscar plano:', planError);
+      throw new Error('Erro interno: Falha ao buscar dados do plano');
+    }
+
+    if (!planData) {
+      console.error('[TRANSPARENT-CHECKOUT] Plano não encontrado:', { planType });
+      throw new Error(`Plano ${planType === 'monthly' ? 'mensal' : 'anual'} não encontrado. Verifique as configurações dos planos.`);
+    }
+
+    if (!planData.asaas_price_id) {
+      console.error('[TRANSPARENT-CHECKOUT] Price ID do Asaas não configurado:', planData);
+      throw new Error('Configuração de pagamento incompleta. Entre em contato com o suporte.');
+    }
+
+    const planPrice = planData.price;
+    const asaasPriceId = planData.asaas_price_id;
+
+    console.log('[TRANSPARENT-CHECKOUT] Dados do plano:', { 
+      planType, 
+      planPrice, 
+      asaasPriceId,
+      planName: planData.name 
+    });
 
     // Get or create Asaas customer
     let asaasCustomerId: string;

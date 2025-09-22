@@ -31,6 +31,7 @@ interface CategoryManagementProps {
   onSaveCategory: (category: Omit<Category, 'id'> | Category) => Promise<void>;
 }
 
+// CategoryManagement component - force rebuild
 const CategoryManagement: React.FC<CategoryManagementProps> = ({ onSaveCategory }) => {
   const { t } = usePreferences();
   const { toast } = useToast();
@@ -268,4 +269,5 @@ const CategoryManagement: React.FC<CategoryManagementProps> = ({ onSaveCategory 
   );
 };
 
+// Export default - force rebuild
 export default CategoryManagement;

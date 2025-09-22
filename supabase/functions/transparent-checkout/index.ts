@@ -273,8 +273,8 @@ serve(async (req) => {
           name: userData.name || creditCard.holderName,
           email: userData.email,
           cpfCnpj: creditCard.holderCpf || userData.cpf || '',
-          postalCode: userData.cep || '',
-          addressNumber: userData.number || '',
+          postalCode: userData.cep || '00000-000',
+          addressNumber: userData.number || 'S/N',
           addressComplement: userData.complement || '',
           phone: userData.phone || ''
         },
@@ -356,6 +356,21 @@ serve(async (req) => {
       // Handle plan change
       console.log('[TRANSPARENT-CHECKOUT] Processando mudança de plano...');
       
+      // CRITICAL: Buscar o asaas_subscription_id correto do banco de dados
+      const { data: subscriptionData, error: subscriptionError } = await supabase
+        .from('poupeja_subscriptions')
+        .select('asaas_subscription_id')
+        .eq('id', currentSubscriptionId)
+        .single();
+
+      if (subscriptionError || !subscriptionData?.asaas_subscription_id) {
+        console.error('[TRANSPARENT-CHECKOUT] ❌ Erro ao buscar subscription do Asaas:', subscriptionError);
+        throw new Error(`Subscription não encontrada ou sem asaas_subscription_id: ${currentSubscriptionId}`);
+      }
+
+      const asaasSubscriptionId = subscriptionData.asaas_subscription_id;
+      console.log(`[TRANSPARENT-CHECKOUT] ✅ Asaas subscription ID encontrado: ${asaasSubscriptionId}`);
+      
       // Create plan change request
       const { data: planChangeRequest } = await supabase
         .from('poupeja_plan_change_requests')
@@ -371,7 +386,7 @@ serve(async (req) => {
         .single();
 
       // Update subscription in Asaas with immediate charge
-      const updateResponse = await fetch(`${asaasBaseUrl}/subscriptions/${currentSubscriptionId}`, {
+      const updateResponse = await fetch(`${asaasBaseUrl}/subscriptions/${asaasSubscriptionId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -388,8 +403,14 @@ serve(async (req) => {
       });
 
       if (!updateResponse.ok) {
-        const error = await updateResponse.text();
-        throw new Error(`Failed to update subscription: ${error}`);
+        const errorText = await updateResponse.text();
+        console.error('[TRANSPARENT-CHECKOUT] ❌ Erro na atualização da subscription:', {
+          status: updateResponse.status,
+          statusText: updateResponse.statusText,
+          error: errorText,
+          asaasSubscriptionId: asaasSubscriptionId
+        });
+        throw new Error(`Failed to update subscription (${updateResponse.status}): ${errorText}`);
       }
 
       const updatedSubscription = await updateResponse.json();

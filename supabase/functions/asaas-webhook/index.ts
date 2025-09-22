@@ -578,7 +578,7 @@ async function handlePaymentSuccess(supabase: any, userId: string, payment: any,
   };
 
   if (existingSubscription) {
-    // Atualizar assinatura existente
+    // Atualizar assinatura existente (especialmente se estava 'pending')
     const { error: updateError } = await supabase
       .from('poupeja_subscriptions')
       .update(subscriptionData)
@@ -589,13 +589,25 @@ async function handlePaymentSuccess(supabase: any, userId: string, payment: any,
       throw updateError;
     }
     
-    console.log('[ASAAS-WEBHOOK] ✅ ASSINATURA ATUALIZADA:', {
-      subscriptionId: existingSubscription.id,
-      planType,
-      userId,
-      currentPeriodEnd,
-      timestamp: new Date().toISOString()
-    });
+    // Log especial se estava pendente e agora foi ativada
+    if (existingSubscription.status === 'pending') {
+      console.log('[ASAAS-WEBHOOK] 🎯 ASSINATURA ATIVADA - Era pending, agora está active:', {
+        subscriptionId: existingSubscription.id,
+        previousStatus: existingSubscription.status,
+        newStatus: 'active',
+        planType,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      console.log('[ASAAS-WEBHOOK] ✅ ASSINATURA ATUALIZADA:', {
+        subscriptionId: existingSubscription.id,
+        planType,
+        userId,
+        currentPeriodEnd,
+        timestamp: new Date().toISOString()
+      });
+    }
   } else {
     // Criar nova assinatura
     const { data: newSubscription, error: insertError } = await supabase

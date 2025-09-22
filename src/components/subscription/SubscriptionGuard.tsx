@@ -20,9 +20,14 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
   const navigate = useNavigate();
   const { companyName } = useBrandingConfig();
   
-  // Verificar se a assinatura está dentro do período válido
+  // Verificar se a assinatura está ativa e dentro do período válido
   const isSubscriptionValid = React.useMemo(() => {
-    if (!subscription || subscription.status !== 'active') {
+    if (!subscription) {
+      return false;
+    }
+    
+    // SEGURANÇA: Bloquear acesso se status não for 'active'
+    if (subscription.status !== 'active') {
       return false;
     }
     
@@ -60,7 +65,11 @@ const SubscriptionGuard: React.FC<SubscriptionGuardProps> = ({
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              {!subscription || subscription.status !== 'active' 
+              {!subscription 
+                ? `Para acessar ${feature}, você precisa de uma assinatura ativa do ${companyName}.`
+                : subscription.status === 'pending'
+                ? `Seu pagamento está sendo processado. Aguarde alguns minutos para o acesso ser liberado automaticamente.`
+                : subscription.status !== 'active'
                 ? `Para acessar ${feature}, você precisa de uma assinatura ativa do ${companyName}.`
                 : `Sua assinatura expirou. Para continuar acessando ${feature}, você precisa renovar sua assinatura.`
               }

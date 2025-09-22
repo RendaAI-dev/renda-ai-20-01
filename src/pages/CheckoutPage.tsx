@@ -41,18 +41,47 @@ const CheckoutPage = () => {
     holderName: ''
   });
 
-  // Get checkout data from navigation state
-  const checkoutData = location.state as CheckoutState;
+  // Estado do checkout passado via location ou localStorage
+  const getCheckoutState = (): CheckoutState | null => {
+    // Primeiro tenta obter do state da navegação
+    if (location.state) {
+      console.log('[Checkout Page] Dados obtidos via location.state:', location.state);
+      return location.state as CheckoutState;
+    }
+    
+    // Fallback: tentar obter do localStorage
+    const storedState = localStorage.getItem('checkoutState');
+    if (storedState) {
+      try {
+        const parsed = JSON.parse(storedState);
+        console.log('[Checkout Page] Dados obtidos via localStorage:', parsed);
+        // Limpar após uso
+        localStorage.removeItem('checkoutState');
+        return parsed;
+      } catch (error) {
+        console.error('[Checkout Page] Erro ao parsear dados do localStorage:', error);
+      }
+    }
+    
+    console.log('[Checkout Page] Nenhum dado de checkout encontrado');
+    return null;
+  };
+  
+  const checkoutData = getCheckoutState();
   
   useEffect(() => {
     if (!checkoutData) {
+      console.log('[Checkout Page] Dados do checkout não encontrados, redirecionando para /plans');
       toast({
-        title: "Erro",
+        title: "Erro no checkout",
         description: "Dados do plano não encontrados. Redirecionando...",
         variant: "destructive"
       });
       navigate('/plans');
+      return;
     }
+    
+    console.log('[Checkout Page] Checkout inicializado com dados:', checkoutData);
   }, [checkoutData, navigate, toast]);
 
   if (!checkoutData) {

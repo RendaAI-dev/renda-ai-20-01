@@ -51,50 +51,125 @@ const PlanCard: React.FC<PlanCardProps> = ({
   // Verifica se pode fazer downgrade (está no plano anual e visualizando o mensal)
   const canDowngrade = subscription?.plan_type === 'annual' && planType === 'monthly' && hasActiveSubscription;
   
+  const waitForValidSession = async (maxAttempts = 3, delayMs = 1000) => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      console.log(`[Checkout Debug] Tentativa ${attempt} de verificar sessão`);
+      
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error(`[Checkout Debug] Erro na tentativa ${attempt}:`, sessionError);
+        if (attempt === maxAttempts) throw sessionError;
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        continue;
+      }
+
+      if (session?.user) {
+        console.log(`[Checkout Debug] Sessão válida encontrada na tentativa ${attempt}:`, session.user.email);
+        return session;
+      }
+
+      console.log(`[Checkout Debug] Sessão não encontrada na tentativa ${attempt}, aguardando...`);
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+    
+    return null;
+  };
+
+  const parsePrice = (priceString: string): number => {
+    try {
+      // Remove 'R$ ' e substitui ',' por '.'
+      const cleanPrice = priceString
+        .replace(/R\$\s*/g, '')
+        .replace(/\./g, '') // Remove pontos de milhares
+        .replace(',', '.'); // Substitui vírgula decimal por ponto
+      
+      const parsedPrice = parseFloat(cleanPrice);
+      console.log(`[Checkout Debug] Preço original: "${priceString}", parseado: ${parsedPrice}`);
+      
+      if (isNaN(parsedPrice)) {
+        throw new Error(`Preço inválido: ${priceString}`);
+      }
+      
+      return parsedPrice;
+    } catch (error) {
+      console.error(`[Checkout Debug] Erro ao parsear preço "${priceString}":`, error);
+      throw error;
+    }
+  };
+
   const handleCheckout = async () => {
     try {
       setIsLoading(true);
+      console.log(`[Checkout Debug] Iniciando checkout para plano: ${planType}, ${name}`);
       
-      // Verificar se o usuário está autenticado
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error('Erro ao obter sessão:', sessionError);
-        toast({
-          title: "Erro de autenticação",
-          description: "Erro ao verificar sua sessão. Tente fazer login novamente.",
-          variant: "destructive",
-        });
-        return;
-      }
-
+      // Aguardar por uma sessão válida com retry
+      const session = await waitForValidSession();
+      
       if (!session?.user) {
+        console.log('[Checkout Debug] Nenhuma sessão válida encontrada, redirecionando para registro');
+        
+        // Armazenar dados do plano no localStorage para recuperação posterior
+        const checkoutData = {
+          planType,
+          planName: name,
+          planPrice: parsePrice(price),
+          timestamp: Date.now()
+        };
+        localStorage.setItem('pendingCheckout', JSON.stringify(checkoutData));
+        
         toast({
           title: "Login necessário",
           description: "Você precisa estar logado para fazer uma assinatura.",
           variant: "destructive",
         });
-        // Redirecionar para página de registro com o planType
+        
         navigate(`/register?planType=${planType}`);
         return;
       }
 
+      // Verificar dados do plano
+      console.log(`[Checkout Debug] Dados do plano:`, {
+        planType,
+        name,
+        price,
+        hasActiveSubscription,
+        canUpgrade,
+        canDowngrade
+      });
+
       // Navigate to transparent checkout page
       const isUpgrade = hasActiveSubscription && (canUpgrade || canDowngrade);
+      const parsedPrice = parsePrice(price);
       
-      navigate('/checkout', {
-        state: {
-          planType,
-          planName: name,
-          planPrice: Number(price.replace('R$ ', '').replace(',', '.')),
-          isUpgrade
-        }
-      });
+      const checkoutState = {
+        planType,
+        planName: name,
+        planPrice: parsedPrice,
+        isUpgrade
+      };
+      
+      console.log(`[Checkout Debug] Navegando para checkout com dados:`, checkoutState);
+      
+      // Tentar navegação normal primeiro
+      try {
+        navigate('/checkout', { state: checkoutState });
+        console.log('[Checkout Debug] Navegação realizada com sucesso');
+      } catch (navError) {
+        console.error('[Checkout Debug] Erro na navegação, tentando fallback:', navError);
+        
+        // Fallback: armazenar no localStorage e navegar sem state
+        localStorage.setItem('checkoutState', JSON.stringify(checkoutState));
+        navigate('/checkout');
+      }
       
     } catch (error) {
-      console.error('Checkout error:', error);
+      console.error('[Checkout Debug] Erro no checkout:', error);
       toast({
         title: "Erro no checkout",
-        description: "Algo deu errado. Tente novamente.",
+        description: error instanceof Error ? error.message : "Algo deu errado. Tente novamente.",
         variant: "destructive",
       });
     } finally {

@@ -474,7 +474,7 @@ serve(async (req) => {
     // Return success with session information for redirect
     const successResult = {
       ...result,
-      sessionId: `${userId}_${planType}_${Date.now()}`,
+      sessionId: `${user.id}_${planType}_${Date.now()}`,
       redirectTo: '/payment-success'
     };
 

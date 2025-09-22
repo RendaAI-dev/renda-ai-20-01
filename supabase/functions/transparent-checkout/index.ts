@@ -427,7 +427,8 @@ serve(async (req) => {
           creditCard: {
             creditCardToken: tokenData.creditCardToken
           },
-          externalReference: `${user.id}_${planType}_${Date.now()}`
+          externalReference: `${user.id}_${planType}_${Date.now()}`,
+          chargeNow: true // Force immediate charge to trigger PAYMENT_CONFIRMED
         })
       });
 

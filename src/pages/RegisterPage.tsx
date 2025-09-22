@@ -280,50 +280,18 @@ const RegisterPage = () => {
         description: "Preparando pagamento...",
       });
       
-      // Chamar edge function para criar pagamento direto
-      const response = await supabase.functions.invoke('create-asaas-checkout', {
-        body: { 
-          planType: finalPlanType,
-          successUrl: `${window.location.origin}/payment-success?email=${encodeURIComponent(validSession.user.email || '')}`,
-          cancelUrl: `${window.location.origin}/register?canceled=true`
-        },
-        headers: {
-          Authorization: `Bearer ${validSession.access_token}`,
-        }
+      // Redirecionar para nosso checkout transparente
+      console.log('✅ Redirecionando para checkout transparente');
+      
+      toast({
+        title: "Conta criada com sucesso!",
+        description: "Redirecionando para finalizar pagamento...",
       });
-
-      if (response.error) {
-        console.error('Erro ao criar pagamento:', response.error);
-        
-        // Exibir erro específico do Asaas se disponível
-        let errorMessage = 'Erro ao criar pagamento';
-        if (response.error.message?.includes('Erro Asaas:')) {
-          errorMessage = response.error.message.replace('Erro Asaas: ', '');
-        } else if (response.error.message) {
-          errorMessage = response.error.message;
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      const functionData = response.data;
-      console.log('Dados retornados pela função create-asaas-checkout:', functionData);
-
-      if (functionData && functionData.invoiceUrl) {
-        console.log('✅ Invoice URL recebida:', functionData.invoiceUrl);
-        
-        // Garantir que o overlay de carregamento permaneça visível
-        document.body.classList.add('overflow-hidden');
-        
-        // Redirecionar para a fatura do Asaas
-        setTimeout(() => {
-          window.location.href = functionData.invoiceUrl;
-        }, 500);
-        
-        return;
-      } else {
-        throw new Error('Não foi possível obter a URL da fatura.');
-      }
+      
+      // Redirecionar para nossa página de checkout
+      setTimeout(() => {
+        navigate(`/checkout?planType=${finalPlanType}&email=${encodeURIComponent(validSession.user.email || '')}`);
+      }, 1500);
     } catch (err: any) {
       console.error('Erro no processo de registro ou pagamento:', err);
       setError(err.message || 'Ocorreu um erro desconhecido.');

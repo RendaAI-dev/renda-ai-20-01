@@ -79,6 +79,11 @@ serve(async (req) => {
       isUpgrade 
     });
 
+    // Extract client IP to help Asaas risk analysis confirm payments faster
+    const forwardedFor = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+    const realIp = req.headers.get('x-real-ip') || req.headers.get('cf-connecting-ip');
+    const remoteIp = forwardedFor || realIp || '';
+    console.log('[TRANSPARENT-CHECKOUT] remoteIp:', remoteIp || 'N/A');
     // Get Asaas configuration directly from settings table (using service role)
     console.log('[TRANSPARENT-CHECKOUT] Buscando configurações do Asaas...');
     
@@ -374,9 +379,9 @@ serve(async (req) => {
         body: JSON.stringify({
           value: planPrice,
           cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
-          creditCard: {
-            creditCardToken: tokenData.creditCardToken
-          },
+          billingType: 'CREDIT_CARD',
+          creditCardToken: tokenData.creditCardToken,
+          remoteIp,
           chargeNow: true
         })
       });
@@ -424,11 +429,10 @@ serve(async (req) => {
           nextDueDate: new Date().toISOString().split('T')[0],
           cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
           description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
-          creditCard: {
-            creditCardToken: tokenData.creditCardToken
-          },
+          creditCardToken: tokenData.creditCardToken,
+          remoteIp,
           externalReference: `${user.id}_${planType}_${Date.now()}`,
-          chargeNow: true // Force immediate charge to trigger PAYMENT_CONFIRMED
+          chargeNow: true
         })
       });
 

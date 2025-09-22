@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useNewPlanConfig } from '@/hooks/useNewPlanConfig';
 import { CreditCardForm } from '@/components/checkout/CreditCardForm';
+import { SavedCardSelector } from '@/components/checkout/SavedCardSelector';
 import { PlanSummary } from '@/components/checkout/PlanSummary';
 import { CheckoutSteps } from '@/components/checkout/CheckoutSteps';
 import { CheckoutSummary } from '@/components/checkout/CheckoutSummary';
@@ -36,6 +37,8 @@ const CheckoutPage = () => {
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [useNewCard, setUseNewCard] = useState(false);
+  const [selectedCardToken, setSelectedCardToken] = useState<string | null>(null);
   const [creditCardData, setCreditCardData] = useState<CreditCardData>({
     number: '',
     expiryMonth: '',
@@ -207,10 +210,23 @@ const CheckoutPage = () => {
 
   const handleNext = () => {
     if (step === 1) {
-      if (validateCreditCard()) {
+      // If using saved card, skip validation
+      if (selectedCardToken && !useNewCard) {
+        setStep(2);
+      } else if (validateCreditCard()) {
         setStep(2);
       }
     }
+  };
+
+  const handleCardSelect = (cardToken: string | null) => {
+    setSelectedCardToken(cardToken);
+    setUseNewCard(cardToken === null);
+  };
+
+  const handleNewCard = () => {
+    setUseNewCard(true);
+    setSelectedCardToken(null);
   };
 
   const handleBack = () => {
@@ -222,19 +238,36 @@ const CheckoutPage = () => {
   };
 
   const handleProcessPayment = async () => {
-    if (!validateCreditCard()) return;
+    // Validate based on payment method
+    if (useNewCard && !validateCreditCard()) return;
+    if (!useNewCard && !selectedCardToken) {
+      toast({
+        title: "Erro de validação",
+        description: "Selecione um cartão salvo ou preencha os dados do novo cartão.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setLoading(true);
     setStep(3); // Processing step
 
     try {
+      const body: any = {
+        planType: checkoutData.planType,
+        isUpgrade: checkoutData.isUpgrade,
+        currentSubscriptionId: subscription?.id
+      };
+
+      // Add payment method data
+      if (useNewCard) {
+        body.creditCard = creditCardData;
+      } else {
+        body.savedCardToken = selectedCardToken;
+      }
+
       const { data, error } = await supabase.functions.invoke('transparent-checkout', {
-        body: {
-          planType: checkoutData.planType,
-          creditCard: creditCardData,
-          isUpgrade: checkoutData.isUpgrade,
-          currentSubscriptionId: subscription?.id
-        }
+        body
       });
 
       if (error) throw error;
@@ -310,27 +343,37 @@ const CheckoutPage = () => {
           {/* Main Content */}
           <div className="space-y-6">
             {step === 1 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Dados do Cartão de Crédito</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CreditCardForm
-                    data={creditCardData}
-                    onChange={handleCreditCardChange}
-                    disabled={loading}
-                  />
-                  
-                  <div className="flex gap-4 mt-6">
-                    <Button variant="outline" onClick={handleBack} className="flex-1">
-                      Voltar
-                    </Button>
-                    <Button onClick={handleNext} className="flex-1">
-                      Continuar
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="space-y-6">
+                <SavedCardSelector
+                  onCardSelect={handleCardSelect}
+                  onNewCard={handleNewCard}
+                  disabled={loading}
+                />
+                
+                {useNewCard && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Dados do Novo Cartão</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <CreditCardForm
+                        data={creditCardData}
+                        onChange={handleCreditCardChange}
+                        disabled={loading}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+                
+                <div className="flex gap-4">
+                  <Button variant="outline" onClick={handleBack} className="flex-1">
+                    Voltar
+                  </Button>
+                  <Button onClick={handleNext} className="flex-1" disabled={loading}>
+                    Continuar
+                  </Button>
+                </div>
+              </div>
             )}
 
             {step === 2 && (

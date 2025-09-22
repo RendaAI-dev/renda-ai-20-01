@@ -17,9 +17,25 @@ interface CreditCardData {
 
 interface CheckoutRequest {
   planType: 'monthly' | 'annual';
-  creditCard: CreditCardData;
+  creditCard?: CreditCardData;
+  savedCardToken?: string;
   isUpgrade?: boolean;
   currentSubscriptionId?: string;
+}
+
+// Function to detect card brand from number
+function detectCardBrand(cardNumber: string): string {
+  const number = cardNumber.replace(/\s/g, '');
+  
+  if (/^4/.test(number)) return 'Visa';
+  if (/^5[1-5]/.test(number)) return 'Mastercard';
+  if (/^2[2-7]/.test(number)) return 'Mastercard';
+  if (/^3[47]/.test(number)) return 'American Express';
+  if (/^6(?:011|5)/.test(number)) return 'Discover';
+  if (/^35/.test(number)) return 'JCB';
+  if (/^30[0-5]/.test(number)) return 'Diners Club';
+  
+  return 'Unknown';
 }
 
 serve(async (req) => {
@@ -52,8 +68,16 @@ serve(async (req) => {
 
     console.log('[TRANSPARENT-CHECKOUT] Usuário autenticado:', user.id);
 
+    // Parse request body
     const requestBody: CheckoutRequest = await req.json();
-    const { planType, creditCard, isUpgrade, currentSubscriptionId } = requestBody;
+    const { planType, creditCard, savedCardToken, isUpgrade, currentSubscriptionId } = requestBody;
+    
+    console.log('[TRANSPARENT-CHECKOUT] Dados recebidos:', { 
+      planType, 
+      hasNewCard: !!creditCard,
+      hasSavedToken: !!savedCardToken,
+      isUpgrade 
+    });
 
     // Get Asaas configuration directly from settings table (using service role)
     console.log('[TRANSPARENT-CHECKOUT] Buscando configurações do Asaas...');
@@ -212,8 +236,18 @@ serve(async (req) => {
       console.log('[TRANSPARENT-CHECKOUT] Cliente Asaas criado:', asaasCustomerId);
     }
 
-    // Step 1: Tokenize credit card
-    console.log('[TRANSPARENT-CHECKOUT] Tokenizando cartão de crédito...');
+    // Step 1: Handle card tokenization
+    let tokenData;
+    let shouldSaveCard = false;
+    
+    if (savedCardToken) {
+      // Use existing saved card token
+      console.log('[TRANSPARENT-CHECKOUT] Usando cartão salvo');
+      tokenData = { creditCardToken: savedCardToken };
+    } else if (creditCard) {
+      // Tokenize new credit card
+      console.log('[TRANSPARENT-CHECKOUT] Tokenizando novo cartão de crédito...');
+      shouldSaveCard = true;
     
     const tokenizeResponse = await fetch(`${asaasBaseUrl}/creditCard/tokenize`, {
       method: 'POST',
@@ -240,16 +274,74 @@ serve(async (req) => {
         },
         customer: asaasCustomerId
       })
-    });
+      });
 
-    if (!tokenizeResponse.ok) {
-      const error = await tokenizeResponse.text();
-      console.error('[TRANSPARENT-CHECKOUT] Erro na tokenização:', error);
-      throw new Error(`Failed to tokenize credit card: ${error}`);
+      if (!tokenizeResponse.ok) {
+        const error = await tokenizeResponse.text();
+        console.error('[TRANSPARENT-CHECKOUT] Erro na tokenização:', error);
+        throw new Error(`Failed to tokenize credit card: ${error}`);
+      }
+
+      tokenData = await tokenizeResponse.json();
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Cartão tokenizado com sucesso');
+    } else {
+      throw new Error('Método de pagamento não especificado');
     }
-
-    const tokenData = await tokenizeResponse.json();
-    console.log('[TRANSPARENT-CHECKOUT] ✅ Cartão tokenizado com sucesso');
+    
+    // Save tokenized card data only for new cards
+    if (shouldSaveCard && creditCard) {
+      const cardBrand = detectCardBrand(creditCard.number);
+      const lastFour = creditCard.number.replace(/\s/g, '').slice(-4);
+      const maskedNumber = `****-****-****-${lastFour}`;
+      
+      try {
+        // Check if user already has this card (by last 4 digits and brand)
+        const { data: existingCards } = await supabase
+          .from('poupeja_tokenized_cards')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('credit_card_last_four', lastFour)
+          .eq('credit_card_brand', cardBrand);
+        
+        // Only save if this card doesn't exist yet
+        if (!existingCards || existingCards.length === 0) {
+          // Check if this will be the user's first card (make it default)
+          const { data: userCards } = await supabase
+            .from('poupeja_tokenized_cards')
+            .select('id')
+            .eq('user_id', user.id);
+          
+          const isFirstCard = !userCards || userCards.length === 0;
+          
+          const { error: cardSaveError } = await supabase
+            .from('poupeja_tokenized_cards')
+            .insert({
+              user_id: user.id,
+              asaas_customer_id: asaasCustomerId,
+              credit_card_token: tokenData.creditCardToken,
+              credit_card_number: maskedNumber,
+              credit_card_brand: cardBrand,
+              credit_card_last_four: lastFour,
+              holder_name: creditCard.holderName,
+              expires_at: `${creditCard.expiryMonth}/${creditCard.expiryYear}`,
+              is_default: isFirstCard,
+              is_active: true
+            });
+          
+          if (cardSaveError) {
+            console.error('[TRANSPARENT-CHECKOUT] ⚠️ Erro ao salvar cartão tokenizado:', cardSaveError);
+            // Don't throw error - tokenization was successful, card saving is secondary
+          } else {
+            console.log('[TRANSPARENT-CHECKOUT] ✅ Cartão tokenizado salvo com sucesso');
+          }
+        } else {
+          console.log('[TRANSPARENT-CHECKOUT] ℹ️ Cartão já existe, não salvando duplicata');
+        }
+      } catch (error) {
+        console.error('[TRANSPARENT-CHECKOUT] ⚠️ Erro ao verificar/salvar cartão:', error);
+        // Continue with the flow - card saving is not critical
+      }
+    }
 
     // Step 2: Handle subscription creation or plan change
     let result;

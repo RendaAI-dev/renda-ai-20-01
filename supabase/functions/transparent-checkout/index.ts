@@ -55,14 +55,26 @@ serve(async (req) => {
     const requestBody: CheckoutRequest = await req.json();
     const { planType, creditCard, isUpgrade, currentSubscriptionId } = requestBody;
 
-    // Get Asaas configuration
-    const { data: asaasConfig, error: configError } = await supabase.functions.invoke('get-admin-settings');
-    if (configError) {
+    // Get Asaas configuration directly from settings table (using service role)
+    console.log('[TRANSPARENT-CHECKOUT] Buscando configurações do Asaas...');
+    
+    const { data: asaasSettings, error: settingsError } = await supabase
+      .from('poupeja_settings')
+      .select('key, value')
+      .eq('category', 'asaas')
+      .in('key', ['api_key', 'environment']);
+
+    if (settingsError) {
+      console.error('[TRANSPARENT-CHECKOUT] Erro ao buscar configurações:', settingsError);
       throw new Error('Failed to get Asaas configuration');
     }
 
-    const asaasApiKey = asaasConfig.asaas?.apiKey;
-    const asaasEnvironment = asaasConfig.asaas?.environment || 'sandbox';
+    if (!asaasSettings || asaasSettings.length === 0) {
+      throw new Error('Asaas configuration not found');
+    }
+
+    const asaasApiKey = asaasSettings.find(s => s.key === 'api_key')?.value;
+    const asaasEnvironment = asaasSettings.find(s => s.key === 'environment')?.value || 'sandbox';
     
     if (!asaasApiKey) {
       throw new Error('Asaas API key not configured');
@@ -72,15 +84,37 @@ serve(async (req) => {
       ? 'https://api.asaas.com/v3' 
       : 'https://sandbox.asaas.com/api/v3';
 
-    // Get user data
-    const { data: userData, error: userDataError } = await supabase
+    // Get user data - try poupeja_users first, fallback to auth metadata
+    console.log('[TRANSPARENT-CHECKOUT] Buscando dados do usuário...');
+    
+    let userData: any = null;
+    
+    const { data: userProfile, error: userDataError } = await supabase
       .from('poupeja_users')
       .select('*')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (userDataError) {
-      throw new Error('User data not found');
+    if (userProfile) {
+      userData = userProfile;
+      console.log('[TRANSPARENT-CHECKOUT] Dados encontrados na tabela poupeja_users');
+    } else {
+      // Fallback to user metadata if poupeja_users doesn't exist or has no data
+      console.log('[TRANSPARENT-CHECKOUT] Usando dados do metadata do usuário');
+      userData = {
+        id: user.id,
+        email: user.email,
+        name: user.user_metadata?.full_name || user.user_metadata?.name || 'Cliente',
+        phone: user.user_metadata?.phone || '',
+        cpf: user.user_metadata?.cpf || '',
+        cep: user.user_metadata?.cep || '',
+        street: user.user_metadata?.address?.street || '',
+        number: user.user_metadata?.address?.number || '',
+        complement: user.user_metadata?.address?.complement || '',
+        neighborhood: user.user_metadata?.address?.neighborhood || '',
+        city: user.user_metadata?.address?.city || '',
+        state: user.user_metadata?.address?.state || ''
+      };
     }
 
     // Get plan pricing

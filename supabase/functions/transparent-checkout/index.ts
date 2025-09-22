@@ -13,6 +13,7 @@ interface CreditCardData {
   expiryYear: string;
   ccv: string;
   holderName: string;
+  holderCpf: string;
 }
 
 interface CheckoutRequest {

@@ -470,7 +470,14 @@ serve(async (req) => {
 
     console.log('[TRANSPARENT-CHECKOUT] ✅ Checkout transparente concluído com sucesso');
 
-    return new Response(JSON.stringify(result), {
+    // Return success with session information for redirect
+    const successResult = {
+      ...result,
+      sessionId: `${userId}_${planType}_${Date.now()}`,
+      redirectTo: '/payment-success'
+    };
+
+    return new Response(JSON.stringify(successResult), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 

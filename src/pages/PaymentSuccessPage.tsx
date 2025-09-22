@@ -137,6 +137,21 @@ const PaymentSuccessPage = () => {
     init();
   }, [email, sessionId]);
 
+  // Auto-redirect to dashboard when payment is confirmed and user exists
+  useEffect(() => {
+    if (!isCheckingUser && userExists && systemStatus === 'ready') {
+      const redirectTimer = setTimeout(() => {
+        toast({
+          title: "Redirecionando...",
+          description: "Pagamento confirmado! Levando você para o dashboard.",
+        });
+        navigate('/dashboard');
+      }, 3000);
+
+      return () => clearTimeout(redirectTimer);
+    }
+  }, [isCheckingUser, userExists, systemStatus, navigate, toast]);
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -271,11 +286,11 @@ const PaymentSuccessPage = () => {
                 <div className="flex items-center gap-2 text-blue-800">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span className="font-medium">
-                    Verificando ativação da conta... (Tentativa {checkAttempts + 1})
+                    Aguardando confirmação do pagamento... (Tentativa {checkAttempts + 1})
                   </span>
                 </div>
                 <p className="text-sm text-blue-700 mt-1">
-                  Aguarde enquanto sincronizamos seu pagamento.
+                  Verificando se o pagamento foi processado pelo ASAAS. Isso pode levar alguns segundos.
                 </p>
               </div>
             )}
@@ -285,10 +300,10 @@ const PaymentSuccessPage = () => {
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-green-800">
                   <CheckCircle className="h-4 w-4" />
-                  <span className="font-medium">Conta ativada com sucesso!</span>
+                  <span className="font-medium">Pagamento confirmado!</span>
                 </div>
                 <p className="text-sm text-green-700 mt-1">
-                  Sua conta foi criada e sua assinatura está ativa.
+                  Seu pagamento foi processado e sua assinatura está ativa. Redirecionando automaticamente em instantes...
                 </p>
               </div>
             )}

@@ -40,6 +40,7 @@ const CheckoutPage = () => {
   const [loading, setLoading] = useState(false);
   const [useNewCard, setUseNewCard] = useState(true); // Default to true for better UX
   const [selectedCardToken, setSelectedCardToken] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [creditCardData, setCreditCardData] = useState<CreditCardData>({
     number: '',
     expiryMonth: '',
@@ -48,6 +49,15 @@ const CheckoutPage = () => {
     holderName: '',
     holderCpf: ''
   });
+
+  // Get current user on mount
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
+    };
+    getCurrentUser();
+  }, []);
 
   // Estado do checkout passado via location, localStorage ou URL params
   const getCheckoutState = (): CheckoutState | null => {
@@ -292,13 +302,18 @@ const CheckoutPage = () => {
         
         toast({
           title: "Pagamento processado!",
-          description: "Sua assinatura foi ativada com sucesso.",
+          description: "Redirecionando para confirmação...",
         });
 
-        // Redirect after a short delay
+        // Redirect to payment success page with session info
         setTimeout(() => {
-          navigate('/dashboard');
-        }, 2000);
+          const params = new URLSearchParams({
+            email: currentUser?.email || '',
+            plan_type: checkoutData.planType || 'monthly',
+            session_id: data.sessionId || Date.now().toString()
+          });
+          navigate(`/payment-success?${params.toString()}`);
+        }, 1500);
       } else {
         throw new Error(data.error || 'Erro no processamento do pagamento');
       }

@@ -65,6 +65,11 @@ serve(async (req) => {
     if (event?.startsWith('PAYMENT_')) {
       return await processPaymentEvent(supabase, event, payment);
     }
+    
+    // Processar eventos de SUBSCRIPTION
+    if (event?.startsWith('SUBSCRIPTION_')) {
+      return await processSubscriptionEvent(supabase, event, webhookData);
+    }
 
     console.warn('[ASAAS-WEBHOOK] Evento não suportado:', event);
     return new Response(JSON.stringify({ received: true, processed: false }), {
@@ -129,6 +134,26 @@ async function processCheckoutEvent(supabase: any, event: string, checkout: any,
     event,
     processed: true,
     checkout_id: checkout?.id
+  }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+}
+
+// Processar eventos de SUBSCRIPTION
+async function processSubscriptionEvent(supabase: any, event: string, webhookData: any) {
+  console.log('[ASAAS-WEBHOOK] 📋 PROCESSANDO EVENTO DE SUBSCRIPTION:', {
+    event,
+    timestamp: new Date().toISOString()
+  });
+
+  // Para eventos de subscription, apenas logar - não precisamos processar ativamente
+  // pois as subscriptions são gerenciadas via pagamentos
+  
+  return new Response(JSON.stringify({
+    received: true,
+    event,
+    processed: true,
+    message: 'Subscription event logged'
   }), {
     headers: { 'Content-Type': 'application/json', ...corsHeaders }
   });

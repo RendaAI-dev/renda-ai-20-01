@@ -34,7 +34,7 @@ const PaymentSuccessPage = () => {
   const checkSystemStatus = async () => {
     try {
       // Verificar se as funções estão respondendo
-      const { error: syncError } = await supabase.functions.invoke('sync-subscriptions', {
+      const { error: syncError } = await supabase.functions.invoke('sync-pending-payments', {
         body: { test: true }
       });
       
@@ -110,7 +110,7 @@ const PaymentSuccessPage = () => {
       if (systemOk) {
         // Sincronização mais rápida - sem delays desnecessários
         try {
-          const { data, error } = await supabase.functions.invoke('sync-subscriptions', {
+          const { data, error } = await supabase.functions.invoke('sync-pending-payments', {
             body: { 
               email: email
             }
@@ -168,7 +168,7 @@ const PaymentSuccessPage = () => {
     try {
       setIsCheckingUser(true);
       
-      const { data, error } = await supabase.functions.invoke('sync-subscriptions');
+      const { data, error } = await supabase.functions.invoke('sync-pending-payments');
       
       if (error) {
         toast({

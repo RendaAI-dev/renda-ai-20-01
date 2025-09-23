@@ -377,7 +377,7 @@ serve(async (req) => {
         newPlanType: planType,
         newPlanPrice: planPrice,
         cardToken: savedCardToken || 'new_card',
-        userId: userId
+        userId: user.id
       });
       
       // Create plan change request
@@ -400,7 +400,7 @@ serve(async (req) => {
         value: planPrice,
         cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
         creditCard: {
-          creditCardToken: savedCardToken || creditCardToken,
+          creditCardToken: tokenData.creditCardToken,
         }
       };
       

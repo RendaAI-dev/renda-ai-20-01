@@ -480,8 +480,56 @@ serve(async (req) => {
       
       console.log('[TRANSPARENT-CHECKOUT] ✅ Mudança de plano processada');
     } else {
-      // Create new subscription
-      console.log('[TRANSPARENT-CHECKOUT] Criando nova assinatura...');
+      // Create new subscription - HYBRID APPROACH: Immediate Payment + Future Subscription
+      console.log('[TRANSPARENT-CHECKOUT] Criando nova assinatura (estratégia híbrida)...');
+      
+      // Generate unique external reference
+      const externalReference = `${user.id}_${planType}_${Date.now()}`;
+      
+      // Step 1: Create immediate payment (generates PAYMENT_CONFIRMED)
+      console.log('[TRANSPARENT-CHECKOUT] 🔥 Criando pagamento imediato...');
+      
+      const immediatePaymentPayload = {
+        customer: asaasCustomerId,
+        billingType: 'CREDIT_CARD',
+        value: planPrice,
+        dueDate: new Date().toISOString().split('T')[0], // Today
+        description: `Pagamento Inicial - Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
+        externalReference: `${externalReference}_initial_${planType}`,
+        creditCard: {
+          creditCardToken: savedCardToken || tokenData.creditCardToken,
+        },
+        remoteIp: remoteIp || undefined
+      };
+
+      const paymentResponse = await fetch(`${asaasBaseUrl}/payments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'access_token': asaasApiKey,
+        },
+        body: JSON.stringify(immediatePaymentPayload)
+      });
+
+      if (!paymentResponse.ok) {
+        const error = await paymentResponse.text();
+        console.error('[TRANSPARENT-CHECKOUT] Erro ao criar pagamento imediato:', error);
+        throw new Error(`Failed to create immediate payment: ${error}`);
+      }
+
+      const payment = await paymentResponse.json();
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Pagamento imediato criado:', payment.id);
+      
+      // Step 2: Create subscription for future billing cycles
+      console.log('[TRANSPARENT-CHECKOUT] 📅 Criando assinatura para próximos ciclos...');
+      
+      // Calculate next due date (next month/year from today)
+      const nextDueDate = new Date();
+      if (planType === 'monthly') {
+        nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+      } else {
+        nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
+      }
       
       const subscriptionResponse = await fetch(`${asaasBaseUrl}/subscriptions`, {
         method: 'POST',
@@ -493,23 +541,23 @@ serve(async (req) => {
           customer: asaasCustomerId,
           billingType: 'CREDIT_CARD',
           value: planPrice,
-          nextDueDate: new Date().toISOString().split('T')[0],
+          nextDueDate: nextDueDate.toISOString().split('T')[0], // Next billing cycle
           cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
-          description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
+          description: `Assinatura Recorrente ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
           creditCardToken: tokenData.creditCardToken,
-          remoteIp,
-          externalReference: `${user.id}_${planType}_${Date.now()}`,
-          chargeNow: true
+          externalReference: `${externalReference}_recurring`
+          // NOTE: Removed chargeNow - we already handled the first payment
         })
       });
 
       if (!subscriptionResponse.ok) {
         const error = await subscriptionResponse.text();
+        console.error('[TRANSPARENT-CHECKOUT] Erro ao criar subscription:', error);
         throw new Error(`Failed to create subscription: ${error}`);
       }
 
       const subscription = await subscriptionResponse.json();
-      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura criada:', subscription.id);
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura recorrente criada:', subscription.id);
 
       // Save subscription in database with PENDING status
       await supabase.from('poupeja_subscriptions').insert({
@@ -517,22 +565,24 @@ serve(async (req) => {
         asaas_subscription_id: subscription.id,
         asaas_customer_id: asaasCustomerId,
         plan_type: planType,
-        status: 'pending', // CRÍTICO: Aguardar confirmação do webhook
+        status: 'pending', // Will be updated to 'active' by PAYMENT_CONFIRMED webhook
         current_period_start: new Date().toISOString(),
-        current_period_end: subscription.nextDueDate,
+        current_period_end: nextDueDate.toISOString(),
         payment_processor: 'asaas'
       });
 
-      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura PENDENTE criada - aguardando confirmação');
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura salva - aguardando PAYMENT_CONFIRMED');
 
       result = {
         success: true,
-        type: 'new_subscription',
+        type: 'new_subscription_hybrid',
         subscriptionId: subscription.id,
-        status: 'pending'
+        paymentId: payment.id,
+        status: 'pending',
+        message: 'Immediate payment and subscription created successfully'
       };
       
-      console.log('[TRANSPARENT-CHECKOUT] ✅ Nova assinatura processada');
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Estratégia híbrida implementada com sucesso');
     }
 
     console.log('[TRANSPARENT-CHECKOUT] ✅ Checkout transparente concluído com sucesso');

@@ -69,8 +69,8 @@ serve(async (req) => {
     const { data: asaasSettings, error: settingsError } = await supabaseClient
       .from('poupeja_settings')
       .select('key, value')
-      .in('key', ['asaas_api_key', 'asaas_environment'])
-      .in('category', ['payment']);
+      .eq('category', 'asaas')
+      .in('key', ['api_key', 'environment']);
 
     if (settingsError || !asaasSettings || asaasSettings.length === 0) {
       console.error('[CANCEL-SUBSCRIPTION] Settings error:', settingsError);
@@ -82,17 +82,17 @@ serve(async (req) => {
       return acc;
     }, {} as Record<string, string>);
 
-    if (!settings.asaas_api_key) {
+    if (!settings.api_key) {
       throw new Error('API Key do Asaas não configurada');
     }
 
     // Determine API URL based on environment
-    const isProduction = settings.asaas_environment === 'production';
+    const isProduction = settings.environment === 'production';
     const asaasApiUrl = isProduction 
       ? 'https://api.asaas.com/v3' 
       : 'https://sandbox.asaas.com/v3';
 
-    console.log('[CANCEL-SUBSCRIPTION] Using Asaas environment:', settings.asaas_environment);
+    console.log('[CANCEL-SUBSCRIPTION] Using Asaas environment:', settings.environment);
 
     // Cancel subscription in Asaas
     if (subscription.asaas_subscription_id) {
@@ -101,7 +101,7 @@ serve(async (req) => {
         {
           method: 'DELETE',
           headers: {
-            'access_token': settings.asaas_api_key,
+            'access_token': settings.api_key,
             'Content-Type': 'application/json',
           },
         }

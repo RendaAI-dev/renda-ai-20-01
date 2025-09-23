@@ -817,6 +817,17 @@ export type Database = {
           user_id: string
         }[]
       }
+      buscar_cadastro_por_email_phone: {
+        Args: { p_email?: string; p_phone?: string }
+        Returns: {
+          current_period_end: string
+          email: string
+          phone: string
+          plan_type: string
+          subscription_status: string
+          user_id: string
+        }[]
+      }
       calculate_discount_percentage: {
         Args: { discounted_price: number; original_price: number }
         Returns: number

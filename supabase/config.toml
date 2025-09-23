@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.update-card-direct]
 verify_jwt = true
+
+[functions.cancel-subscription]
+verify_jwt = true

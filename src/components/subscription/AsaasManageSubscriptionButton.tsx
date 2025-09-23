@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { CreditCard, Loader2, Zap } from 'lucide-react';
+import { CreditCard, Loader2, Zap, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -12,6 +12,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -47,10 +57,12 @@ interface PortalData {
 }
 
 const AsaasManageSubscriptionButton: React.FC = () => {
-  const { hasActiveSubscription } = useSubscription();
+  const { hasActiveSubscription, checkSubscription } = useSubscription();
   const [isLoading, setIsLoading] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [portalData, setPortalData] = useState<PortalData | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [planChangeOpen, setPlanChangeOpen] = useState(false);
   const [updateCardOnlyOpen, setUpdateCardOnlyOpen] = useState(false);
   const [updateCardCancelOverdueOpen, setUpdateCardCancelOverdueOpen] = useState(false);
@@ -88,6 +100,37 @@ const AsaasManageSubscriptionButton: React.FC = () => {
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    setIsCancelling(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('cancel-subscription');
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Erro ao cancelar assinatura');
+      }
+      
+      toast.success(data.message || 'Assinatura cancelada com sucesso');
+      setCancelDialogOpen(false);
+      
+      // Atualizar dados do portal e subscription context
+      await checkSubscription();
+      setTimeout(() => {
+        handleManageSubscription();
+      }, 1000);
+      
+    } catch (error: any) {
+      console.error('Erro ao cancelar assinatura:', error);
+      toast.error(error.message || 'Erro ao cancelar assinatura');
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -300,6 +343,19 @@ const AsaasManageSubscriptionButton: React.FC = () => {
                       <Zap className="w-4 h-4 mr-2" />
                       Alterar Plano (Upgrade/Downgrade)
                     </Button>
+
+                    {/* Botão de Cancelamento - só mostra se não está cancelada */}
+                    {!portalData?.subscription.cancel_at_period_end && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setCancelDialogOpen(true)}
+                        disabled={isLoading}
+                        className="justify-start border-red-200 text-red-700 hover:bg-red-50"
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        Cancelar Assinatura
+                      </Button>
+                    )}
                   </div>
                   
                   <div className="text-sm text-muted-foreground">
@@ -342,6 +398,52 @@ const AsaasManageSubscriptionButton: React.FC = () => {
         onOpenChange={setUpdateCardCancelOverdueOpen}
         onSuccess={handleModalSuccess}
       />
+
+      {/* Dialog de Confirmação de Cancelamento */}
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar Assinatura</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Tem certeza que deseja cancelar sua assinatura? Esta ação não pode ser desfeita.
+              </p>
+              {portalData && (
+                <div className="bg-amber-50 p-3 rounded-lg text-sm">
+                  <p className="font-medium text-amber-800 mb-1">
+                    ⚠️ Importante:
+                  </p>
+                  <ul className="text-amber-700 space-y-1">
+                    <li>• Você continuará tendo acesso até <strong>{formatDate(portalData.subscription.current_period_end)}</strong></li>
+                    <li>• Não haverá reembolso do período atual</li>
+                    <li>• A cobrança automática será interrompida</li>
+                    <li>• Você pode reativar antes do término do período</li>
+                  </ul>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelling}>
+              Manter Assinatura
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelSubscription}
+              disabled={isCancelling}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {isCancelling ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Cancelando...
+                </>
+              ) : (
+                'Sim, Cancelar Assinatura'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };

@@ -470,8 +470,7 @@ serve(async (req) => {
           description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
           creditCardToken: tokenData.creditCardToken,
           remoteIp,
-          externalReference: `${user.id}_${planType}_${Date.now()}`,
-          chargeNow: true
+          externalReference: `${user.id}_${planType}_${Date.now()}`
         })
       });
 
@@ -483,25 +482,25 @@ serve(async (req) => {
       const subscription = await subscriptionResponse.json();
       console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura criada:', subscription.id);
 
-      // Save subscription in database with PENDING status
+      // Save subscription in database with ACTIVE status
       await supabase.from('poupeja_subscriptions').insert({
         user_id: user.id,
         asaas_subscription_id: subscription.id,
         asaas_customer_id: asaasCustomerId,
         plan_type: planType,
-        status: 'pending', // CRÍTICO: Aguardar confirmação do webhook
+        status: 'active', // ATIVO imediatamente - sem chargeNow
         current_period_start: new Date().toISOString(),
         current_period_end: subscription.nextDueDate,
         payment_processor: 'asaas'
       });
 
-      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura PENDENTE criada - aguardando confirmação');
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura ATIVA criada imediatamente');
 
       result = {
         success: true,
         type: 'new_subscription',
         subscriptionId: subscription.id,
-        status: 'pending'
+        status: 'active'
       };
       
       console.log('[TRANSPARENT-CHECKOUT] ✅ Nova assinatura processada');

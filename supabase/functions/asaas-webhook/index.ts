@@ -143,17 +143,38 @@ async function processCheckoutEvent(supabase: any, event: string, checkout: any,
 async function processSubscriptionEvent(supabase: any, event: string, webhookData: any) {
   console.log('[ASAAS-WEBHOOK] 📋 PROCESSANDO EVENTO DE SUBSCRIPTION:', {
     event,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    subscription: webhookData.subscription
   });
 
-  // Para eventos de subscription, apenas logar - não precisamos processar ativamente
-  // pois as subscriptions são gerenciadas via pagamentos
+  // Processar SUBSCRIPTION_CREATED com status ACTIVE
+  if (event === 'SUBSCRIPTION_CREATED' && webhookData.subscription?.status === 'ACTIVE') {
+    const subscription = webhookData.subscription;
+    
+    console.log('[ASAAS-WEBHOOK] ✅ Confirmando assinatura ATIVA:', subscription.id);
+    
+    // Garantir que a assinatura está marcada como ativa no banco
+    const { error } = await supabase
+      .from('poupeja_subscriptions')
+      .update({
+        status: 'active',
+        current_period_start: new Date().toISOString(),
+        current_period_end: subscription.nextDueDate
+      })
+      .eq('asaas_subscription_id', subscription.id);
+      
+    if (error) {
+      console.error('[ASAAS-WEBHOOK] Erro ao confirmar assinatura:', error);
+    } else {
+      console.log('[ASAAS-WEBHOOK] ✅ Assinatura confirmada como ATIVA');
+    }
+  }
   
   return new Response(JSON.stringify({
     received: true,
     event,
     processed: true,
-    message: 'Subscription event logged'
+    message: 'Subscription event processed'
   }), {
     headers: { 'Content-Type': 'application/json', ...corsHeaders }
   });

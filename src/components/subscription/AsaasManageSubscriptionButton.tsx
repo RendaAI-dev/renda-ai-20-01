@@ -154,23 +154,31 @@ const AsaasManageSubscriptionButton: React.FC = () => {
       }
       
       if (!data || !data.success) {
-        const errorMsg = data?.error || 'Erro desconhecido ao reativar assinatura';
+        const errorMsg = data?.error || 'Erro desconhecido ao reativar assintura';
         console.error('[FRONTEND] Erro retornado:', errorMsg);
+        
+        // Check if it's a card error that requires updating
+        if (data?.action === 'update_card') {
+          setReactivateDialogOpen(false);
+          setUpdateCardOnlyOpen(true);
+          toast.error('Problema com o cartão cadastrado. Atualize seu cartão para continuar.');
+          return;
+        }
+        
         throw new Error(errorMsg);
       }
       
       console.log('[FRONTEND] Reativação bem-sucedida:', data);
-      toast.success(data.message || 'Assinatura reativada! Complete o pagamento.');
+      toast.success(data.message || 'Assinatura reativada com sucesso! O pagamento foi processado no seu cartão.');
       setReactivateDialogOpen(false);
-      
-      // Abrir URL da fatura em nova aba
-      if (data.invoiceUrl) {
-        console.log('[FRONTEND] Abrindo URL da fatura:', data.invoiceUrl);
-        window.open(data.invoiceUrl, '_blank');
-      }
       
       // Atualizar contexto
       await checkSubscription();
+      
+      // Refresh portal data
+      setTimeout(() => {
+        handleManageSubscription();
+      }, 1500);
       
     } catch (error: any) {
       console.error('[FRONTEND] Erro completo ao reativar assinatura:', error);

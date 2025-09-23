@@ -156,11 +156,10 @@ serve(async (req) => {
       nextDueDate: new Date().toISOString().split('T')[0], // Cobrança imediata
       externalReference: `reactivation_${user.id}_${cancelledSubscription.plan_type}_${Date.now()}`,
       creditCard: {
-        creditCardToken: tokenizedCard.credit_card_token,
-        holderName: tokenizedCard.holder_name,
-        number: tokenizedCard.credit_card_number,
-        expiryMonth: expiryMonth,
-        expiryYear: expiryYear
+        creditCardToken: tokenizedCard.credit_card_token
+      },
+      creditCardHolderInfo: {
+        name: tokenizedCard.holder_name
       }
     };
 
@@ -184,6 +183,20 @@ serve(async (req) => {
         : `Erro HTTP ${subscriptionResponse.status}`;
       
       console.error(`[REACTIVATE-SUBSCRIPTION] ${errorMessage}`);
+      
+      // Check for card-related errors
+      const hasCardError = subscriptionResult.errors?.some((e: any) => 
+        e.code?.includes('creditCard') || e.code?.includes('invalid_creditCard')
+      );
+      
+      if (hasCardError) {
+        throw new Error(JSON.stringify({
+          message: 'Problema com o cartão de crédito cadastrado',
+          action: 'update_card',
+          details: errorMessage
+        }));
+      }
+      
       throw new Error(errorMessage);
     }
 
@@ -289,10 +302,28 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('[REACTIVATE-SUBSCRIPTION] Erro:', error.message);
-    return new Response(JSON.stringify({
+    
+    // Try to parse card error response
+    let errorResponse: any = {
       success: false,
       error: error.message
-    }), {
+    };
+    
+    try {
+      const parsedError = JSON.parse(error.message);
+      if (parsedError.action) {
+        errorResponse = {
+          success: false,
+          error: parsedError.message,
+          action: parsedError.action,
+          details: parsedError.details
+        };
+      }
+    } catch {
+      // Not a JSON error, use original message
+    }
+    
+    return new Response(JSON.stringify(errorResponse), {
       status: 500,
       headers: { 
         'Content-Type': 'application/json',

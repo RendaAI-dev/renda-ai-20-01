@@ -10,13 +10,13 @@
   "scope": "/",
   "icons": [
     {
-      "src": "/icon-192x192.png",
+      "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-512x512.png",
+      "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

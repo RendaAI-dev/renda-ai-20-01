@@ -338,8 +338,10 @@ const PlanChangeCheckoutPage = () => {
       
       let errorMessage = "Ocorreu um erro ao alterar o plano. Tente novamente.";
       
-      if (error.message?.includes('Failed to fetch')) {
-        errorMessage = "Erro de conexão: Verifique se a Edge Function 'change-plan-checkout' está deployada no Supabase.";
+      if (error.message === 'FUNCTION_NOT_DEPLOYED') {
+        errorMessage = "🚀 A função de mudança de plano precisa ser deployada. Por favor, acesse o painel do Supabase e execute o deploy das Edge Functions.";
+      } else if (error.message?.includes('Failed to fetch')) {
+        errorMessage = "Erro de conexão: A Edge Function 'change-plan-checkout' não está acessível. Verifique o deploy no Supabase.";
       } else if (error.message?.includes('Edge Function Error')) {
         errorMessage = "Erro na comunicação com o servidor. Verifique sua conexão e tente novamente.";
       } else if (error.message?.includes('Failed to send a request')) {

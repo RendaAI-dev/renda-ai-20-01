@@ -551,6 +551,32 @@ serve(async (req) => {
         const subscription = await subscriptionResponse.json();
         console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura com cartão novo criada:', subscription.id);
 
+        // CRITICAL: Insert payment record BEFORE saving subscription
+        // This ensures webhook can find the payment
+        console.log('[TRANSPARENT-CHECKOUT] 📝 Inserindo registro de pagamento...');
+        
+        const paymentRecord = {
+          user_id: user.id,
+          asaas_payment_id: `sub_${subscription.id}_initial`,
+          asaas_customer_id: asaasCustomerId,
+          status: 'PENDING',
+          amount: planPrice,
+          due_date: new Date().toISOString().split('T')[0],
+          method: 'CREDIT_CARD',
+          description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'}`,
+          external_reference: `subscription_${subscription.id}`
+        };
+
+        const { error: paymentInsertError } = await supabase
+          .from('poupeja_asaas_payments')
+          .insert(paymentRecord);
+
+        if (paymentInsertError) {
+          console.error('[TRANSPARENT-CHECKOUT] ⚠️ Erro ao inserir payment:', paymentInsertError);
+        } else {
+          console.log('[TRANSPARENT-CHECKOUT] ✅ Payment record inserido');
+        }
+
         // Save subscription in database with PENDING status
         await supabase.from('poupeja_subscriptions').insert({
           user_id: user.id,
@@ -611,6 +637,34 @@ serve(async (req) => {
 
         const payment = await paymentResponse.json();
         console.log('[TRANSPARENT-CHECKOUT] ✅ Pagamento imediato criado:', payment.id);
+        
+        // CRITICAL: Insert payment record BEFORE creating subscription
+        console.log('[TRANSPARENT-CHECKOUT] 📝 Inserindo registro de pagamento...');
+        
+        const paymentRecord = {
+          user_id: user.id,
+          asaas_payment_id: payment.id,
+          asaas_customer_id: asaasCustomerId,
+          status: payment.status || 'PENDING',
+          amount: payment.value,
+          due_date: payment.dueDate,
+          payment_date: payment.paymentDate || null,
+          method: payment.billingType || 'CREDIT_CARD',
+          description: payment.description || `Pagamento Inicial - ${planType}`,
+          external_reference: payment.externalReference,
+          invoice_url: payment.invoiceUrl,
+          bank_slip_url: payment.bankSlipUrl
+        };
+
+        const { error: paymentInsertError } = await supabase
+          .from('poupeja_asaas_payments')
+          .insert(paymentRecord);
+
+        if (paymentInsertError) {
+          console.error('[TRANSPARENT-CHECKOUT] ⚠️ Erro ao inserir payment:', paymentInsertError);
+        } else {
+          console.log('[TRANSPARENT-CHECKOUT] ✅ Payment record inserido:', payment.id);
+        }
         
         // Step 2: Create subscription for future billing cycles
         console.log('[TRANSPARENT-CHECKOUT] 📅 Criando assinatura para próximos ciclos...');

@@ -66,6 +66,11 @@ serve(async (req) => {
       return await processPaymentEvent(supabase, event, payment);
     }
 
+    // Processar eventos de SUBSCRIPTION
+    if (event?.startsWith('SUBSCRIPTION_')) {
+      return await processSubscriptionEvent(supabase, event, webhookData);
+    }
+
     console.warn('[ASAAS-WEBHOOK] Evento não suportado:', event);
     return new Response(JSON.stringify({ received: true, processed: false }), {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -271,23 +276,39 @@ async function processPaymentEvent(supabase: any, event: string, payment: any) {
   let userId = existingPayment?.user_id as string | undefined;
 
   if (!existingPayment) {
-    console.log('[ASAAS-WEBHOOK] Pagamento não encontrado, mapeando por customer:', payment.customer);
+    console.log('[ASAAS-WEBHOOK] 💡 Pagamento não encontrado localmente, mapeando por customer:', payment.customer);
 
     // Mapear usuário pelo customer_id
     const { data: asaasCustomerRow } = await supabase
       .from('poupeja_asaas_customers')
-      .select('user_id')
+      .select('user_id, email, name')
       .eq('asaas_customer_id', payment.customer)
       .maybeSingle();
 
     if (!asaasCustomerRow?.user_id) {
-      console.warn('[ASAAS-WEBHOOK] Usuário não encontrado para customer:', payment.customer);
-      return new Response(JSON.stringify({ received: true, processed: false }), {
+      console.error('[ASAAS-WEBHOOK] ❌ ERRO CRÍTICO: Usuário não encontrado para customer:', {
+        customerId: payment.customer,
+        paymentId: payment.id,
+        paymentValue: payment.value,
+        timestamp: new Date().toISOString()
+      });
+      return new Response(JSON.stringify({ 
+        received: true, 
+        processed: false,
+        error: 'Customer not found',
+        customer_id: payment.customer 
+      }), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
 
     userId = asaasCustomerRow.user_id;
+    console.log('[ASAAS-WEBHOOK] ✅ Usuário mapeado com sucesso:', {
+      customerId: payment.customer,
+      userId,
+      customerEmail: asaasCustomerRow.email,
+      customerName: asaasCustomerRow.name
+    });
 
     // Inserir pagamento
     const paymentRow = {
@@ -402,7 +423,8 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
             console.log(`[ASAAS-WEBHOOK] 📋 ${payment.billingType} detectado - aguardando confirmação para processar mudança`);
           }
         } else {
-          console.warn('[ASAAS-WEBHOOK] ⚠️ Pagamento com subscription mas sem plan_change_request:', payment.id);
+          console.log('[ASAAS-WEBHOOK] ℹ️ Pagamento de nova assinatura (sem plan_change_request):', payment.id);
+          // Para pagamentos de nova assinatura, processar normalmente no PAYMENT_CONFIRMED
         }
       }
       
@@ -486,6 +508,43 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
     default:
       console.log('[ASAAS-WEBHOOK] Evento não processado:', event);
   }
+}
+
+// Processar eventos de SUBSCRIPTION
+async function processSubscriptionEvent(supabase: any, event: string, webhookData: any) {
+  console.log('[ASAAS-WEBHOOK] 📋 PROCESSANDO EVENTO DE SUBSCRIPTION:', {
+    event,
+    subscription: webhookData.subscription?.id,
+    customer: webhookData.subscription?.customer,
+    status: webhookData.subscription?.status,
+    timestamp: new Date().toISOString()
+  });
+
+  switch (event) {
+    case 'SUBSCRIPTION_CREATED':
+      console.log('[ASAAS-WEBHOOK] ✨ Nova subscription criada:', webhookData.subscription?.id);
+      break;
+    
+    case 'SUBSCRIPTION_UPDATED':
+      console.log('[ASAAS-WEBHOOK] 🔄 Subscription atualizada:', webhookData.subscription?.id);
+      break;
+    
+    case 'SUBSCRIPTION_CANCELLED':
+      console.log('[ASAAS-WEBHOOK] ❌ Subscription cancelada:', webhookData.subscription?.id);
+      break;
+    
+    default:
+      console.log('[ASAAS-WEBHOOK] Evento de subscription não processado:', event);
+  }
+
+  return new Response(JSON.stringify({
+    received: true,
+    event,
+    processed: true,
+    subscription_id: webhookData.subscription?.id
+  }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
 }
 
 async function handlePaymentSuccess(supabase: any, userId: string, payment: any, existingPayment: any) {

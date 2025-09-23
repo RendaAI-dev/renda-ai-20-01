@@ -250,31 +250,31 @@ serve(async (req) => {
       throw new Error('Não foi possível obter URL da fatura');
     }
 
-    // Inserir nova assinatura no banco
-    const { error: insertError } = await supabase
+    // Atualizar assinatura existente no banco de dados em vez de inserir nova
+    const { error: updateError } = await supabase
       .from('poupeja_subscriptions')
-      .insert({
-        user_id: user.id,
+      .update({
         asaas_subscription_id: subscriptionResult.id,
         asaas_customer_id: asaasCustomerData.asaas_customer_id,
         status: 'active',
-        plan_type: cancelledSubscription.plan_type,
         current_period_start: new Date().toISOString(),
         current_period_end: new Date(Date.now() + (cancelledSubscription.plan_type === 'monthly' ? 30 : 365) * 24 * 60 * 60 * 1000).toISOString(),
         cancel_at_period_end: false,
-        payment_processor: 'asaas'
-      });
+        payment_processor: 'asaas',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', cancelledSubscription.id);
 
-    if (insertError) {
-      console.error('[REACTIVATE-SUBSCRIPTION] Erro ao inserir nova assinatura:', insertError);
-      throw new Error('Erro ao registrar nova assinatura no banco de dados');
+    if (updateError) {
+      console.error('[REACTIVATE-SUBSCRIPTION] Erro ao atualizar assinatura:', updateError);
+      throw new Error('Erro ao reativar assinatura no banco de dados');
     }
 
-    console.log('[REACTIVATE-SUBSCRIPTION] Nova assinatura registrada no banco');
+    console.log('[REACTIVATE-SUBSCRIPTION] Assinatura reativada no banco');
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Assinatura reativada com sucesso! Complete o pagamento para confirmar.',
+      message: 'Assinatura reativada com sucesso! O pagamento será processado automaticamente no seu cartão cadastrado.',
       invoiceUrl: invoiceUrl,
       paymentId: paymentId,
       subscriptionId: subscriptionResult.id,

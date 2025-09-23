@@ -52,6 +52,39 @@ serve(async (req) => {
     const { scenario, cardToken, cardData, saveCard = false }: UpdateCardRequest = await req.json();
     console.log('[UPDATE-CARD-DIRECT] Cenário:', scenario, 'Usuário:', user.email);
 
+    // Buscar dados do usuário
+    console.log('[UPDATE-CARD-DIRECT] Buscando dados do usuário...');
+    
+    let userData: any = null;
+    
+    const { data: userProfile } = await supabase
+      .from('poupeja_users')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (userProfile) {
+      userData = userProfile;
+      console.log('[UPDATE-CARD-DIRECT] Dados encontrados na tabela poupeja_users');
+    } else {
+      // Fallback to user metadata if poupeja_users doesn't exist or has no data
+      console.log('[UPDATE-CARD-DIRECT] Usando dados do metadata do usuário');
+      userData = {
+        id: user.id,
+        email: user.email,
+        name: user.user_metadata?.full_name || user.user_metadata?.name || 'Cliente',
+        phone: user.user_metadata?.phone || '',
+        cpf: user.user_metadata?.cpf || '',
+        cep: user.user_metadata?.cep || '',
+        street: user.user_metadata?.address?.street || '',
+        number: user.user_metadata?.address?.number || '',
+        complement: user.user_metadata?.address?.complement || '',
+        neighborhood: user.user_metadata?.address?.neighborhood || '',
+        city: user.user_metadata?.address?.city || '',
+        state: user.user_metadata?.address?.state || ''
+      };
+    }
+
     // Buscar assinatura ativa
     const { data: subscription } = await supabase
       .from('poupeja_subscriptions')
@@ -119,8 +152,13 @@ serve(async (req) => {
             ccv: cardData.ccv
           },
           creditCardHolderInfo: {
-            name: cardData.holderName,
-            cpfCnpj: cardData.holderCpf
+            name: userData.name || cardData.holderName,
+            email: userData.email,
+            cpfCnpj: cardData.holderCpf || userData.cpf || '',
+            postalCode: userData.cep || '00000-000',
+            addressNumber: userData.number || 'S/N',
+            addressComplement: userData.complement || '',
+            phone: userData.phone || ''
           }
         })
       });

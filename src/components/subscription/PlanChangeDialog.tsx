@@ -30,46 +30,6 @@ const PlanChangeDialog: React.FC<PlanChangeDialogProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleChangePlan = async (newPlanType: string) => {
-    if (newPlanType === currentPlan) {
-      toast.info('Você já está no plano selecionado');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('change-plan', {
-        body: { newPlanType }
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data.success) {
-        throw new Error(data.error || 'Erro ao alterar plano');
-      }
-
-      toast.success(data.message || 'Plano alterado com sucesso');
-      
-      // Mostrar informação sobre ajuste de valor se houver
-      if (data.adjustmentAmount && data.adjustmentAmount > 0) {
-        toast.info(`Ajuste proporcional de ${formatCurrency(data.adjustmentAmount)} processado automaticamente.`);
-      } else if (currentPlan === 'annual' && newPlanType === 'monthly') {
-        toast.info('Crédito será aplicado na sua próxima fatura.');
-      }
-
-      onPlanChanged();
-      onOpenChange(false);
-      
-    } catch (error: any) {
-      console.error('Erro ao alterar plano:', error);
-      toast.error(error.message || 'Erro ao alterar plano');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -107,7 +67,7 @@ const PlanChangeDialog: React.FC<PlanChangeDialogProps> = ({
             Alterar Plano
           </DialogTitle>
           <DialogDescription>
-            Escolha seu novo plano. O ajuste será feito proporcionalmente.
+            Escolha seu novo plano e prossiga com o checkout completo.
           </DialogDescription>
         </DialogHeader>
 
@@ -160,66 +120,39 @@ const PlanChangeDialog: React.FC<PlanChangeDialogProps> = ({
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Button
-                      onClick={() => handleChangePlan(plan.type)}
-                      disabled={isLoading || isCurrentPlan}
-                      variant={isCurrentPlan ? "secondary" : "default"}
-                      className="w-full"
-                    >
-                      {isLoading ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Zap className="w-4 h-4 mr-2" />
-                      )}
-                      {isCurrentPlan ? 'Plano Atual' : 'Troca Rápida'}
-                    </Button>
-                    
-                    {!isCurrentPlan && (
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => {
-                          const params = new URLSearchParams({
-                            newPlan: plan.type,
-                            currentPlan: currentPlan
-                          });
-                          navigate(`/checkout/change-plan?${params.toString()}`);
-                        }}
-                      >
-                        <CreditCard className="w-4 h-4 mr-2" />
-                        Checkout Completo
-                      </Button>
-                    )}
-                  </div>
+                  <Button
+                    disabled={isCurrentPlan}
+                    variant={isCurrentPlan ? "secondary" : "default"}
+                    className="w-full"
+                    onClick={() => {
+                      if (!isCurrentPlan) {
+                        const params = new URLSearchParams({
+                          newPlan: plan.type,
+                          currentPlan: currentPlan
+                        });
+                        navigate(`/checkout/change-plan?${params.toString()}`);
+                      }
+                    }}
+                  >
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    {isCurrentPlan ? 'Plano Atual' : 'Alterar Plano'}
+                  </Button>
                 </CardContent>
               </Card>
             );
           })}
         </div>
 
-        <div className="mt-6 space-y-4">
-          <div className="p-4 bg-muted/50 rounded-lg">
-            <h4 className="font-medium mb-2 flex items-center gap-2">
-              <Zap className="w-4 h-4" />
-              Troca Rápida:
+        <div className="mt-6">
+          <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+            <h4 className="font-medium mb-2 flex items-center gap-2 text-primary">
+              <CreditCard className="w-4 h-4" />
+              Como funciona:
             </h4>
             <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• <strong>Upgrade:</strong> Cobrança automática da diferença proporcional</li>
-              <li>• <strong>Downgrade:</strong> Crédito aplicado na próxima fatura automaticamente</li>
-              <li>• <strong>Processamento:</strong> Alteração instantânea sem redirecionamentos</li>
-            </ul>
-          </div>
-          
-          <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-            <h4 className="font-medium mb-2 flex items-center gap-2 text-blue-700 dark:text-blue-300">
-              <CreditCard className="w-4 h-4" />
-              Checkout Completo:
-            </h4>
-            <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
               <li>• <strong>Nova assinatura:</strong> Cancela a atual e cria uma nova</li>
-              <li>• <strong>Novo cartão:</strong> Opção de alterar método de pagamento</li>
-              <li>• <strong>Histórico limpo:</strong> Cada plano é uma assinatura separada</li>
+              <li>• <strong>Método de pagamento:</strong> Opção de alterar cartão se necessário</li>
+              <li>• <strong>Processamento:</strong> Checkout seguro com todas as opções</li>
             </ul>
           </div>
         </div>

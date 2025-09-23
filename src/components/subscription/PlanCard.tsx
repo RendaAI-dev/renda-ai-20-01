@@ -9,6 +9,7 @@ import { usePreferences } from '@/contexts/PreferencesContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import PlanChangeDialog from '@/components/subscription/PlanChangeDialog';
 
 interface PlanCardProps {
   name: string;
@@ -34,6 +35,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
   planType
 }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [showPlanChangeDialog, setShowPlanChangeDialog] = useState(false);
   const { subscription, hasActiveSubscription, checkSubscription } = useSubscription();
   const { t } = usePreferences();
   const { toast } = useToast();
@@ -104,6 +106,14 @@ const PlanCard: React.FC<PlanCardProps> = ({
     try {
       setIsLoading(true);
       console.log(`[Checkout Debug] Iniciando checkout para plano: ${planType}, ${name}`);
+      
+      // Se é um upgrade ou downgrade para usuários com assinatura ativa, abrir dialog
+      if (hasActiveSubscription && (canUpgrade || canDowngrade)) {
+        console.log('[Checkout Debug] Abrindo dialog de mudança de plano');
+        setShowPlanChangeDialog(true);
+        setIsLoading(false);
+        return;
+      }
       
       // Aguardar por uma sessão válida com retry
       const session = await waitForValidSession();
@@ -176,6 +186,12 @@ const PlanCard: React.FC<PlanCardProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handlePlanChanged = () => {
+    // Recarregar informações da assinatura após mudança
+    checkSubscription();
+    setShowPlanChangeDialog(false);
   };
 
   const getButtonContent = () => {
@@ -283,6 +299,13 @@ const PlanCard: React.FC<PlanCardProps> = ({
           </p>
         )}
       </CardContent>
+
+      <PlanChangeDialog
+        open={showPlanChangeDialog}
+        onOpenChange={setShowPlanChangeDialog}
+        currentPlan={subscription?.plan_type || ''}
+        onPlanChanged={handlePlanChanged}
+      />
     </Card>
   );
 };

@@ -64,41 +64,59 @@ const PlanChangeCheckoutPage = () => {
     const currentPlanType = searchParams.get('currentPlan') as 'monthly' | 'annual';
     
     if (!newPlanType || !currentPlanType || !config || configLoading) {
+      console.log('Parâmetros ou config faltando:', { newPlanType, currentPlanType, hasConfig: !!config, configLoading });
       return null;
     }
 
-    // Encontrar planos na configuração
-    const planFamily = config.plans.find(plan => 
-      (plan.pricing.monthly && plan.pricing.annual)
+    console.log('Config plans disponíveis:', config.plans);
+
+    // Buscar planos que tenham o pricing para o período específico
+    const currentPlan = config.plans.find(plan => 
+      plan.pricing[currentPlanType] !== undefined
+    );
+    
+    const newPlan = config.plans.find(plan => 
+      plan.pricing[newPlanType] !== undefined
     );
 
-    if (!planFamily) return null;
+    console.log('Planos encontrados:', { currentPlan, newPlan });
 
-    const currentPlanData = planFamily.pricing[currentPlanType];
-    const newPlanData = planFamily.pricing[newPlanType];
+    if (!currentPlan?.pricing[currentPlanType] || !newPlan?.pricing[newPlanType]) {
+      console.error('Pricing não encontrado para os períodos:', { 
+        currentPlanType, 
+        newPlanType,
+        currentPlanPricing: currentPlan?.pricing,
+        newPlanPricing: newPlan?.pricing
+      });
+      return null;
+    }
 
-    if (!currentPlanData || !newPlanData) return null;
+    const currentPlanPricing = currentPlan.pricing[currentPlanType]!;
+    const newPlanPricing = newPlan.pricing[newPlanType]!;
 
-    const priceDifference = newPlanData.amount - currentPlanData.amount;
+    const priceDifference = newPlanPricing.amount - currentPlanPricing.amount;
     let operationType: 'upgrade' | 'downgrade' | 'lateral' = 'lateral';
     
     if (priceDifference > 0) operationType = 'upgrade';
     else if (priceDifference < 0) operationType = 'downgrade';
 
-    return {
+    const checkoutData = {
       currentPlan: {
         type: currentPlanType,
-        name: `Plano ${currentPlanType === 'monthly' ? 'Mensal' : 'Anual'}`,
-        price: currentPlanData.amount
+        name: currentPlan.name || `Plano ${currentPlanType === 'monthly' ? 'Mensal' : 'Anual'}`,
+        price: currentPlanPricing.amount
       },
       newPlan: {
         type: newPlanType,
-        name: `Plano ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}`,
-        price: newPlanData.amount
+        name: newPlan.name || `Plano ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'}`,
+        price: newPlanPricing.amount
       },
       priceDifference,
       operationType
     };
+
+    console.log('Checkout data gerado:', checkoutData);
+    return checkoutData;
   };
 
   const [checkoutData, setCheckoutData] = useState<PlanChangeCheckoutState | null>(null);

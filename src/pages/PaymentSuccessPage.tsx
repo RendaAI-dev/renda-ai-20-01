@@ -152,6 +152,36 @@ const PaymentSuccessPage = () => {
     }
   }, [isCheckingUser, userExists, systemStatus, navigate, toast]);
 
+  // Auto-sync fallback: trigger sync-pending-payments if no confirmation after 90 seconds
+  useEffect(() => {
+    if (!email || email === 'user@example.com') return;
+    if (userExists && systemStatus === 'ready') return; // Already confirmed
+
+    const autoSyncTimeout = setTimeout(async () => {
+      console.log('[PAYMENT-SUCCESS] Auto-sync triggered: no confirmation after 90s, attempting sync...');
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('sync-pending-payments');
+        
+        if (!error && data?.confirmedPayments > 0) {
+          toast({
+            title: "Pagamento processado!",
+            description: "Seu pagamento foi confirmado automaticamente.",
+          });
+          
+          // Recheck user status
+          setTimeout(() => {
+            checkUserCreation();
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('[PAYMENT-SUCCESS] Auto-sync failed:', error);
+      }
+    }, 90000); // 90 seconds
+
+    return () => clearTimeout(autoSyncTimeout);
+  }, [email, userExists, systemStatus, supabase, toast, checkUserCreation]);
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -168,25 +198,26 @@ const PaymentSuccessPage = () => {
     try {
       setIsCheckingUser(true);
       
-      const { data, error } = await supabase.functions.invoke('sync-subscriptions');
+      const { data, error } = await supabase.functions.invoke('sync-pending-payments');
       
       if (error) {
         toast({
           title: "Erro na sincronização",
-          description: "Não foi possível sincronizar as assinaturas. Tente novamente.",
+          description: error.message || "Não foi possível sincronizar as assinaturas.",
           variant: "destructive",
         });
         return;
       }
 
       toast({
-        title: "Sincronização concluída",
-        description: `${data.createdUsersCount || 0} usuários criados, ${data.syncedCount || 0} assinaturas sincronizadas.`,
+        title: "Sincronização realizada!",
+        description: `${data.confirmedPayments || 0} pagamentos confirmados.`,
       });
 
       // Verificar novamente se o usuário foi criado e atualizar contexto
-      await checkSubscription();
-      checkUserCreation();
+      setTimeout(() => {
+        checkUserCreation();
+      }, 2000);
     } catch (error) {
       toast({
         title: "Erro",

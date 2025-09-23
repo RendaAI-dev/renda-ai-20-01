@@ -512,7 +512,16 @@ serve(async (req) => {
           chargeNow: true, // ✅ Isso gera PAYMENT_CONFIRMED
           description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
           externalReference: `${externalReference}_direct`,
-          remoteIp: remoteIp || undefined
+          remoteIp: remoteIp || undefined,
+          // Add creditCardHolderInfo for better processing
+          creditCardHolderInfo: {
+            name: creditCard.holderName,
+            email: user.email,
+            cpfCnpj: user.cpf || '',
+            postalCode: user.cep || '',
+            addressNumber: user.number || '',
+            phone: user.phone || ''
+          }
         };
         
         console.log('[TRANSPARENT-CHECKOUT] 📤 Payload da subscription (cartão novo):', {
@@ -520,7 +529,8 @@ serve(async (req) => {
           value: subscriptionPayload.value,
           cycle: subscriptionPayload.cycle,
           chargeNow: subscriptionPayload.chargeNow,
-          hasFullCreditCard: true
+          hasFullCreditCard: true,
+          hasCreditCardHolderInfo: true
         });
         
         const subscriptionResponse = await fetch(`${asaasBaseUrl}/subscriptions`, {

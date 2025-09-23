@@ -1,14 +1,48 @@
 {
-  "name": "Renda AI",
+  "name": "Renda AI - Controle Financeiro Inteligente",
   "short_name": "Renda AI",
-  "description": "Gerencia suas finanças com o Renda AI.",
+  "description": "Gerencie suas finanças pessoais de forma inteligente com o Renda AI. Controle gastos, defina metas e alcance sua liberdade financeira.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FFFFFF",
   "theme_color": "#4ECDC4",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
   "scope": "/",
+  "categories": ["finance", "productivity", "business"],
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "prefer_related_applications": false,
   "icons": [
+    {
+      "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
       "sizes": "192x192",
@@ -17,9 +51,49 @@
     },
     {
       "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nova Transação",
+      "short_name": "Transação",
+      "description": "Adicionar nova receita ou despesa",
+      "url": "/transactions?action=add",
+      "icons": [
+        {
+          "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Relatórios",
+      "short_name": "Relatórios",
+      "description": "Ver relatórios financeiros",
+      "url": "/reports",
+      "icons": [
+        {
+          "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow"
     }
   ]
 }

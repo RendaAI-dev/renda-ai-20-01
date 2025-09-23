@@ -4,8 +4,10 @@ import OptimizedLandingHero from '@/components/landing/OptimizedLandingHero';
 import LandingPricing from '@/components/landing/LandingPricing';
 import LandingCTA from '@/components/landing/LandingCTA';
 import LandingHeader from '@/components/landing/LandingHeader';
+import PWAInstallModal from '@/components/pwa/PWAInstallModal';
 import { useBrandingConfig } from '@/hooks/useBrandingConfig';
 import { useBranding } from '@/contexts/BrandingContext';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { supabase } from '@/integrations/supabase/client';
 
 // Lazy load heavy components
@@ -15,6 +17,7 @@ const LazyLandingBenefits = lazy(() => import('@/components/landing/LazyLandingB
 const LandingPage = () => {
   const { companyName } = useBrandingConfig();
   const { isLoading: brandingLoading, lastUpdated } = useBranding();
+  const { showPopup, install, dismissPopup, isPrompting } = usePWAInstall();
   const [isThemeLoaded, setIsThemeLoaded] = useState(false);
   const [forcedTheme, setForcedTheme] = useState<string | null>(null);
 
@@ -99,6 +102,14 @@ const LandingPage = () => {
           <p className="max-w-6xl mx-auto">&copy; 2025 {companyName} - Transforme sua vida financeira</p>
         </div>
       </footer>
+      
+      {/* PWA Install Modal */}
+      <PWAInstallModal
+        isOpen={showPopup}
+        onInstall={install}
+        onDismiss={dismissPopup}
+        isInstalling={isPrompting}
+      />
     </div>
   );
 };

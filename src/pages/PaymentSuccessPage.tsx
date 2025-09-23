@@ -197,6 +197,48 @@ const PaymentSuccessPage = () => {
     }
   };
 
+  // Função para simular confirmação de pagamento (DEBUG)
+  const handleSimulatePayment = async () => {
+    if (!sessionId?.startsWith('pay_')) return;
+    
+    try {
+      setIsCheckingUser(true);
+      
+      const { data, error } = await supabase.functions.invoke('simulate-payment-confirmation', {
+        body: { paymentId: sessionId }
+      });
+      
+      if (error) {
+        toast({
+          title: "Erro ao confirmar pagamento",
+          description: error.message || "Não foi possível confirmar o pagamento.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Pagamento confirmado!",
+        description: "O pagamento foi confirmado com sucesso.",
+      });
+
+      // Verificar novamente se o usuário foi criado e atualizar contexto
+      setTimeout(async () => {
+        await checkSubscription();
+        checkUserCreation();
+      }, 2000);
+      
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro inesperado na confirmação. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingUser(false);
+    }
+  };
+
   const renderSystemStatus = () => {
     if (systemStatus === 'error') {
       return (
@@ -369,6 +411,19 @@ const PaymentSuccessPage = () => {
                 <Loader2 className={`mr-2 w-4 h-4 ${isCheckingUser ? 'animate-spin' : ''}`} />
                 Tentar Sincronizar Novamente
               </Button>
+              
+              {sessionId?.startsWith('pay_') && (
+                <Button 
+                  variant="secondary" 
+                  onClick={handleSimulatePayment}
+                  className="w-full"
+                  disabled={isCheckingUser}
+                  size="sm"
+                >
+                  <Loader2 className={`mr-2 w-4 h-4 ${isCheckingUser ? 'animate-spin' : ''}`} />
+                  Confirmar Pagamento (Debug)
+                </Button>
+              )}
               
               <Button 
                 variant="outline" 

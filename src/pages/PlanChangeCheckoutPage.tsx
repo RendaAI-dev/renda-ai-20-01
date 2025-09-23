@@ -14,7 +14,6 @@ import { CheckoutSummary } from '@/components/checkout/CheckoutSummary';
 import { PlanChangeSummary } from '@/components/checkout/PlanChangeSummary';
 import { Settings, AlertTriangle } from 'lucide-react';
 import { PlanChangeDiagnostic } from '@/components/admin/PlanChangeDiagnostic';
-
 interface CreditCardData {
   number: string;
   expiryMonth: string;
@@ -23,21 +22,34 @@ interface CreditCardData {
   holderName: string;
   holderCpf: string;
 }
-
 interface PlanChangeCheckoutState {
-  currentPlan: { type: string; name: string; price: number };
-  newPlan: { type: string; name: string; price: number };
+  currentPlan: {
+    type: string;
+    name: string;
+    price: number;
+  };
+  newPlan: {
+    type: string;
+    name: string;
+    price: number;
+  };
   priceDifference: number;
   operationType: 'upgrade' | 'downgrade' | 'lateral';
 }
-
 const PlanChangeCheckoutPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { toast } = useToast();
-  const { subscription, checkSubscription } = useSubscription();
-  const { config, isLoading: configLoading } = useNewPlanConfig();
-  
+  const {
+    toast
+  } = useToast();
+  const {
+    subscription,
+    checkSubscription
+  } = useSubscription();
+  const {
+    config,
+    isLoading: configLoading
+  } = useNewPlanConfig();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [useNewCard, setUseNewCard] = useState(true);
@@ -58,17 +70,18 @@ const PlanChangeCheckoutPage = () => {
   const checkFunctionAvailability = async (): Promise<boolean> => {
     try {
       console.log('[FUNCTION-CHECK] Verificando disponibilidade da Edge Function...');
-      
-      const { error } = await supabase.functions.invoke('change-plan-checkout', {
-        body: { test: true }
+      const {
+        error
+      } = await supabase.functions.invoke('change-plan-checkout', {
+        body: {
+          test: true
+        }
       });
-      
       if (error && (error.message?.includes('Failed to fetch') || error.message?.includes('net::ERR_FAILED'))) {
         console.log('[FUNCTION-CHECK] Função não está deployada:', error.message);
         setFunctionAvailable(false);
         return false;
       }
-      
       console.log('[FUNCTION-CHECK] Função está disponível');
       setFunctionAvailable(true);
       return true;
@@ -82,9 +95,13 @@ const PlanChangeCheckoutPage = () => {
   // Get current user on mount
   useEffect(() => {
     const getCurrentUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: {
+          user
+        }
+      } = await supabase.auth.getUser();
       setCurrentUser(user);
-      
+
       // Verificar disponibilidade da função
       await checkFunctionAvailability();
     };
@@ -95,44 +112,38 @@ const PlanChangeCheckoutPage = () => {
   const getCheckoutState = (): PlanChangeCheckoutState | null => {
     const newPlanType = searchParams.get('newPlan') as 'monthly' | 'annual';
     const currentPlanType = searchParams.get('currentPlan') as 'monthly' | 'annual';
-    
     if (!newPlanType || !currentPlanType || !config || configLoading) {
-      console.log('Parâmetros ou config faltando:', { newPlanType, currentPlanType, hasConfig: !!config, configLoading });
+      console.log('Parâmetros ou config faltando:', {
+        newPlanType,
+        currentPlanType,
+        hasConfig: !!config,
+        configLoading
+      });
       return null;
     }
-
     console.log('Config plans disponíveis:', config.plans);
 
     // Buscar planos que tenham o pricing para o período específico
-    const currentPlan = config.plans.find(plan => 
-      plan.pricing[currentPlanType] !== undefined
-    );
-    
-    const newPlan = config.plans.find(plan => 
-      plan.pricing[newPlanType] !== undefined
-    );
-
-    console.log('Planos encontrados:', { currentPlan, newPlan });
-
+    const currentPlan = config.plans.find(plan => plan.pricing[currentPlanType] !== undefined);
+    const newPlan = config.plans.find(plan => plan.pricing[newPlanType] !== undefined);
+    console.log('Planos encontrados:', {
+      currentPlan,
+      newPlan
+    });
     if (!currentPlan?.pricing[currentPlanType] || !newPlan?.pricing[newPlanType]) {
-      console.error('Pricing não encontrado para os períodos:', { 
-        currentPlanType, 
+      console.error('Pricing não encontrado para os períodos:', {
+        currentPlanType,
         newPlanType,
         currentPlanPricing: currentPlan?.pricing,
         newPlanPricing: newPlan?.pricing
       });
       return null;
     }
-
     const currentPlanPricing = currentPlan.pricing[currentPlanType]!;
     const newPlanPricing = newPlan.pricing[newPlanType]!;
-
     const priceDifference = newPlanPricing.amount - currentPlanPricing.amount;
     let operationType: 'upgrade' | 'downgrade' | 'lateral' = 'lateral';
-    
-    if (priceDifference > 0) operationType = 'upgrade';
-    else if (priceDifference < 0) operationType = 'downgrade';
-
+    if (priceDifference > 0) operationType = 'upgrade';else if (priceDifference < 0) operationType = 'downgrade';
     const checkoutData = {
       currentPlan: {
         type: currentPlanType,
@@ -147,19 +158,14 @@ const PlanChangeCheckoutPage = () => {
       priceDifference,
       operationType
     };
-
     console.log('Checkout data gerado:', checkoutData);
     return checkoutData;
   };
-
   const [checkoutData, setCheckoutData] = useState<PlanChangeCheckoutState | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
-
   useEffect(() => {
     if (configLoading) return;
-
     const data = getCheckoutState();
-    
     if (!data) {
       toast({
         title: "Erro na mudança de plano",
@@ -169,7 +175,6 @@ const PlanChangeCheckoutPage = () => {
       navigate('/plans');
       return;
     }
-
     setCheckoutData(data);
     setDataLoading(false);
   }, [configLoading, config, navigate, toast, searchParams]);
@@ -188,22 +193,19 @@ const PlanChangeCheckoutPage = () => {
 
   // Mostrar loading
   if (dataLoading || configLoading || !checkoutData || functionAvailable === null) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+    return <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">
             {functionAvailable === null ? 'Verificando disponibilidade do sistema...' : 'Carregando dados da mudança...'}
           </p>
         </div>
-      </div>
-    );
+      </div>;
   }
 
   // Se a função não está disponível, mostrar alerta
   if (functionAvailable === false) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    return <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-md w-full">
           <Alert className="border-destructive">
             <AlertTriangle className="h-4 w-4" />
@@ -232,20 +234,23 @@ const PlanChangeCheckoutPage = () => {
             </Button>
           </div>
         </div>
-      </div>
-    );
+      </div>;
   }
-
   const handleCreditCardChange = (field: keyof CreditCardData, value: string) => {
     setCreditCardData(prev => ({
       ...prev,
       [field]: value
     }));
   };
-
   const validateCreditCard = (): boolean => {
-    const { number, expiryMonth, expiryYear, ccv, holderName, holderCpf } = creditCardData;
-    
+    const {
+      number,
+      expiryMonth,
+      expiryYear,
+      ccv,
+      holderName,
+      holderCpf
+    } = creditCardData;
     if (!number || !expiryMonth || !expiryYear || !ccv || !holderName || !holderCpf) {
       toast({
         title: "Campos obrigatórios",
@@ -282,8 +287,7 @@ const PlanChangeCheckoutPage = () => {
     const currentMonth = currentDate.getMonth() + 1;
     const expYear = parseInt(`20${expiryYear}`);
     const expMonth = parseInt(expiryMonth);
-    
-    if (expYear < currentYear || (expYear === currentYear && expMonth < currentMonth)) {
+    if (expYear < currentYear || expYear === currentYear && expMonth < currentMonth) {
       toast({
         title: "Cartão expirado",
         description: "O cartão está expirado",
@@ -291,10 +295,8 @@ const PlanChangeCheckoutPage = () => {
       });
       return false;
     }
-
     return true;
   };
-
   const handleNext = () => {
     if (step === 1) {
       // If using saved card, skip validation
@@ -305,17 +307,14 @@ const PlanChangeCheckoutPage = () => {
       }
     }
   };
-
   const handleCardSelect = (cardToken: string | null) => {
     setSelectedCardToken(cardToken);
     setUseNewCard(cardToken === null);
   };
-
   const handleNewCard = () => {
     setUseNewCard(true);
     setSelectedCardToken(null);
   };
-
   const handleBack = () => {
     if (step > 1) {
       setStep(step - 1);
@@ -323,7 +322,6 @@ const PlanChangeCheckoutPage = () => {
       navigate('/plans');
     }
   };
-
   const handleProcessPayment = async () => {
     // Verificar disponibilidade da função antes de processar
     const isAvailable = await checkFunctionAvailability();
@@ -346,7 +344,6 @@ const PlanChangeCheckoutPage = () => {
       });
       return;
     }
-
     setLoading(true);
     setStep(3); // Processing step
 
@@ -362,23 +359,24 @@ const PlanChangeCheckoutPage = () => {
       } else {
         body.savedCardToken = selectedCardToken;
       }
-
       console.log('[PLAN-CHANGE-CHECKOUT] Iniciando chamada da Edge Function...');
       console.log('[PLAN-CHANGE-CHECKOUT] Body da requisição:', body);
       console.log('[PLAN-CHANGE-CHECKOUT] Subscription atual:', subscription);
-
-      const { data, error } = await supabase.functions.invoke('change-plan-checkout', {
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('change-plan-checkout', {
         body
       });
-
-      console.log('[PLAN-CHANGE-CHECKOUT] Resposta da Edge Function:', { data, error });
-
+      console.log('[PLAN-CHANGE-CHECKOUT] Resposta da Edge Function:', {
+        data,
+        error
+      });
       if (error) {
         console.error('[PLAN-CHANGE-CHECKOUT] Erro na Edge Function:', error);
-        
+
         // Tratamento específico para diferentes tipos de erro
         let errorMessage = "Erro ao processar mudança de plano";
-        
         if (error.message?.includes('Failed to fetch') || error.message?.includes('net::ERR_FAILED')) {
           errorMessage = "🚀 A Edge Function não está deployada ou acessível. Acesse o painel do Supabase e execute o deploy da função 'change-plan-checkout'.";
         } else if (error.message?.includes('401') || error.message?.includes('authentication')) {
@@ -388,19 +386,16 @@ const PlanChangeCheckoutPage = () => {
         } else if (error.message) {
           errorMessage = error.message;
         }
-        
         throw new Error(errorMessage);
       }
-
       if (data?.success) {
         setStep(4); // Success step
-        
+
         // Refresh subscription data
         await checkSubscription();
-        
         toast({
           title: "Plano alterado com sucesso!",
-          description: "Redirecionando para confirmação...",
+          description: "Redirecionando para confirmação..."
         });
 
         // Redirect to plans page with success message
@@ -414,9 +409,7 @@ const PlanChangeCheckoutPage = () => {
       }
     } catch (error) {
       console.error('[PLAN-CHANGE-CHECKOUT] Erro completo:', error);
-      
       let errorMessage = "Ocorreu um erro ao alterar o plano. Tente novamente.";
-      
       if (error.message?.includes('Failed to fetch') || error.message?.includes('net::ERR_FAILED')) {
         errorMessage = "🚀 A Edge Function não está deployada ou acessível. Acesse o painel do Supabase e execute o deploy da função 'change-plan-checkout'.";
       } else if (error.message?.includes('Edge Function Error')) {
@@ -426,21 +419,17 @@ const PlanChangeCheckoutPage = () => {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
       toast({
         title: "Erro na alteração do plano",
         description: errorMessage,
         variant: "destructive"
       });
-      
       setStep(2); // Back to confirmation step
     } finally {
       setLoading(false);
     }
   };
-
-  return (
-    <div className="min-h-screen bg-background p-4">
+  return <div className="min-h-screen bg-background p-4">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-center mb-2">Alterar Plano</h1>
@@ -448,52 +437,29 @@ const PlanChangeCheckoutPage = () => {
             Complete os dados para alterar sua assinatura
           </p>
           
-          <div className="flex justify-center mt-4">
-            <Button
-              variant="ghost"
-              onClick={() => setShowDiagnostic(!showDiagnostic)}
-              className="flex items-center gap-2"
-              size="sm"
-            >
-              <Settings className="w-4 h-4" />
-              {showDiagnostic ? 'Ocultar' : 'Mostrar'} Diagnóstico
-            </Button>
-          </div>
+          
         </div>
 
-        {showDiagnostic && (
-          <div className="mb-6">
+        {showDiagnostic && <div className="mb-6">
             <PlanChangeDiagnostic />
-          </div>
-        )}
+          </div>}
 
         <CheckoutSteps currentStep={step} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
           {/* Main Content */}
           <div className="space-y-6">
-            {step === 1 && (
-              <div className="space-y-6">
-                <SavedCardSelector
-                  onCardSelect={handleCardSelect}
-                  onNewCard={handleNewCard}
-                  disabled={loading}
-                />
+            {step === 1 && <div className="space-y-6">
+                <SavedCardSelector onCardSelect={handleCardSelect} onNewCard={handleNewCard} disabled={loading} />
                 
-                {useNewCard && (
-                  <Card>
+                {useNewCard && <Card>
                     <CardHeader>
                       <CardTitle>Dados do Novo Cartão</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <CreditCardForm
-                        data={creditCardData}
-                        onChange={handleCreditCardChange}
-                        disabled={loading}
-                      />
+                      <CreditCardForm data={creditCardData} onChange={handleCreditCardChange} disabled={loading} />
                     </CardContent>
-                  </Card>
-                )}
+                  </Card>}
                 
                 <div className="flex gap-4">
                   <Button variant="outline" onClick={handleBack} className="flex-1">
@@ -503,11 +469,9 @@ const PlanChangeCheckoutPage = () => {
                     Continuar
                   </Button>
                 </div>
-              </div>
-            )}
+              </div>}
 
-            {step === 2 && (
-              <Card>
+            {step === 2 && <Card>
                 <CardHeader>
                   <CardTitle>Confirmar Alteração</CardTitle>
                 </CardHeader>
@@ -527,21 +491,15 @@ const PlanChangeCheckoutPage = () => {
                       <Button variant="outline" onClick={handleBack} className="flex-1">
                         Voltar
                       </Button>
-                      <Button 
-                        onClick={handleProcessPayment} 
-                        className="flex-1"
-                        disabled={loading}
-                      >
+                      <Button onClick={handleProcessPayment} className="flex-1" disabled={loading}>
                         {loading ? 'Processando...' : 'Confirmar Alteração'}
                       </Button>
                     </div>
                   </div>
                 </CardContent>
-              </Card>
-            )}
+              </Card>}
 
-            {step === 3 && (
-              <Card>
+            {step === 3 && <Card>
                 <CardContent className="p-8 text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
                   <h3 className="font-medium mb-2">Processando Alteração...</h3>
@@ -549,11 +507,9 @@ const PlanChangeCheckoutPage = () => {
                     Aguarde enquanto processamos a mudança do seu plano
                   </p>
                 </CardContent>
-              </Card>
-            )}
+              </Card>}
 
-            {step === 4 && (
-              <Card>
+            {step === 4 && <Card>
                 <CardContent className="p-8 text-center">
                   <div className="text-green-500 mb-4">
                     <svg className="w-16 h-16 mx-auto" fill="currentColor" viewBox="0 0 20 20">
@@ -568,28 +524,17 @@ const PlanChangeCheckoutPage = () => {
                     Redirecionando para seus planos...
                   </p>
                 </CardContent>
-              </Card>
-            )}
+              </Card>}
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
-            <PlanChangeSummary 
-              currentPlan={checkoutData.currentPlan}
-              newPlan={checkoutData.newPlan}
-              priceDifference={checkoutData.priceDifference}
-              operationType={checkoutData.operationType}
-            />
+            <PlanChangeSummary currentPlan={checkoutData.currentPlan} newPlan={checkoutData.newPlan} priceDifference={checkoutData.priceDifference} operationType={checkoutData.operationType} />
             
-            <CheckoutSummary 
-              planPrice={checkoutData.newPlan.price}
-              planType={checkoutData.newPlan.type as 'monthly' | 'annual'}
-            />
+            <CheckoutSummary planPrice={checkoutData.newPlan.price} planType={checkoutData.newPlan.type as 'monthly' | 'annual'} />
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default PlanChangeCheckoutPage;

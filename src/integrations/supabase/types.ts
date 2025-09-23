@@ -177,6 +177,33 @@ export type Database = {
         }
         Relationships: []
       }
+      poupeja_device_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          platform: string
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          platform: string
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          platform?: string
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       poupeja_goals: {
         Row: {
           color: string | null
@@ -216,6 +243,42 @@ export type Database = {
           target_amount?: number
           updated_at?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      poupeja_notification_logs: {
+        Row: {
+          body: string
+          created_at: string
+          data: Json | null
+          id: string
+          results: Json | null
+          sent_at: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          data?: Json | null
+          id?: string
+          results?: Json | null
+          sent_at?: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          data?: Json | null
+          id?: string
+          results?: Json | null
+          sent_at?: string
+          title?: string
+          type?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -718,6 +781,30 @@ export type Database = {
           },
         ]
       }
+      poupeja_user_preferences: {
+        Row: {
+          created_at: string
+          id: string
+          notification_preferences: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notification_preferences?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notification_preferences?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       poupeja_users: {
         Row: {
           birth_date: string | null
@@ -778,6 +865,30 @@ export type Database = {
           state?: string | null
           street?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      poupeja_web_push_subscriptions: {
+        Row: {
+          created_at: string
+          id: string
+          subscription: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          subscription: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          subscription?: Json
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

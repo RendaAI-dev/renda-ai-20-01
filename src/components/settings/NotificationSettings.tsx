@@ -43,10 +43,12 @@ export function NotificationSettings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Use settings table as fallback until types are updated
       const { data, error } = await supabase
-        .from('poupeja_user_preferences')
-        .select('notification_preferences')
-        .eq('user_id', user.id)
+        .from('poupeja_settings')
+        .select('value')
+        .eq('category', 'notifications')
+        .eq('key', `user_${user.id}`)
         .single();
 
       if (error && error.code !== 'PGRST116') {
@@ -54,8 +56,13 @@ export function NotificationSettings() {
         return;
       }
 
-      if (data?.notification_preferences) {
-        setPreferences({ ...preferences, ...data.notification_preferences });
+      if (data?.value) {
+        try {
+          const savedPrefs = JSON.parse(data.value);
+          setPreferences({ ...preferences, ...savedPrefs });
+        } catch (parseError) {
+          console.error('Error parsing preferences:', parseError);
+        }
       }
     } catch (error) {
       console.error('Error loading preferences:', error);
@@ -96,13 +103,12 @@ export function NotificationSettings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase
-        .from('poupeja_user_preferences')
-        .upsert({
-          user_id: user.id,
-          notification_preferences: newPreferences,
-          updated_at: new Date().toISOString()
-        });
+      const { error } = await supabase.rpc('upsert_setting', {
+        p_category: 'notifications',
+        p_key: `user_${user.id}`,
+        p_value: JSON.stringify(newPreferences),
+        p_description: 'User notification preferences'
+      });
 
       if (error) {
         throw error;

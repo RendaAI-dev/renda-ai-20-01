@@ -13,6 +13,7 @@ import { CPFInput } from '@/components/common/CPFInput';
 import { CEPInput } from '@/components/common/CEPInput';
 import { AddressDisplay } from '@/components/common/AddressDisplay';
 import { EnhancedDatePicker } from '@/components/ui/enhanced-date-picker';
+import { ArrowLeft } from 'lucide-react';
 import type { Address } from '@/services/viacepService';
 
 const RegisterPage = () => {
@@ -361,7 +362,19 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen relative bg-gradient-to-br from-background via-muted/20 to-background flex flex-col items-center justify-center p-4">
+      {/* Botão Voltar */}
+      <div className="absolute top-4 left-4 z-10">
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
+        </Button>
+      </div>
+      
       {/* Renderizar o LoadingOverlay fora do container do formulário */}
       {isLoading && <LoadingOverlay />}
       

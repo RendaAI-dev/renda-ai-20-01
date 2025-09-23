@@ -140,21 +140,32 @@ const AsaasManageSubscriptionButton: React.FC = () => {
     setIsReactivating(true);
     
     try {
-      const { data, error } = await supabase.functions.invoke('reactivate-subscription');
+      console.log('[FRONTEND] Iniciando reativação de assinatura...');
+      
+      const { data, error } = await supabase.functions.invoke('reactivate-subscription', {
+        method: 'POST'
+      });
+      
+      console.log('[FRONTEND] Resposta da edge function:', { data, error });
       
       if (error) {
-        throw error;
+        console.error('[FRONTEND] Erro da edge function:', error);
+        throw new Error(`Erro na comunicação: ${error.message}`);
       }
       
-      if (!data.success) {
-        throw new Error(data.error || 'Erro ao reativar assinatura');
+      if (!data || !data.success) {
+        const errorMsg = data?.error || 'Erro desconhecido ao reativar assinatura';
+        console.error('[FRONTEND] Erro retornado:', errorMsg);
+        throw new Error(errorMsg);
       }
       
+      console.log('[FRONTEND] Reativação bem-sucedida:', data);
       toast.success(data.message || 'Assinatura reativada! Complete o pagamento.');
       setReactivateDialogOpen(false);
       
       // Abrir URL da fatura em nova aba
       if (data.invoiceUrl) {
+        console.log('[FRONTEND] Abrindo URL da fatura:', data.invoiceUrl);
         window.open(data.invoiceUrl, '_blank');
       }
       
@@ -162,8 +173,9 @@ const AsaasManageSubscriptionButton: React.FC = () => {
       await checkSubscription();
       
     } catch (error: any) {
-      console.error('Erro ao reativar assinatura:', error);
-      toast.error(error.message || 'Erro ao reativar assinatura');
+      console.error('[FRONTEND] Erro completo ao reativar assinatura:', error);
+      const errorMessage = error.message || 'Erro ao reativar assinatura';
+      toast.error(errorMessage);
     } finally {
       setIsReactivating(false);
     }

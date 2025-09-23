@@ -16,6 +16,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import PlanChangeDialog from './PlanChangeDialog';
+import UpdateCardOnlyModal from './UpdateCardOnlyModal';
+import UpdateCardCancelOverdueModal from './UpdateCardCancelOverdueModal';
 
 interface PortalData {
   customer: {
@@ -50,6 +52,8 @@ const AsaasManageSubscriptionButton: React.FC = () => {
   const [portalData, setPortalData] = useState<PortalData | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [planChangeOpen, setPlanChangeOpen] = useState(false);
+  const [updateCardOnlyOpen, setUpdateCardOnlyOpen] = useState(false);
+  const [updateCardCancelOverdueOpen, setUpdateCardCancelOverdueOpen] = useState(false);
 
   if (!hasActiveSubscription) {
     return null;
@@ -87,43 +91,15 @@ const AsaasManageSubscriptionButton: React.FC = () => {
     }
   };
 
-  const handleUpdateCard = async (scenario: string) => {
-    setIsLoading(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('update-payment-method', {
-        body: { scenario }
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data.success) {
-        throw new Error(data.error || 'Erro ao atualizar método de pagamento');
-      }
-
-      toast.success(data.message || 'Método de pagamento atualizado com sucesso');
-      
-      if (data.invoiceUrl) {
-        toast.info('Redirecionando para a página de pagamento...');
-        setTimeout(() => {
-          window.open(data.invoiceUrl, '_blank');
-        }, 1000);
-      }
-
-      // Recarregar dados do portal
-      setTimeout(() => {
-        handleManageSubscription();
-      }, 2000);
-      
-    } catch (error: any) {
-      console.error('Erro ao atualizar método de pagamento:', error);
-      toast.error(error.message || 'Erro ao atualizar método de pagamento');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleModalSuccess = () => {
+    // Recarregar dados do portal após sucesso
+    setTimeout(() => {
+      handleManageSubscription();
+    }, 2000);
   };
+
+  const isSubscriptionOverdue = portalData?.subscription.status === 'past_due';
+  const hasOverduePayments = portalData?.recent_payments.some(payment => payment.status === 'OVERDUE');
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR');
@@ -289,25 +265,31 @@ const AsaasManageSubscriptionButton: React.FC = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={() => handleUpdateCard('update_card_only')}
-                      disabled={isLoading}
-                      className="justify-start"
-                    >
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Atualizar Cartão de Crédito
-                    </Button>
+                    {/* Botão para usuários em dia */}
+                    {!isSubscriptionOverdue && !hasOverduePayments && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setUpdateCardOnlyOpen(true)}
+                        disabled={isLoading}
+                        className="justify-start"
+                      >
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Atualizar Cartão de Crédito
+                      </Button>
+                    )}
                     
-                    <Button
-                      variant="outline"
-                      onClick={() => handleUpdateCard('update_card_cancel_overdue')}
-                      disabled={isLoading}
-                      className="justify-start"
-                    >
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Trocar Cartão e Cancelar Dívidas Antigas
-                    </Button>
+                    {/* Botão para usuários com dívidas */}
+                    {(isSubscriptionOverdue || hasOverduePayments) && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setUpdateCardCancelOverdueOpen(true)}
+                        disabled={isLoading}
+                        className="justify-start border-orange-200 text-orange-700 hover:bg-orange-50"
+                      >
+                        <Zap className="w-4 h-4 mr-2" />
+                        Trocar Cartão e Cancelar Dívidas Antigas
+                      </Button>
+                    )}
 
                     <Button
                       variant="outline"
@@ -322,9 +304,17 @@ const AsaasManageSubscriptionButton: React.FC = () => {
                   
                   <div className="text-sm text-muted-foreground">
                     <p>
-                      <strong>Cenário 1:</strong> Para quem está em dia - apenas atualiza o cartão para futuras cobranças<br/>
-                      <strong>Cenário 2:</strong> Para quem tem faturas em atraso - cancela dívidas antigas e inicia nova cobrança<br/>
-                      <strong>Cenário 3:</strong> Alterar plano com cobrança proporcional a partir da data da mudança
+                      {!isSubscriptionOverdue && !hasOverduePayments ? (
+                        <>
+                          <strong>✅ Conta em dia:</strong> Atualize seu cartão de forma simples para futuras cobranças<br/>
+                          <strong>📈 Upgrade/Downgrade:</strong> Altere seu plano com cobrança proporcional
+                        </>
+                      ) : (
+                        <>
+                          <strong>⚠️ Faturas pendentes:</strong> Cancele dívidas antigas e configure novo cartão<br/>
+                          <strong>📈 Upgrade/Downgrade:</strong> Altere seu plano após regularizar a situação
+                        </>
+                      )}
                     </p>
                   </div>
                 </CardContent>
@@ -338,12 +328,19 @@ const AsaasManageSubscriptionButton: React.FC = () => {
         open={planChangeOpen}
         onOpenChange={setPlanChangeOpen}
         currentPlan={portalData?.subscription.plan_type || 'monthly'}
-        onPlanChanged={() => {
-          // Recarregar dados do portal após mudança de plano
-          setTimeout(() => {
-            handleManageSubscription();
-          }, 2000);
-        }}
+        onPlanChanged={handleModalSuccess}
+      />
+
+      <UpdateCardOnlyModal
+        open={updateCardOnlyOpen}
+        onOpenChange={setUpdateCardOnlyOpen}
+        onSuccess={handleModalSuccess}
+      />
+
+      <UpdateCardCancelOverdueModal
+        open={updateCardCancelOverdueOpen}
+        onOpenChange={setUpdateCardCancelOverdueOpen}
+        onSuccess={handleModalSuccess}
       />
     </>
   );

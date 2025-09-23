@@ -2,3 +2,6 @@ project_id = "yazmxlgfraauuhmsnysh"
 
 [functions.asaas-webhook]
 verify_jwt = false
+
+[functions.update-card-direct]
+verify_jwt = true

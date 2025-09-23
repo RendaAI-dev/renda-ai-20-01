@@ -1,15 +1,16 @@
 
-import React, { useEffect, useState } from 'react';
-import LandingHero from '@/components/landing/LandingHero';
-import LandingFeatures from '@/components/landing/LandingFeatures';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
+import OptimizedLandingHero from '@/components/landing/OptimizedLandingHero';
 import LandingPricing from '@/components/landing/LandingPricing';
-import LandingBenefits from '@/components/landing/LandingBenefits';
 import LandingCTA from '@/components/landing/LandingCTA';
 import LandingHeader from '@/components/landing/LandingHeader';
-import { motion } from 'framer-motion';
 import { useBrandingConfig } from '@/hooks/useBrandingConfig';
 import { useBranding } from '@/contexts/BrandingContext';
 import { supabase } from '@/integrations/supabase/client';
+
+// Lazy load heavy components
+const LazyLandingFeatures = lazy(() => import('@/components/landing/LazyLandingFeatures'));
+const LazyLandingBenefits = lazy(() => import('@/components/landing/LazyLandingBenefits'));
 
 const LandingPage = () => {
   const { companyName } = useBrandingConfig();
@@ -80,18 +81,17 @@ const LandingPage = () => {
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-background via-muted/20 to-background">
       <LandingHeader />
-      <motion.main
-        className="w-full"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
-      >
-        <LandingHero />
-        <LandingFeatures />
+      <main className="w-full">
+        <OptimizedLandingHero />
+        <Suspense fallback={<div className="h-96 w-full animate-pulse bg-muted/30"></div>}>
+          <LazyLandingFeatures />
+        </Suspense>
         <LandingPricing />
-        <LandingBenefits />
+        <Suspense fallback={<div className="h-96 w-full animate-pulse bg-muted/30"></div>}>
+          <LazyLandingBenefits />
+        </Suspense>
         <LandingCTA />
-      </motion.main>
+      </main>
       
       {/* Footer */}
       <footer className="bg-card/50 border-t py-8 w-full">

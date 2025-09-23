@@ -19,10 +19,20 @@ export default defineConfig(({ mode }) => ({
         manualChunks: {
           vendor: ['react', 'react-dom'],
           supabase: ['@supabase/supabase-js'],
-          ui: ['lucide-react', 'framer-motion']
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
+          icons: ['lucide-react'],
+          animations: ['framer-motion'],
+          charts: ['recharts'],
+          forms: ['react-hook-form', '@hookform/resolvers', 'zod'],
+          routing: ['react-router-dom'],
+          utils: ['date-fns', 'clsx', 'tailwind-merge']
         }
       }
-    }
+    },
+    // Enable compression and optimize chunks
+    chunkSizeWarningLimit: 1000,
+    minify: 'esbuild',
+    target: 'es2020'
   },
   plugins: [
     react(),
@@ -72,6 +82,28 @@ export default defineConfig(({ mode }) => ({
               expiration: {
                 maxEntries: 50,
                 maxAgeSeconds: 60 * 60 * 24 // 24 hours
+              }
+            }
+          },
+          {
+            urlPattern: ({url}) => url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|ico)$/),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'static-resources',
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              }
+            }
+          },
+          {
+            urlPattern: ({url}) => url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts',
+              expiration: {
+                maxEntries: 30,
+                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
               }
             }
           }

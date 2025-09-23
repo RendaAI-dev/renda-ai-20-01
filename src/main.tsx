@@ -4,6 +4,11 @@ import App from './App.tsx'
 import './index.css'
 import { registerSW } from 'virtual:pwa-register'
 import { MobileAppInitializer } from './components/mobile/MobileAppInitializer'
+import { preloadCriticalResources, addResourceHints } from './utils/performanceOptimizer'
+
+// Performance optimizations
+preloadCriticalResources();
+addResourceHints();
 
 // Register service worker
 const updateSW = registerSW({

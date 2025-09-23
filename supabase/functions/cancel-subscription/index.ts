@@ -89,13 +89,16 @@ serve(async (req) => {
     // Determine API URL based on environment
     const isProduction = settings.environment === 'production';
     const asaasApiUrl = isProduction 
-      ? 'https://api.asaas.com/v3' 
-      : 'https://sandbox.asaas.com/v3';
+      ? 'https://asaas.com/api/v3' 
+      : 'https://sandbox.asaas.com/api/v3';
 
     console.log('[CANCEL-SUBSCRIPTION] Using Asaas environment:', settings.environment);
+    console.log('[CANCEL-SUBSCRIPTION] Asaas API URL:', asaasApiUrl);
 
     // Cancel subscription in Asaas
     if (subscription.asaas_subscription_id) {
+      console.log('[CANCEL-SUBSCRIPTION] Attempting to cancel subscription ID:', subscription.asaas_subscription_id);
+      
       const asaasResponse = await fetch(
         `${asaasApiUrl}/subscriptions/${subscription.asaas_subscription_id}`,
         {
@@ -107,13 +110,21 @@ serve(async (req) => {
         }
       );
 
-      if (!asaasResponse.ok) {
-        const errorData = await asaasResponse.text();
-        console.error('[CANCEL-SUBSCRIPTION] Asaas API error:', errorData);
-        throw new Error('Erro ao cancelar assinatura no Asaas');
+      const responseText = await asaasResponse.text();
+      console.log('[CANCEL-SUBSCRIPTION] Asaas response status:', asaasResponse.status);
+      console.log('[CANCEL-SUBSCRIPTION] Asaas response body:', responseText);
+
+      // Handle different response scenarios
+      if (asaasResponse.ok) {
+        console.log('[CANCEL-SUBSCRIPTION] Subscription cancelled successfully in Asaas');
+      } else if (asaasResponse.status === 404) {
+        console.log('[CANCEL-SUBSCRIPTION] Subscription not found in Asaas (already cancelled or doesn\'t exist)');
+      } else {
+        console.error('[CANCEL-SUBSCRIPTION] Asaas API error - Status:', asaasResponse.status, 'Body:', responseText);
+        throw new Error(`Erro ao cancelar assinatura no Asaas: ${asaasResponse.status} - ${responseText}`);
       }
 
-      console.log('[CANCEL-SUBSCRIPTION] Subscription cancelled in Asaas');
+      console.log('[CANCEL-SUBSCRIPTION] Asaas cancellation process completed');
     }
 
     // Update subscription in database - mark for cancellation at period end

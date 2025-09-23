@@ -11,13 +11,15 @@ interface PWAInstallModalProps {
   onInstall: () => void;
   onDismiss: (forever?: boolean) => void;
   isInstalling: boolean;
+  canInstall: boolean; // New prop to handle fallback scenarios
 }
 
 const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
   isOpen,
   onInstall,
   onDismiss,
-  isInstalling
+  isInstalling,
+  canInstall
 }) => {
   const { companyName } = useBrandingConfig();
 
@@ -101,21 +103,19 @@ const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
                   <Button
                     onClick={onInstall}
                     disabled={isInstalling}
-                    className="w-full"
-                    size="lg"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                   >
                     {isInstalling ? (
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                        className="mr-2"
-                      >
-                        <Download className="h-4 w-4" />
-                      </motion.div>
+                      <>
+                        <Download className="mr-2 h-4 w-4 animate-spin" />
+                        Instalando...
+                      </>
                     ) : (
-                      <Download className="mr-2 h-4 w-4" />
+                      <>
+                        <Download className="mr-2 h-4 w-4" />
+                        {canInstall ? 'Instalar App' : 'Como Instalar'}
+                      </>
                     )}
-                    {isInstalling ? 'Instalando...' : 'Instalar App'}
                   </Button>
                   
                   <div className="flex gap-2">

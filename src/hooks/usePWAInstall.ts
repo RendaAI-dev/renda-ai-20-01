@@ -10,6 +10,7 @@ interface PWAInstallState {
   isInstalled: boolean;
   showPopup: boolean;
   isPrompting: boolean;
+  debugMode: boolean;
 }
 
 export const usePWAInstall = () => {
@@ -18,8 +19,15 @@ export const usePWAInstall = () => {
     canInstall: false,
     isInstalled: false,
     showPopup: false,
-    isPrompting: false
+    isPrompting: false,
+    debugMode: process.env.NODE_ENV === 'development'
   });
+
+  const debug = useCallback((message: string, data?: any) => {
+    if (state.debugMode) {
+      console.log(`[PWA Install Debug] ${message}`, data || '');
+    }
+  }, [state.debugMode]);
 
   // Check if running as PWA
   const checkIfInstalled = useCallback(() => {
@@ -27,67 +35,95 @@ export const usePWAInstall = () => {
     const isInWebApp = (window.navigator as any).standalone === true;
     const isInstalled = isStandalone || isInWebApp;
     
+    debug('Checking if installed', { isStandalone, isInWebApp, isInstalled });
     setState(prev => ({ ...prev, isInstalled }));
     return isInstalled;
-  }, []);
+  }, [debug]);
+
+  // Enhanced mobile detection
+  const isMobileDevice = useCallback(() => {
+    const userAgent = navigator.userAgent;
+    const isMobileUA = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(userAgent);
+    const isMobileViewport = window.innerWidth <= 768;
+    const hasTouch = 'ontouchstart' in window;
+    const isMobile = isMobileUA || (isMobileViewport && hasTouch);
+    
+    debug('Mobile detection', { userAgent, isMobileUA, isMobileViewport, hasTouch, isMobile });
+    return isMobile;
+  }, [debug]);
 
   // Check if user previously dismissed
   const checkUserPreferences = useCallback(() => {
     const dismissed = localStorage.getItem('pwa-install-dismissed');
     const lastShown = localStorage.getItem('pwa-install-last-shown');
     
+    debug('Checking user preferences', { dismissed, lastShown });
+    
     if (dismissed === 'forever') return false;
     
     if (lastShown) {
       const daysSinceLastShown = (Date.now() - parseInt(lastShown)) / (1000 * 60 * 60 * 24);
-      if (daysSinceLastShown < 7) return false; // Wait 7 days before showing again
+      if (daysSinceLastShown < 7) return false;
     }
     
     return true;
-  }, []);
+  }, [debug]);
 
-  // Show popup logic
-  const shouldShowPopup = useCallback(() => {
-    // Check if mobile device
-    const isMobile = window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  // Show popup after delay
+  const schedulePopup = useCallback(() => {
+    const canShow = isMobileDevice() && !state.isInstalled && checkUserPreferences();
+    debug('Schedule popup check', { canShow, isInstalled: state.isInstalled });
     
-    if (!isMobile || state.isInstalled || !state.canInstall) return false;
-    
-    return checkUserPreferences();
-  }, [state.canInstall, state.isInstalled, checkUserPreferences]);
+    if (canShow) {
+      setTimeout(() => {
+        debug('Showing popup after delay');
+        setState(prev => ({ ...prev, showPopup: true }));
+      }, 3000);
+    }
+  }, [state.isInstalled, isMobileDevice, checkUserPreferences, debug]);
 
   // Initialize
   useEffect(() => {
+    debug('Initializing PWA install hook');
+    
     const isInstalled = checkIfInstalled();
-    if (isInstalled) return;
+    if (isInstalled) {
+      debug('App already installed, skipping');
+      return;
+    }
 
     const handler = (e: Event) => {
+      debug('beforeinstallprompt event fired');
       e.preventDefault();
       const promptEvent = e as BeforeInstallPromptEvent;
       setPromptEvent(promptEvent);
       
       setState(prev => ({ ...prev, canInstall: true }));
-      
-      // Show popup after 3 seconds if conditions are met
-      setTimeout(() => {
-        if (shouldShowPopup()) {
-          setState(prev => ({ ...prev, showPopup: true }));
-        }
-      }, 3000);
+      schedulePopup();
     };
     
     window.addEventListener('beforeinstallprompt', handler);
     
     // Listen for app installed
     window.addEventListener('appinstalled', () => {
+      debug('App installed event fired');
       setState(prev => ({ ...prev, isInstalled: true, showPopup: false, canInstall: false }));
       setPromptEvent(null);
     });
 
+    // Fallback: show popup even without beforeinstallprompt for iOS or unsupported browsers
+    const fallbackTimer = setTimeout(() => {
+      if (!state.canInstall && isMobileDevice() && !state.isInstalled) {
+        debug('Fallback popup for unsupported browsers');
+        setState(prev => ({ ...prev, showPopup: true, canInstall: false }));
+      }
+    }, 5000);
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
+      clearTimeout(fallbackTimer);
     };
-  }, [shouldShowPopup, checkIfInstalled]);
+  }, [checkIfInstalled, schedulePopup, debug, state.canInstall, state.isInstalled, isMobileDevice]);
 
   const install = useCallback(async () => {
     if (!promptEvent || state.isPrompting) return false;
@@ -128,9 +164,26 @@ export const usePWAInstall = () => {
     }
   }, []);
 
+  // Force show popup for testing
+  const forceShowPopup = useCallback(() => {
+    debug('Force showing popup for testing');
+    setState(prev => ({ ...prev, showPopup: true }));
+  }, [debug]);
+
+  // Clear preferences for testing
+  const resetPreferences = useCallback(() => {
+    localStorage.removeItem('pwa-install-dismissed');
+    localStorage.removeItem('pwa-install-last-shown');
+    localStorage.removeItem('pwa-install-accepted');
+    debug('Preferences reset');
+  }, [debug]);
+
   return {
     ...state,
     install,
-    dismissPopup
+    dismissPopup,
+    forceShowPopup,
+    resetPreferences,
+    isMobile: isMobileDevice()
   };
 };

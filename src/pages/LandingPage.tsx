@@ -5,6 +5,7 @@ import LandingPricing from '@/components/landing/LandingPricing';
 import LandingCTA from '@/components/landing/LandingCTA';
 import LandingHeader from '@/components/landing/LandingHeader';
 import PWAInstallModal from '@/components/pwa/PWAInstallModal';
+import { Button } from '@/components/ui/button';
 import { useBrandingConfig } from '@/hooks/useBrandingConfig';
 import { useBranding } from '@/contexts/BrandingContext';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
@@ -17,7 +18,7 @@ const LazyLandingBenefits = lazy(() => import('@/components/landing/LazyLandingB
 const LandingPage = () => {
   const { companyName } = useBrandingConfig();
   const { isLoading: brandingLoading, lastUpdated } = useBranding();
-  const { showPopup, install, dismissPopup, isPrompting } = usePWAInstall();
+  const pwa = usePWAInstall();
   const [isThemeLoaded, setIsThemeLoaded] = useState(false);
   const [forcedTheme, setForcedTheme] = useState<string | null>(null);
 
@@ -105,11 +106,31 @@ const LandingPage = () => {
       
       {/* PWA Install Modal */}
       <PWAInstallModal
-        isOpen={showPopup}
-        onInstall={install}
-        onDismiss={dismissPopup}
-        isInstalling={isPrompting}
+        isOpen={pwa.showPopup}
+        onInstall={pwa.install}
+        onDismiss={pwa.dismissPopup}
+        isInstalling={pwa.isPrompting}
+        canInstall={pwa.canInstall}
       />
+      
+      {/* Debug panel for development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 right-4 bg-muted p-4 rounded-lg shadow-lg text-xs z-[60]">
+          <div>PWA Debug:</div>
+          <div>Mobile: {pwa.isMobile ? 'Yes' : 'No'}</div>
+          <div>Can Install: {pwa.canInstall ? 'Yes' : 'No'}</div>
+          <div>Installed: {pwa.isInstalled ? 'Yes' : 'No'}</div>
+          <div>Show Popup: {pwa.showPopup ? 'Yes' : 'No'}</div>
+          <div className="mt-2 space-x-2">
+            <Button size="sm" onClick={pwa.forceShowPopup}>
+              Force Popup
+            </Button>
+            <Button size="sm" onClick={pwa.resetPreferences} variant="outline">
+              Reset
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

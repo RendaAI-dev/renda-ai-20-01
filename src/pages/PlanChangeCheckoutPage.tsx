@@ -11,6 +11,8 @@ import { SavedCardSelector } from '@/components/checkout/SavedCardSelector';
 import { CheckoutSteps } from '@/components/checkout/CheckoutSteps';
 import { CheckoutSummary } from '@/components/checkout/CheckoutSummary';
 import { PlanChangeSummary } from '@/components/checkout/PlanChangeSummary';
+import { Settings } from 'lucide-react';
+import { PlanChangeDiagnostic } from '@/components/admin/PlanChangeDiagnostic';
 
 interface CreditCardData {
   number: string;
@@ -39,6 +41,7 @@ const PlanChangeCheckoutPage = () => {
   const [loading, setLoading] = useState(false);
   const [useNewCard, setUseNewCard] = useState(true);
   const [selectedCardToken, setSelectedCardToken] = useState<string | null>(null);
+  const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [creditCardData, setCreditCardData] = useState<CreditCardData>({
     number: '',
@@ -281,13 +284,22 @@ const PlanChangeCheckoutPage = () => {
         body.savedCardToken = selectedCardToken;
       }
 
+      console.log('[PLAN-CHANGE-CHECKOUT] Iniciando chamada da Edge Function...');
+      console.log('[PLAN-CHANGE-CHECKOUT] Body da requisição:', body);
+      console.log('[PLAN-CHANGE-CHECKOUT] Subscription atual:', subscription);
+
       const { data, error } = await supabase.functions.invoke('change-plan-checkout', {
         body
       });
 
-      if (error) throw error;
+      console.log('[PLAN-CHANGE-CHECKOUT] Resposta da Edge Function:', { data, error });
 
-      if (data.success) {
+      if (error) {
+        console.error('[PLAN-CHANGE-CHECKOUT] Erro na Edge Function:', error);
+        throw new Error(`Edge Function Error: ${error.message || JSON.stringify(error)}`);
+      }
+
+      if (data?.success) {
         setStep(4); // Success step
         
         // Refresh subscription data
@@ -303,14 +315,26 @@ const PlanChangeCheckoutPage = () => {
           navigate('/plans?success=plan_change');
         }, 1500);
       } else {
-        throw new Error(data.error || 'Erro na alteração do plano');
+        const errorMessage = data?.error || 'Erro desconhecido na alteração do plano';
+        console.error('[PLAN-CHANGE-CHECKOUT] Erro retornado pela função:', errorMessage);
+        throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error('Plan change checkout error:', error);
+      console.error('[PLAN-CHANGE-CHECKOUT] Erro completo:', error);
+      
+      let errorMessage = "Ocorreu um erro ao alterar o plano. Tente novamente.";
+      
+      if (error.message?.includes('Edge Function Error')) {
+        errorMessage = "Erro na comunicação com o servidor. Verifique sua conexão e tente novamente.";
+      } else if (error.message?.includes('Failed to send a request')) {
+        errorMessage = "Não foi possível conectar ao servidor. Verifique se a Edge Function foi deployada.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
       
       toast({
         title: "Erro na alteração do plano",
-        description: error.message || "Ocorreu um erro ao alterar o plano. Tente novamente.",
+        description: errorMessage,
         variant: "destructive"
       });
       
@@ -328,7 +352,25 @@ const PlanChangeCheckoutPage = () => {
           <p className="text-muted-foreground text-center">
             Complete os dados para alterar sua assinatura
           </p>
+          
+          <div className="flex justify-center mt-4">
+            <Button
+              variant="ghost"
+              onClick={() => setShowDiagnostic(!showDiagnostic)}
+              className="flex items-center gap-2"
+              size="sm"
+            >
+              <Settings className="w-4 h-4" />
+              {showDiagnostic ? 'Ocultar' : 'Mostrar'} Diagnóstico
+            </Button>
+          </div>
         </div>
+
+        {showDiagnostic && (
+          <div className="mb-6">
+            <PlanChangeDiagnostic />
+          </div>
+        )}
 
         <CheckoutSteps currentStep={step} />
 

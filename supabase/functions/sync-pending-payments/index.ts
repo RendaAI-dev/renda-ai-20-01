@@ -113,15 +113,18 @@ serve(async (req) => {
             continue;
           }
 
+          console.log(`[SYNC-PENDING-PAYMENTS] ✅ Status atualizado: ${payment.asaas_payment_id} ${payment.status} → ${currentStatus}`);
           processedPayments++;
 
           // Se foi confirmado, processar confirmação
           if (currentStatus === 'CONFIRMED' || currentStatus === 'RECEIVED') {
-            console.log(`[SYNC-PENDING-PAYMENTS] ✅ Pagamento confirmado: ${payment.asaas_payment_id}`);
+            console.log(`[SYNC-PENDING-PAYMENTS] 🎯 Pagamento confirmado: ${payment.asaas_payment_id}`);
             
             await processConfirmedPayment(supabase, payment.user_id, asaasPayment, payment);
             confirmedPayments++;
           }
+        } else {
+          console.log(`[SYNC-PENDING-PAYMENTS] Status sem alteração: ${payment.asaas_payment_id} (${currentStatus})`);
         }
 
       } catch (error) {

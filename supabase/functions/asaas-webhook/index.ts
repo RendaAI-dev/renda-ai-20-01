@@ -428,9 +428,11 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
         }
       }
       
-      // Salvar URL de redirecionamento para o usuário (priorizar invoiceUrl, fallback para bankSlipUrl)
+      // Salvar URL de redirecionamento APENAS para pagamentos iniciais (não para recorrências da subscription)
+      const isInitialPayment = !payment.subscription || payment.externalReference?.includes('initial');
       const redirectUrl = payment.invoiceUrl || payment.bankSlipUrl;
-      if (redirectUrl) {
+      
+      if (redirectUrl && isInitialPayment) {
         const redirectResult = await supabase
           .from('poupeja_payment_redirects')
           .insert({
@@ -445,6 +447,8 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
         } else {
           console.log(`[ASAAS-WEBHOOK] 🔗 URL de redirecionamento salva para usuário ${userId}: ${redirectUrl}`);
         }
+      } else if (redirectUrl && !isInitialPayment) {
+        console.log(`[ASAAS-WEBHOOK] ⚠️ Pulando URL de recorrência da subscription (não é pagamento inicial): ${payment.id}`);
       } else {
         console.warn(`[ASAAS-WEBHOOK] ⚠️ Nenhuma URL de redirecionamento encontrada para pagamento ${payment.id}`);
       }
@@ -480,9 +484,22 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
         }
       }
       
-      await handlePaymentSuccess(supabase, userId, payment, paymentRecord);
-      
-      console.log('[ASAAS-WEBHOOK] ✅ handlePaymentSuccess CONCLUÍDO para:', payment.id);
+      // ⚠️ IMPORTANTE: Só processar pagamentos iniciais ou de mudança de plano no PAYMENT_CONFIRMED
+      // Pagamentos recorrentes da subscription não precisam ativar novamente a assinatura
+      const isInitialPayment = !payment.subscription || payment.externalReference?.includes('initial');
+      const isPlanChangePayment = !!(await supabase
+        .from('poupeja_plan_change_requests')
+        .select('id')
+        .eq('asaas_payment_id', payment.id)
+        .maybeSingle()).data;
+        
+      if (isInitialPayment || isPlanChangePayment) {
+        console.log('[ASAAS-WEBHOOK] 🎯 Processando pagamento:', isInitialPayment ? 'INICIAL' : 'MUDANÇA DE PLANO');
+        await handlePaymentSuccess(supabase, userId, payment, paymentRecord);
+        console.log('[ASAAS-WEBHOOK] ✅ handlePaymentSuccess CONCLUÍDO para:', payment.id);
+      } else {
+        console.log('[ASAAS-WEBHOOK] ⚠️ Pulando pagamento recorrente da subscription (não precisa reativar):', payment.id);
+      }
       break;
 
     case 'PAYMENT_UPDATED':

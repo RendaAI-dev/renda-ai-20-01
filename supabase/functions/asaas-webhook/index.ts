@@ -75,9 +75,11 @@ serve(async (req) => {
       });
     }
 
-    // Lógica melhorada de descriptografia com fallback
+    // Lógica simplificada de validação de token
     let expectedToken = webhookTokenSetting.value;
+    
     if (webhookTokenSetting.encrypted) {
+      console.log('[ASAAS-WEBHOOK] 🔓 Tentando descriptografar token...');
       try {
         // Verificar se o valor realmente parece ser Base64
         const isBase64 = /^[A-Za-z0-9+/]+=*$/.test(webhookTokenSetting.value) && 
@@ -85,17 +87,15 @@ serve(async (req) => {
         
         if (isBase64) {
           expectedToken = atob(webhookTokenSetting.value);
-          console.log('[ASAAS-WEBHOOK] 🔓 Token descriptografado com sucesso');
+          console.log('[ASAAS-WEBHOOK] ✅ Token descriptografado com sucesso');
         } else {
-          // Token não está em Base64, usar diretamente
-          expectedToken = webhookTokenSetting.value;
-          console.log('[ASAAS-WEBHOOK] ⚠️ Token marcado como encrypted mas não é Base64, usando diretamente');
+          console.log('[ASAAS-WEBHOOK] ⚠️ Token não está em Base64, usando diretamente');
         }
       } catch (error) {
-        // Se falhar a descriptografia, tentar usar o valor direto
-        console.warn('[ASAAS-WEBHOOK] ⚠️ Falha na descriptografia, usando token diretamente:', error.message);
-        expectedToken = webhookTokenSetting.value;
+        console.warn('[ASAAS-WEBHOOK] ⚠️ Falha na descriptografia, usando token original:', error.message);
       }
+    } else {
+      console.log('[ASAAS-WEBHOOK] ✅ Token não criptografado, usando diretamente');
     }
 
     console.log('[ASAAS-WEBHOOK] 🔍 Comparação de tokens:', {

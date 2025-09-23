@@ -21,9 +21,69 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Verificar token do webhook (opcional)
+    // VALIDAÇÃO OBRIGATÓRIA DO TOKEN
     const accessToken = req.headers.get('asaas-access-token');
-    console.log('[ASAAS-WEBHOOK] Access token presente:', !!accessToken);
+    console.log('[ASAAS-WEBHOOK] Headers recebidos:', {
+      'asaas-access-token': accessToken,
+      'authorization': req.headers.get('authorization'),
+      'user-agent': req.headers.get('user-agent')
+    });
+
+    if (!accessToken) {
+      console.error('[ASAAS-WEBHOOK] ❌ Token ausente no header asaas-access-token');
+      return new Response(JSON.stringify({
+        error: 'Missing authorization header',
+        required_header: 'asaas-access-token'
+      }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    // Buscar token configurado no banco
+    const { data: webhookTokenSetting } = await supabase
+      .from('poupeja_settings')
+      .select('value, encrypted')
+      .eq('category', 'asaas')
+      .eq('key', 'webhook_token')
+      .maybeSingle();
+
+    if (!webhookTokenSetting) {
+      console.error('[ASAAS-WEBHOOK] ❌ Token do webhook não configurado no sistema');
+      return new Response(JSON.stringify({
+        error: 'Webhook token not configured'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    // Descriptografar token se necessário (Base64 para compatibilidade)
+    let expectedToken = webhookTokenSetting.value;
+    if (webhookTokenSetting.encrypted) {
+      try {
+        expectedToken = atob(expectedToken);
+      } catch (error) {
+        console.error('[ASAAS-WEBHOOK] Erro ao descriptografar token:', error.message);
+      }
+    }
+
+    // Validar token
+    if (accessToken !== expectedToken) {
+      console.error('[ASAAS-WEBHOOK] ❌ Token inválido:', {
+        received: accessToken,
+        expected: expectedToken,
+        match: accessToken === expectedToken
+      });
+      return new Response(JSON.stringify({
+        error: 'Invalid authorization token'
+      }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    console.log('[ASAAS-WEBHOOK] ✅ Token validado com sucesso');
 
     const webhookData = await req.json();
     const { event, payment, checkout } = webhookData;

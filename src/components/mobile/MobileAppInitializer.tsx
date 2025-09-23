@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
+import { notificationService } from '@/services/notificationService';
 
 export function MobileAppInitializer() {
   useEffect(() => {
@@ -11,6 +12,9 @@ export function MobileAppInitializer() {
           // Configure Status Bar
           await StatusBar.setStyle({ style: Style.Light });
           await StatusBar.setBackgroundColor({ color: '#4ECDC4' });
+          
+          // Initialize notification service
+          await notificationService.initialize();
           
           // Hide splash screen after app is ready
           await SplashScreen.hide();

@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { loginUser } from '@/services/authService';
@@ -118,7 +118,20 @@ const LoginPage = () => {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen relative">
+      {/* Botão Voltar */}
+      <div className="absolute top-4 left-4 z-10">
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
+        </Button>
+      </div>
+      
+      <div className="flex min-h-screen">
       {/* Left side with illustration and text */}
       <div className="hidden lg:flex flex-col w-1/2 bg-background p-10 justify-center">
         <div className="max-w-md mx-auto">
@@ -229,6 +242,7 @@ const LoginPage = () => {
             </CardContent>
           </Card>
         </div>
+      </div>
       </div>
     </div>
   );

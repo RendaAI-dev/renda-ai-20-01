@@ -16,6 +16,7 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import RegisterWithPlanPage from "./pages/RegisterWithPlanPage";
 import CheckoutPage from "./pages/CheckoutPage";
+import PlanChangeCheckoutPage from "./pages/PlanChangeCheckoutPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -67,6 +68,7 @@ function App() {
                         <Route path="/categories" element={<CategoriesPage />} />
                         <Route path="/plans" element={<PlansPage />} />
                         <Route path="/checkout" element={<CheckoutPage />} />
+                        <Route path="/checkout/change-plan" element={<PlanChangeCheckoutPage />} />
                         <Route path="/payment-success" element={<PaymentSuccessPage />} />
                         <Route path="/thank-you" element={<ThankYouPage />} />
                         <Route path="/achievements" element={<AchievementsPage />} />

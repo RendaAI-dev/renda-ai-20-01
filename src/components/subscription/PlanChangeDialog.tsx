@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Zap, Calendar } from 'lucide-react';
+import { Loader2, Zap, Calendar, CreditCard } from 'lucide-react';
 
 interface PlanChangeDialogProps {
   open: boolean;
@@ -27,6 +28,7 @@ const PlanChangeDialog: React.FC<PlanChangeDialogProps> = ({
   onPlanChanged
 }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleChangePlan = async (newPlanType: string) => {
     if (newPlanType === currentPlan) {
@@ -158,34 +160,68 @@ const PlanChangeDialog: React.FC<PlanChangeDialogProps> = ({
                     </div>
                   </div>
 
-                  <Button
-                    onClick={() => handleChangePlan(plan.type)}
-                    disabled={isLoading || isCurrentPlan}
-                    variant={isCurrentPlan ? "secondary" : "default"}
-                    className="w-full"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : null}
-                    {isCurrentPlan ? 'Plano Atual' : 
-                     currentPlan === 'monthly' && plan.type === 'annual' ? 'Fazer Upgrade' :
-                     currentPlan === 'annual' && plan.type === 'monthly' ? 'Fazer Downgrade' :
-                     'Selecionar'}
-                  </Button>
+                  <div className="space-y-2">
+                    <Button
+                      onClick={() => handleChangePlan(plan.type)}
+                      disabled={isLoading || isCurrentPlan}
+                      variant={isCurrentPlan ? "secondary" : "default"}
+                      className="w-full"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Zap className="w-4 h-4 mr-2" />
+                      )}
+                      {isCurrentPlan ? 'Plano Atual' : 'Troca Rápida'}
+                    </Button>
+                    
+                    {!isCurrentPlan && (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          const params = new URLSearchParams({
+                            newPlan: plan.type,
+                            currentPlan: currentPlan
+                          });
+                          navigate(`/checkout/change-plan?${params.toString()}`);
+                        }}
+                      >
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Checkout Completo
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );
           })}
         </div>
 
-        <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-          <h4 className="font-medium mb-2">Como funciona a alteração:</h4>
-          <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• <strong>Upgrade:</strong> Cobrança automática da diferença proporcional</li>
-            <li>• <strong>Downgrade:</strong> Crédito aplicado na próxima fatura automaticamente</li>
-            <li>• <strong>Processamento:</strong> Alteração instantânea sem redirecionamentos</li>
-            <li>• <strong>Cobrança:</strong> Próximo ciclo no novo valor escolhido</li>
-          </ul>
+        <div className="mt-6 space-y-4">
+          <div className="p-4 bg-muted/50 rounded-lg">
+            <h4 className="font-medium mb-2 flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              Troca Rápida:
+            </h4>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>• <strong>Upgrade:</strong> Cobrança automática da diferença proporcional</li>
+              <li>• <strong>Downgrade:</strong> Crédito aplicado na próxima fatura automaticamente</li>
+              <li>• <strong>Processamento:</strong> Alteração instantânea sem redirecionamentos</li>
+            </ul>
+          </div>
+          
+          <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+            <h4 className="font-medium mb-2 flex items-center gap-2 text-blue-700 dark:text-blue-300">
+              <CreditCard className="w-4 h-4" />
+              Checkout Completo:
+            </h4>
+            <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+              <li>• <strong>Nova assinatura:</strong> Cancela a atual e cria uma nova</li>
+              <li>• <strong>Novo cartão:</strong> Opção de alterar método de pagamento</li>
+              <li>• <strong>Histórico limpo:</strong> Cada plano é uma assinatura separada</li>
+            </ul>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import PlanChangeDialog from '@/components/subscription/PlanChangeDialog';
+import UpdateCardOnlyModal from '@/components/subscription/UpdateCardOnlyModal';
 
 interface PlanCardProps {
   name: string;
@@ -36,6 +37,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPlanChangeDialog, setShowPlanChangeDialog] = useState(false);
+  const [showUpdateCardModal, setShowUpdateCardModal] = useState(false);
   const { subscription, hasActiveSubscription, checkSubscription } = useSubscription();
   const { t } = usePreferences();
   const { toast } = useToast();
@@ -102,10 +104,68 @@ const PlanCard: React.FC<PlanCardProps> = ({
     }
   };
 
+  const handleReactivateSubscription = async () => {
+    try {
+      console.log('[REACTIVATE] Iniciando reativação da assinatura');
+      
+      const { data, error } = await supabase.functions.invoke('reactivate-subscription', {
+        body: { planType }
+      });
+
+      if (error) {
+        console.error('[REACTIVATE] Erro na função:', error);
+        throw new Error(error.message || 'Erro desconhecido ao reativar assinatura');
+      }
+      
+      if (!data || !data.success) {
+        const errorMsg = data?.error || 'Erro desconhecido ao reativar assinatura';
+        console.error('[REACTIVATE] Erro retornado:', errorMsg);
+        
+        // Check if it's a card error that requires updating
+        if (data?.action === 'update_card') {
+          setShowUpdateCardModal(true);
+          toast({
+            title: "Problema com o cartão",
+            description: "Atualize seu cartão para continuar.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        throw new Error(errorMsg);
+      }
+      
+      console.log('[REACTIVATE] Reativação bem-sucedida:', data);
+      toast({
+        title: "Assinatura reativada!",
+        description: "O pagamento foi processado no seu cartão cadastrado.",
+      });
+      
+      // Atualizar contexto
+      await checkSubscription();
+      
+    } catch (error: any) {
+      console.error('[REACTIVATE] Erro completo ao reativar assinatura:', error);
+      toast({
+        title: "Erro na reativação",
+        description: error.message || "Algo deu errado. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleCheckout = async () => {
     try {
       setIsLoading(true);
       console.log(`[Checkout Debug] Iniciando checkout para plano: ${planType}, ${name}`);
+      
+      // Se é assinatura expirada, chamar reativação direta
+      if (isExpiredCurrentPlan) {
+        console.log('[Checkout Debug] Assinatura expirada, chamando reativação');
+        await handleReactivateSubscription();
+        setIsLoading(false);
+        return;
+      }
       
       // Se é um upgrade ou downgrade para usuários com assinatura ativa, abrir dialog
       if (hasActiveSubscription && (canUpgrade || canDowngrade)) {
@@ -305,6 +365,16 @@ const PlanCard: React.FC<PlanCardProps> = ({
         onOpenChange={setShowPlanChangeDialog}
         currentPlan={subscription?.plan_type || ''}
         onPlanChanged={handlePlanChanged}
+      />
+
+      <UpdateCardOnlyModal
+        open={showUpdateCardModal}
+        onOpenChange={setShowUpdateCardModal}
+        onSuccess={() => {
+          setShowUpdateCardModal(false);
+          // Tentar reativar novamente após atualizar o cartão
+          handleReactivateSubscription();
+        }}
       />
     </Card>
   );

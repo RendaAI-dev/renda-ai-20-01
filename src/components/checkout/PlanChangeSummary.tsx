@@ -110,25 +110,17 @@ export const PlanChangeSummary: React.FC<PlanChangeSummaryProps> = ({
             </div>
           </div>
 
-          {/* Price Difference */}
-          <div className="p-4 bg-muted/30 rounded-lg">
+          {/* New Plan Price */}
+          <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
             <div className="flex items-center justify-between">
-              <span className="font-medium">{getOperationText()}</span>
-              <div className={`font-bold ${
-                priceDifference > 0 ? 'text-green-600' : 
-                priceDifference < 0 ? 'text-blue-600' : 'text-gray-600'
-              }`}>
-                {priceDifference > 0 ? '+' : ''}{formatPrice(priceDifference)}
+              <span className="font-medium">Valor a ser cobrado</span>
+              <div className="font-bold text-primary text-lg">
+                {formatPrice(newPlan.price)}
               </div>
             </div>
             
             <p className="text-xs text-muted-foreground mt-2">
-              {operationType === 'upgrade' 
-                ? 'Diferença será cobrada imediatamente' 
-                : operationType === 'downgrade'
-                ? 'Crédito será aplicado na próxima fatura'
-                : 'Novo valor será aplicado na próxima cobrança'
-              }
+              Valor integral do novo plano será cobrado imediatamente
             </p>
           </div>
         </div>

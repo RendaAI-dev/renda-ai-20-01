@@ -152,36 +152,6 @@ const PaymentSuccessPage = () => {
     }
   }, [isCheckingUser, userExists, systemStatus, navigate, toast]);
 
-  // Auto-sync fallback: trigger sync-pending-payments if no confirmation after 90 seconds
-  useEffect(() => {
-    if (!email || email === 'user@example.com') return;
-    if (userExists && systemStatus === 'ready') return; // Already confirmed
-
-    const autoSyncTimeout = setTimeout(async () => {
-      console.log('[PAYMENT-SUCCESS] Auto-sync triggered: no confirmation after 90s, attempting sync...');
-      
-      try {
-        const { data, error } = await supabase.functions.invoke('sync-pending-payments');
-        
-        if (!error && data?.confirmedPayments > 0) {
-          toast({
-            title: "Pagamento processado!",
-            description: "Seu pagamento foi confirmado automaticamente.",
-          });
-          
-          // Recheck user status
-          setTimeout(() => {
-            checkUserCreation();
-          }, 2000);
-        }
-      } catch (error) {
-        console.error('[PAYMENT-SUCCESS] Auto-sync failed:', error);
-      }
-    }, 90000); // 90 seconds
-
-    return () => clearTimeout(autoSyncTimeout);
-  }, [email, userExists, systemStatus, supabase, toast, checkUserCreation]);
-
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -198,74 +168,31 @@ const PaymentSuccessPage = () => {
     try {
       setIsCheckingUser(true);
       
-      const { data, error } = await supabase.functions.invoke('sync-pending-payments');
+      const { data, error } = await supabase.functions.invoke('sync-subscriptions');
       
       if (error) {
         toast({
           title: "Erro na sincronização",
-          description: error.message || "Não foi possível sincronizar as assinaturas.",
+          description: "Não foi possível sincronizar as assinaturas. Tente novamente.",
           variant: "destructive",
         });
         return;
       }
 
       toast({
-        title: "Sincronização realizada!",
-        description: `${data.confirmedPayments || 0} pagamentos confirmados.`,
+        title: "Sincronização concluída",
+        description: `${data.createdUsersCount || 0} usuários criados, ${data.syncedCount || 0} assinaturas sincronizadas.`,
       });
 
       // Verificar novamente se o usuário foi criado e atualizar contexto
-      setTimeout(() => {
-        checkUserCreation();
-      }, 2000);
+      await checkSubscription();
+      checkUserCreation();
     } catch (error) {
       toast({
         title: "Erro",
         description: "Erro inesperado. Tente novamente.",
         variant: "destructive",
       });
-      setIsCheckingUser(false);
-    }
-  };
-
-  // Função para simular confirmação de pagamento (DEBUG)
-  const handleSimulatePayment = async () => {
-    if (!sessionId?.startsWith('pay_')) return;
-    
-    try {
-      setIsCheckingUser(true);
-      
-      const { data, error } = await supabase.functions.invoke('simulate-payment-confirmation', {
-        body: { paymentId: sessionId }
-      });
-      
-      if (error) {
-        toast({
-          title: "Erro ao confirmar pagamento",
-          description: error.message || "Não foi possível confirmar o pagamento.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: "Pagamento confirmado!",
-        description: "O pagamento foi confirmado com sucesso.",
-      });
-
-      // Verificar novamente se o usuário foi criado e atualizar contexto
-      setTimeout(async () => {
-        await checkSubscription();
-        checkUserCreation();
-      }, 2000);
-      
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro inesperado na confirmação. Tente novamente.",
-        variant: "destructive",
-      });
-    } finally {
       setIsCheckingUser(false);
     }
   };
@@ -442,19 +369,6 @@ const PaymentSuccessPage = () => {
                 <Loader2 className={`mr-2 w-4 h-4 ${isCheckingUser ? 'animate-spin' : ''}`} />
                 Tentar Sincronizar Novamente
               </Button>
-              
-              {sessionId?.startsWith('pay_') && (
-                <Button 
-                  variant="secondary" 
-                  onClick={handleSimulatePayment}
-                  className="w-full"
-                  disabled={isCheckingUser}
-                  size="sm"
-                >
-                  <Loader2 className={`mr-2 w-4 h-4 ${isCheckingUser ? 'animate-spin' : ''}`} />
-                  Confirmar Pagamento (Debug)
-                </Button>
-              )}
               
               <Button 
                 variant="outline" 

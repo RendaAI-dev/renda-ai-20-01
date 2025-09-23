@@ -14,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('[SYNC-PENDING-PAYMENTS] Iniciando sincronização de pagamentos pendentes...');
+    console.log('[SYNC-PENDING-PAYMENTS] Iniciando sincronização de pagamentos pendentes');
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -43,113 +43,101 @@ serve(async (req) => {
       ? 'https://api.asaas.com/v3' 
       : 'https://sandbox.asaas.com/api/v3';
 
-    // Buscar pagamentos pendentes que foram criados há mais de 5 minutos
+    // Buscar pagamentos pendentes há mais de 5 minutos
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     
-    const { data: pendingPayments, error: paymentError } = await supabase
+    const { data: pendingPayments, error: paymentsError } = await supabase
       .from('poupeja_asaas_payments')
       .select('*')
       .eq('status', 'PENDING')
       .lt('created_at', fiveMinutesAgo)
       .limit(50);
 
-    if (paymentError) {
-      throw new Error(`Erro ao buscar pagamentos pendentes: ${paymentError.message}`);
+    if (paymentsError) {
+      throw new Error('Erro ao buscar pagamentos pendentes');
     }
 
-    if (!pendingPayments || pendingPayments.length === 0) {
-      console.log('[SYNC-PENDING-PAYMENTS] Nenhum pagamento pendente encontrado para sincronizar');
-      return new Response(JSON.stringify({
-        success: true,
-        processedPayments: 0,
-        confirmedPayments: 0,
-        message: 'Nenhum pagamento pendente encontrado'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+    console.log(`[SYNC-PENDING-PAYMENTS] Encontrados ${pendingPayments?.length || 0} pagamentos pendentes para verificar`);
 
-    console.log(`[SYNC-PENDING-PAYMENTS] Encontrados ${pendingPayments.length} pagamentos pendentes para verificar`);
+    let processedCount = 0;
+    let updatedCount = 0;
+    let confirmedCount = 0;
 
-    let processedPayments = 0;
-    let confirmedPayments = 0;
+    if (pendingPayments && pendingPayments.length > 0) {
+      for (const payment of pendingPayments) {
+        try {
+          console.log(`[SYNC-PENDING-PAYMENTS] Verificando pagamento: ${payment.asaas_payment_id}`);
+          
+          // Consultar status atual no Asaas
+          const response = await fetch(`${asaasUrl}/payments/${payment.asaas_payment_id}`, {
+            headers: {
+              'access_token': asaasApiKey,
+              'Content-Type': 'application/json'
+            }
+          });
 
-    // Processar cada pagamento pendente
-    for (const payment of pendingPayments) {
-      try {
-        console.log(`[SYNC-PENDING-PAYMENTS] Verificando status do pagamento: ${payment.asaas_payment_id}`);
-
-        // Consultar status atual no Asaas
-        const response = await fetch(`${asaasUrl}/payments/${payment.asaas_payment_id}`, {
-          headers: {
-            'access_token': asaasApiKey,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          console.error(`[SYNC-PENDING-PAYMENTS] Erro ao consultar pagamento ${payment.asaas_payment_id}: ${response.status}`);
-          continue;
-        }
-
-        const asaasPayment = await response.json();
-        const currentStatus = asaasPayment.status;
-
-        console.log(`[SYNC-PENDING-PAYMENTS] Status atual do pagamento ${payment.asaas_payment_id}: ${currentStatus}`);
-
-        // Atualizar status na base local se mudou
-        if (currentStatus !== payment.status) {
-          const { error: updateError } = await supabase
-            .from('poupeja_asaas_payments')
-            .update({
-              status: currentStatus,
-              payment_date: asaasPayment.paymentDate || null,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', payment.id);
-
-          if (updateError) {
-            console.error(`[SYNC-PENDING-PAYMENTS] Erro ao atualizar pagamento ${payment.asaas_payment_id}:`, updateError);
+          if (!response.ok) {
+            console.error(`[SYNC-PENDING-PAYMENTS] Erro ao consultar pagamento ${payment.asaas_payment_id}: ${response.status}`);
             continue;
           }
 
-          console.log(`[SYNC-PENDING-PAYMENTS] ✅ Status atualizado: ${payment.asaas_payment_id} ${payment.status} → ${currentStatus}`);
-          processedPayments++;
+          const asaasPayment = await response.json();
+          processedCount++;
 
-          // Se foi confirmado, processar confirmação
-          if (currentStatus === 'CONFIRMED' || currentStatus === 'RECEIVED') {
-            console.log(`[SYNC-PENDING-PAYMENTS] 🎯 Pagamento confirmado: ${payment.asaas_payment_id}`);
+          console.log(`[SYNC-PENDING-PAYMENTS] Status atual do pagamento ${payment.asaas_payment_id}: ${asaasPayment.status}`);
+
+          // Se o status mudou, atualizar no banco
+          if (asaasPayment.status !== payment.status) {
+            console.log(`[SYNC-PENDING-PAYMENTS] ✅ Status alterado de ${payment.status} para ${asaasPayment.status}`);
             
-            await processConfirmedPayment(supabase, payment.user_id, asaasPayment, payment);
-            confirmedPayments++;
-          }
-        } else {
-          console.log(`[SYNC-PENDING-PAYMENTS] Status sem alteração: ${payment.asaas_payment_id} (${currentStatus})`);
-        }
+            // Atualizar pagamento no banco
+            await supabase
+              .from('poupeja_asaas_payments')
+              .update({
+                status: asaasPayment.status,
+                payment_date: asaasPayment.paymentDate || null,
+                invoice_url: asaasPayment.invoiceUrl || payment.invoice_url,
+                updated_at: new Date().toISOString()
+              })
+              .eq('asaas_payment_id', payment.asaas_payment_id);
 
-      } catch (error) {
-        console.error(`[SYNC-PENDING-PAYMENTS] Erro ao processar pagamento ${payment.asaas_payment_id}:`, error);
-        continue;
+            updatedCount++;
+
+            // Se foi confirmado, processar como pagamento bem sucedido
+            if (['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(asaasPayment.status)) {
+              console.log(`[SYNC-PENDING-PAYMENTS] 🎉 Pagamento confirmado: ${payment.asaas_payment_id}`);
+              
+              await processConfirmedPayment(supabase, payment.user_id, asaasPayment, payment);
+              confirmedCount++;
+            }
+          }
+
+          // Pequena pausa para não sobrecarregar a API
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+        } catch (error) {
+          console.error(`[SYNC-PENDING-PAYMENTS] Erro ao processar pagamento ${payment.asaas_payment_id}:`, error.message);
+        }
       }
     }
 
-    console.log(`[SYNC-PENDING-PAYMENTS] ✅ Sincronização concluída: ${processedPayments} atualizados, ${confirmedPayments} confirmados`);
+    console.log(`[SYNC-PENDING-PAYMENTS] ✅ Sincronização concluída: ${processedCount} verificados, ${updatedCount} atualizados, ${confirmedCount} confirmados`);
 
     return new Response(JSON.stringify({
       success: true,
-      processedPayments,
-      confirmedPayments,
-      totalChecked: pendingPayments.length,
-      message: `Sincronização concluída: ${confirmedPayments} pagamentos confirmados`
+      pendingPayments: pendingPayments?.length || 0,
+      processedCount,
+      updatedCount,
+      confirmedCount
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('[SYNC-PENDING-PAYMENTS] Erro:', error);
+    console.error('[SYNC-PENDING-PAYMENTS] Erro:', error.message);
     return new Response(JSON.stringify({
-      success: false,
-      error: error.message
+      error: error.message,
+      success: false
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -159,103 +147,178 @@ serve(async (req) => {
 
 // Processar pagamento confirmado
 async function processConfirmedPayment(supabase: any, userId: string, asaasPayment: any, paymentRecord: any) {
-  try {
-    console.log(`[SYNC-PENDING-PAYMENTS] Processando confirmação para usuário: ${userId}`);
+  console.log(`[SYNC-PENDING-PAYMENTS] Processando pagamento confirmado para usuário: ${userId}`);
 
-    // Verificar se há solicitação de mudança de plano pendente
+  try {
+    // Verificar se é uma mudança de plano
     const { data: planChangeRequest } = await supabase
       .from('poupeja_plan_change_requests')
       .select('*')
-      .eq('user_id', userId)
       .eq('asaas_payment_id', asaasPayment.id)
       .eq('status', 'pending')
-      .single();
+      .maybeSingle();
 
     if (planChangeRequest) {
-      console.log('[SYNC-PENDING-PAYMENTS] Processando mudança de plano...');
+      console.log(`[SYNC-PENDING-PAYMENTS] 🔄 Processando mudança de plano: ${planChangeRequest.id}`);
       await handlePlanChangePayment(supabase, planChangeRequest, asaasPayment);
-    } else {
-      console.log('[SYNC-PENDING-PAYMENTS] Processando pagamento de assinatura...');
-      await handlePaymentSuccess(supabase, userId, asaasPayment, paymentRecord);
+      return;
     }
 
+    // Processar como nova assinatura ou renovação
+    await handlePaymentSuccess(supabase, userId, asaasPayment, paymentRecord);
+    
   } catch (error) {
-    console.error('[SYNC-PENDING-PAYMENTS] Erro ao processar confirmação:', error);
-    throw error;
+    console.error(`[SYNC-PENDING-PAYMENTS] Erro ao processar pagamento confirmado:`, error.message);
   }
 }
 
-// Processar sucesso de pagamento
+// Função para processar sucesso do pagamento (replicada do webhook)
 async function handlePaymentSuccess(supabase: any, userId: string, payment: any, existingPayment: any) {
   console.log(`[SYNC-PENDING-PAYMENTS] Ativando assinatura para usuário: ${userId}`);
 
-  // Determinar tipo de plano baseado no valor
-  const planType = payment.value <= 50 ? 'monthly' : 'annual';
-  
-  // Calcular datas do período
-  const now = new Date();
-  const periodEnd = new Date();
-  
-  if (planType === 'monthly') {
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
-  } else {
-    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  // Determinar tipo de plano
+  let planType: 'monthly' | 'annual' = 'monthly';
+  const ref = existingPayment.external_reference || payment.externalReference || '';
+  if (ref.includes('annual')) planType = 'annual';
+  else if (ref.includes('monthly')) planType = 'monthly';
+  else {
+    // Fallback: comparar valores
+    const { data: priceSettings } = await supabase
+      .from('poupeja_settings')
+      .select('key, value')
+      .eq('category', 'pricing')
+      .in('key', ['plan_price_monthly', 'plan_price_annual']);
+
+    const normalize = (v?: string | null) => {
+      if (!v) return 0;
+      const s = String(v).replace(/\./g, '').replace(',', '.');
+      const n = parseFloat(s);
+      return isNaN(n) ? 0 : n;
+    };
+
+    const monthly = normalize(priceSettings?.find((s: any) => s.key === 'plan_price_monthly')?.value);
+    const annual = normalize(priceSettings?.find((s: any) => s.key === 'plan_price_annual')?.value);
+
+    const diffMonthly = Math.abs((payment.value ?? 0) - monthly);
+    const diffAnnual = Math.abs((payment.value ?? 0) - annual);
+    planType = diffAnnual < diffMonthly ? 'annual' : 'monthly';
   }
 
-  // Buscar assinatura existente do usuário
+  const periodDays = planType === 'annual' ? 365 : 30;
+  const now = new Date();
+  const currentPeriodStart = now.toISOString();
+  const currentPeriodEnd = new Date(now.getTime() + (periodDays * 24 * 60 * 60 * 1000)).toISOString();
+
+  // Buscar assinatura existente
   const { data: existingSubscription } = await supabase
     .from('poupeja_subscriptions')
     .select('*')
     .eq('user_id', userId)
-    .single();
+    .maybeSingle();
+
+  const subscriptionData = {
+    user_id: userId,
+    asaas_customer_id: existingPayment.asaas_customer_id,
+    asaas_subscription_id: payment.subscription || payment.id,
+    status: 'active',
+    plan_type: planType,
+    current_period_start: currentPeriodStart,
+    current_period_end: currentPeriodEnd,
+    cancel_at_period_end: false,
+    payment_processor: 'asaas',
+    grace_period_end: null,
+    updated_at: new Date().toISOString()
+  };
 
   if (existingSubscription) {
-    // Atualizar assinatura existente
-    const { error: updateError } = await supabase
+    await supabase
       .from('poupeja_subscriptions')
-      .update({
-        status: 'active',
-        current_period_start: now.toISOString(),
-        current_period_end: periodEnd.toISOString(),
-        updated_at: now.toISOString()
-      })
-      .eq('user_id', userId);
-
-    if (updateError) {
-      throw new Error(`Erro ao atualizar assinatura: ${updateError.message}`);
-    }
-
-    console.log('[SYNC-PENDING-PAYMENTS] ✅ Assinatura atualizada para ativa');
+      .update(subscriptionData)
+      .eq('id', existingSubscription.id);
+    
+    console.log(`[SYNC-PENDING-PAYMENTS] ✅ Assinatura atualizada: ${existingSubscription.id}`);
   } else {
-    // Criar nova assinatura
-    const { error: insertError } = await supabase
+    const { data: newSubscription } = await supabase
       .from('poupeja_subscriptions')
-      .insert({
-        user_id: userId,
-        asaas_subscription_id: payment.subscription || null,
-        asaas_customer_id: payment.customer,
-        plan_type: planType,
-        status: 'active',
-        current_period_start: now.toISOString(),
-        current_period_end: periodEnd.toISOString(),
-        payment_processor: 'asaas'
-      });
-
-    if (insertError) {
-      throw new Error(`Erro ao criar assinatura: ${insertError.message}`);
-    }
-
-    console.log('[SYNC-PENDING-PAYMENTS] ✅ Nova assinatura criada');
+      .insert(subscriptionData)
+      .select('*')
+      .single();
+    
+    console.log(`[SYNC-PENDING-PAYMENTS] ✅ Nova assinatura criada: ${newSubscription?.id}`);
   }
 }
 
-// Processar mudança de plano
+// Função para processar mudança de plano (replicada do webhook)
 async function handlePlanChangePayment(supabase: any, changeRequest: any, payment: any) {
-  console.log(`[SYNC-PENDING-PAYMENTS] Processando mudança de plano: ${changeRequest.id}`);
+  console.log(`[SYNC-PENDING-PAYMENTS] Confirmando mudança de plano: ${changeRequest.id}`);
 
   try {
-    // Atualizar status da solicitação
-    const { error: updateRequestError } = await supabase
+    // Buscar configurações do Asaas
+    const { data: settings } = await supabase
+      .from('poupeja_settings')
+      .select('key, value')
+      .eq('category', 'asaas');
+
+    const asaasConfig = settings?.reduce((acc: any, setting: any) => {
+      acc[setting.key] = setting.value;
+      return acc;
+    }, {}) ?? {};
+
+    const apiKey = asaasConfig.api_key;
+    const environment = asaasConfig.environment || 'sandbox';
+    
+    if (!apiKey) {
+      throw new Error('Chave API do Asaas não configurada');
+    }
+
+    const asaasUrl = environment === 'production' 
+      ? 'https://www.asaas.com/api/v3' 
+      : 'https://sandbox.asaas.com/api/v3';
+
+    // Buscar assinatura atual
+    const { data: subscription } = await supabase
+      .from('poupeja_subscriptions')
+      .select('*')
+      .eq('id', changeRequest.subscription_id)
+      .single();
+
+    if (!subscription) {
+      throw new Error('Assinatura não encontrada');
+    }
+
+    const newCycle = changeRequest.new_plan_type === 'monthly' ? 'MONTHLY' : 'YEARLY';
+
+    // Atualizar assinatura no Asaas
+    const response = await fetch(`${asaasUrl}/subscriptions/${subscription.asaas_subscription_id}`, {
+      method: 'PUT',
+      headers: {
+        'access_token': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        value: changeRequest.new_plan_value,
+        cycle: newCycle,
+        billingType: 'CREDIT_CARD',
+        updatePendingPayments: true
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Erro ao atualizar assinatura no Asaas: ${error}`);
+    }
+
+    // Atualizar assinatura no Supabase
+    await supabase
+      .from('poupeja_subscriptions')
+      .update({
+        plan_type: changeRequest.new_plan_type,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', changeRequest.subscription_id);
+
+    // Marcar solicitação como paga
+    await supabase
       .from('poupeja_plan_change_requests')
       .update({
         status: 'paid',
@@ -263,36 +326,12 @@ async function handlePlanChangePayment(supabase: any, changeRequest: any, paymen
       })
       .eq('id', changeRequest.id);
 
-    if (updateRequestError) {
-      throw new Error(`Erro ao atualizar solicitação: ${updateRequestError.message}`);
-    }
-
-    // Atualizar assinatura do usuário
-    const periodEnd = new Date();
-    if (changeRequest.new_plan_type === 'monthly') {
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
-    } else {
-      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-    }
-
-    const { error: updateSubscriptionError } = await supabase
-      .from('poupeja_subscriptions')
-      .update({
-        plan_type: changeRequest.new_plan_type,
-        status: 'active',
-        current_period_end: periodEnd.toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', changeRequest.subscription_id);
-
-    if (updateSubscriptionError) {
-      throw new Error(`Erro ao atualizar assinatura: ${updateSubscriptionError.message}`);
-    }
-
-    console.log('[SYNC-PENDING-PAYMENTS] ✅ Mudança de plano processada com sucesso');
+    console.log(`[SYNC-PENDING-PAYMENTS] ✅ Mudança de plano confirmada com sucesso`);
 
   } catch (error) {
-    // Marcar como erro se falhou
+    console.error(`[SYNC-PENDING-PAYMENTS] Erro ao processar mudança de plano:`, error.message);
+    
+    // Marcar solicitação como erro
     await supabase
       .from('poupeja_plan_change_requests')
       .update({
@@ -300,7 +339,5 @@ async function handlePlanChangePayment(supabase: any, changeRequest: any, paymen
         updated_at: new Date().toISOString()
       })
       .eq('id', changeRequest.id);
-
-    throw error;
   }
 }

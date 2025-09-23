@@ -147,34 +147,6 @@ serve(async (req) => {
       };
     }
 
-    // Validar e normalizar dados críticos
-    console.log('[TRANSPARENT-CHECKOUT] 🔍 Validando dados do usuário...');
-    
-    // Normalizar campos essenciais
-    userData.name = (userData.name || '').trim() || user.email?.split('@')[0] || 'Usuário';
-    userData.email = userData.email || user.email;
-    userData.phone = (userData.phone || '').replace(/\D/g, '');
-    userData.cpf = (userData.cpf || '').replace(/\D/g, '');
-    userData.cep = (userData.cep || '').replace(/\D/g, '');
-    
-    // Aplicar valores padrão para campos opcionais
-    if (!userData.phone) userData.phone = '11999999999';
-    if (!userData.cpf) userData.cpf = '00000000000';
-    if (!userData.cep) userData.cep = '00000000';
-    if (!userData.street) userData.street = 'Rua não informada';
-    if (!userData.number) userData.number = 'S/N';
-    if (!userData.neighborhood) userData.neighborhood = 'Centro';
-    if (!userData.city) userData.city = 'Cidade não informada';
-    if (!userData.state) userData.state = 'MG';
-    
-    console.log('[TRANSPARENT-CHECKOUT] ✅ Dados do usuário validados e normalizados:', {
-      name: userData.name,
-      email: userData.email,
-      phone: userData.phone,
-      cpf: userData.cpf.substring(0, 3) + '***',
-      hasAddress: !!userData.street
-    });
-
     // Get plan data from database with proper asaas_price_id
     console.log('[TRANSPARENT-CHECKOUT] Buscando dados do plano no banco...');
     
@@ -298,13 +270,13 @@ serve(async (req) => {
           ccv: creditCard.ccv
         },
         creditCardHolderInfo: {
-          name: (creditCard.holderName || userData.name || '').trim() || 'Titular',
+          name: userData.name || creditCard.holderName,
           email: userData.email,
-          cpfCnpj: (creditCard.holderCpf || userData.cpf || '').replace(/\D/g, '') || userData.cpf,
-          postalCode: userData.cep,
-          addressNumber: userData.number,
+          cpfCnpj: creditCard.holderCpf || userData.cpf || '',
+          postalCode: userData.cep || '00000-000',
+          addressNumber: userData.number || 'S/N',
           addressComplement: userData.complement || '',
-          phone: userData.phone
+          phone: userData.phone || ''
         },
         customer: asaasCustomerId
       })
@@ -405,7 +377,7 @@ serve(async (req) => {
         newPlanType: planType,
         newPlanPrice: planPrice,
         cardToken: savedCardToken || 'new_card',
-        userId: user.id
+        userId: userId
       });
       
       // Create plan change request
@@ -480,256 +452,59 @@ serve(async (req) => {
       
       console.log('[TRANSPARENT-CHECKOUT] ✅ Mudança de plano processada');
     } else {
-      // Generate unique external reference
-      const externalReference = `${user.id}_${planType}_${Date.now()}`;
+      // Create new subscription
+      console.log('[TRANSPARENT-CHECKOUT] Criando nova assinatura...');
       
-      // OPÇÃO 3: Lógica condicional baseada no tipo de cartão
-      if (creditCard && !savedCardToken) {
-        // ========== CARTÃO NOVO: Usar dados completos na subscription ==========
-        console.log('[TRANSPARENT-CHECKOUT] 🆕 Criando assinatura com cartão novo (chargeNow: true)...');
-        
-        // Calculate next due date for recurring billing
-        const nextDueDate = new Date();
-        if (planType === 'monthly') {
-          nextDueDate.setMonth(nextDueDate.getMonth() + 1);
-        } else {
-          nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
-        }
-        
-        const subscriptionPayload = {
+      const subscriptionResponse = await fetch(`${asaasBaseUrl}/subscriptions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'access_token': asaasApiKey,
+        },
+        body: JSON.stringify({
           customer: asaasCustomerId,
           billingType: 'CREDIT_CARD',
           value: planPrice,
-          nextDueDate: nextDueDate.toISOString().split('T')[0],
+          nextDueDate: new Date().toISOString().split('T')[0],
           cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
-          creditCard: {
-            holderName: creditCard.holderName,
-            number: creditCard.number.replace(/\s/g, ''),
-            expiryMonth: creditCard.expiryMonth,
-            expiryYear: `20${creditCard.expiryYear}`,
-            ccv: creditCard.ccv
-          },
-          chargeNow: true, // ✅ Isso gera PAYMENT_CONFIRMED
           description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
-          externalReference: `${externalReference}_direct`,
-          remoteIp: remoteIp || undefined,
-          // Add creditCardHolderInfo for better processing
-          creditCardHolderInfo: {
-            name: creditCard.holderName,
-            email: user.email,
-            cpfCnpj: user.cpf || '',
-            postalCode: user.cep || '',
-            addressNumber: user.number || '',
-            phone: user.phone || ''
-          }
-        };
-        
-        console.log('[TRANSPARENT-CHECKOUT] 📤 Payload da subscription (cartão novo):', {
-          customer: subscriptionPayload.customer,
-          value: subscriptionPayload.value,
-          cycle: subscriptionPayload.cycle,
-          chargeNow: subscriptionPayload.chargeNow,
-          hasFullCreditCard: true,
-          hasCreditCardHolderInfo: true
-        });
-        
-        const subscriptionResponse = await fetch(`${asaasBaseUrl}/subscriptions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'access_token': asaasApiKey,
-          },
-          body: JSON.stringify(subscriptionPayload)
-        });
+          creditCardToken: tokenData.creditCardToken,
+          remoteIp,
+          externalReference: `${user.id}_${planType}_${Date.now()}`,
+          chargeNow: true
+        })
+      });
 
-        if (!subscriptionResponse.ok) {
-          const error = await subscriptionResponse.text();
-          console.error('[TRANSPARENT-CHECKOUT] ❌ Erro ao criar subscription com cartão novo:', error);
-          throw new Error(`Failed to create subscription with new card: ${error}`);
-        }
-
-        const subscription = await subscriptionResponse.json();
-        console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura com cartão novo criada:', subscription.id);
-
-        // CRITICAL: Insert payment record BEFORE saving subscription
-        // This ensures webhook can find the payment
-        console.log('[TRANSPARENT-CHECKOUT] 📝 Inserindo registro de pagamento...');
-        
-        const paymentRecord = {
-          user_id: user.id,
-          asaas_payment_id: `sub_${subscription.id}_initial`,
-          asaas_customer_id: asaasCustomerId,
-          status: 'PENDING',
-          amount: planPrice,
-          due_date: new Date().toISOString().split('T')[0],
-          method: 'CREDIT_CARD',
-          description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'}`,
-          external_reference: `subscription_${subscription.id}`
-        };
-
-        const { error: paymentInsertError } = await supabase
-          .from('poupeja_asaas_payments')
-          .insert(paymentRecord);
-
-        if (paymentInsertError) {
-          console.error('[TRANSPARENT-CHECKOUT] ⚠️ Erro ao inserir payment:', paymentInsertError);
-        } else {
-          console.log('[TRANSPARENT-CHECKOUT] ✅ Payment record inserido');
-        }
-
-        // Save subscription in database with PENDING status
-        await supabase.from('poupeja_subscriptions').insert({
-          user_id: user.id,
-          asaas_subscription_id: subscription.id,
-          asaas_customer_id: asaasCustomerId,
-          plan_type: planType,
-          status: 'pending', // Will be updated to 'active' by PAYMENT_CONFIRMED webhook
-          current_period_start: new Date().toISOString(),
-          current_period_end: nextDueDate.toISOString(),
-          payment_processor: 'asaas'
-        });
-
-        result = {
-          success: true,
-          type: 'new_subscription_direct',
-          subscriptionId: subscription.id,
-          paymentId: subscription.id, // Subscription and payment are the same in this case
-          status: 'pending',
-          message: 'Subscription created with chargeNow - awaiting PAYMENT_CONFIRMED'
-        };
-        
-        console.log('[TRANSPARENT-CHECKOUT] ✅ Fluxo direto com cartão novo implementado');
-        
-      } else {
-        // ========== CARTÃO SALVO: Manter estratégia híbrida atual ==========
-        console.log('[TRANSPARENT-CHECKOUT] 💾 Criando assinatura com cartão salvo (estratégia híbrida)...');
-        
-        // Step 1: Create immediate payment (generates PAYMENT_CONFIRMED)
-        console.log('[TRANSPARENT-CHECKOUT] 🔥 Criando pagamento imediato...');
-        
-        const immediatePaymentPayload = {
-          customer: asaasCustomerId,
-          billingType: 'CREDIT_CARD',
-          value: planPrice,
-          dueDate: new Date().toISOString().split('T')[0], // Today
-          description: `Pagamento Inicial - Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
-          externalReference: `${externalReference}_initial_${planType}`,
-          creditCard: {
-            creditCardToken: savedCardToken || tokenData.creditCardToken,
-          },
-          remoteIp: remoteIp || undefined
-        };
-
-        const paymentResponse = await fetch(`${asaasBaseUrl}/payments`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'access_token': asaasApiKey,
-          },
-          body: JSON.stringify(immediatePaymentPayload)
-        });
-
-        if (!paymentResponse.ok) {
-          const error = await paymentResponse.text();
-          console.error('[TRANSPARENT-CHECKOUT] ❌ Erro ao criar pagamento imediato:', error);
-          throw new Error(`Failed to create immediate payment: ${error}`);
-        }
-
-        const payment = await paymentResponse.json();
-        console.log('[TRANSPARENT-CHECKOUT] ✅ Pagamento imediato criado:', payment.id);
-        
-        // CRITICAL: Insert payment record BEFORE creating subscription
-        console.log('[TRANSPARENT-CHECKOUT] 📝 Inserindo registro de pagamento...');
-        
-        const paymentRecord = {
-          user_id: user.id,
-          asaas_payment_id: payment.id,
-          asaas_customer_id: asaasCustomerId,
-          status: payment.status || 'PENDING',
-          amount: payment.value,
-          due_date: payment.dueDate,
-          payment_date: payment.paymentDate || null,
-          method: payment.billingType || 'CREDIT_CARD',
-          description: payment.description || `Pagamento Inicial - ${planType}`,
-          external_reference: payment.externalReference,
-          invoice_url: payment.invoiceUrl,
-          bank_slip_url: payment.bankSlipUrl
-        };
-
-        const { error: paymentInsertError } = await supabase
-          .from('poupeja_asaas_payments')
-          .insert(paymentRecord);
-
-        if (paymentInsertError) {
-          console.error('[TRANSPARENT-CHECKOUT] ⚠️ Erro ao inserir payment:', paymentInsertError);
-        } else {
-          console.log('[TRANSPARENT-CHECKOUT] ✅ Payment record inserido:', payment.id);
-        }
-        
-        // Step 2: Create subscription for future billing cycles
-        console.log('[TRANSPARENT-CHECKOUT] 📅 Criando assinatura para próximos ciclos...');
-        
-        // Calculate next due date (next month/year from today)
-        const nextDueDate = new Date();
-        if (planType === 'monthly') {
-          nextDueDate.setMonth(nextDueDate.getMonth() + 1);
-        } else {
-          nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
-        }
-        
-        const subscriptionResponse = await fetch(`${asaasBaseUrl}/subscriptions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'access_token': asaasApiKey,
-          },
-          body: JSON.stringify({
-            customer: asaasCustomerId,
-            billingType: 'CREDIT_CARD',
-            value: planPrice,
-            nextDueDate: nextDueDate.toISOString().split('T')[0], // Next billing cycle
-            cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
-            description: `Assinatura Recorrente ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
-            creditCardToken: tokenData.creditCardToken,
-            externalReference: `${externalReference}_recurring`
-            // NOTE: Removed chargeNow - we already handled the first payment
-          })
-        });
-
-        if (!subscriptionResponse.ok) {
-          const error = await subscriptionResponse.text();
-          console.error('[TRANSPARENT-CHECKOUT] ❌ Erro ao criar subscription:', error);
-          throw new Error(`Failed to create subscription: ${error}`);
-        }
-
-        const subscription = await subscriptionResponse.json();
-        console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura recorrente criada:', subscription.id);
-
-        // Save subscription in database with PENDING status
-        await supabase.from('poupeja_subscriptions').insert({
-          user_id: user.id,
-          asaas_subscription_id: subscription.id,
-          asaas_customer_id: asaasCustomerId,
-          plan_type: planType,
-          status: 'pending', // Will be updated to 'active' by PAYMENT_CONFIRMED webhook
-          current_period_start: new Date().toISOString(),
-          current_period_end: nextDueDate.toISOString(),
-          payment_processor: 'asaas'
-        });
-
-        result = {
-          success: true,
-          type: 'new_subscription_hybrid',
-          subscriptionId: subscription.id,
-          paymentId: payment.id,
-          status: 'pending',
-          message: 'Immediate payment and subscription created successfully'
-        };
-        
-        console.log('[TRANSPARENT-CHECKOUT] ✅ Estratégia híbrida com cartão salvo implementada');
+      if (!subscriptionResponse.ok) {
+        const error = await subscriptionResponse.text();
+        throw new Error(`Failed to create subscription: ${error}`);
       }
 
-      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura salva - aguardando PAYMENT_CONFIRMED');
+      const subscription = await subscriptionResponse.json();
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura criada:', subscription.id);
+
+      // Save subscription in database with PENDING status
+      await supabase.from('poupeja_subscriptions').insert({
+        user_id: user.id,
+        asaas_subscription_id: subscription.id,
+        asaas_customer_id: asaasCustomerId,
+        plan_type: planType,
+        status: 'pending', // CRÍTICO: Aguardar confirmação do webhook
+        current_period_start: new Date().toISOString(),
+        current_period_end: subscription.nextDueDate,
+        payment_processor: 'asaas'
+      });
+
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura PENDENTE criada - aguardando confirmação');
+
+      result = {
+        success: true,
+        type: 'new_subscription',
+        subscriptionId: subscription.id,
+        status: 'pending'
+      };
+      
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Nova assinatura processada');
     }
 
     console.log('[TRANSPARENT-CHECKOUT] ✅ Checkout transparente concluído com sucesso');

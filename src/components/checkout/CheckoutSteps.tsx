@@ -22,7 +22,7 @@ export const CheckoutSteps: React.FC<CheckoutStepsProps> = ({ currentStep }) => 
     <div className="w-full">
       <div className="flex justify-between items-center">
         {steps.map((step, index) => (
-          <div key={step.number} className="contents">
+          <React.Fragment key={step.number}>
             <div className="flex flex-col items-center">
               <div
                 className={`
@@ -80,7 +80,7 @@ export const CheckoutSteps: React.FC<CheckoutStepsProps> = ({ currentStep }) => 
                 `}
               />
             )}
-          </div>
+          </React.Fragment>
         ))}
       </div>
     </div>

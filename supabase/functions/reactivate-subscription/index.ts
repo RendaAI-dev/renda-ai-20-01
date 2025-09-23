@@ -108,6 +108,32 @@ serve(async (req) => {
 
     console.log(`[REACTIVATE-SUBSCRIPTION] Cliente Asaas encontrado: ${asaasCustomerData.asaas_customer_id}`);
 
+    // Buscar cartão tokenizado padrão do usuário
+    const { data: tokenizedCard } = await supabase
+      .from('poupeja_tokenized_cards')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!tokenizedCard) {
+      throw new Error('Nenhum cartão de crédito encontrado. Cadastre um cartão antes de reativar a assinatura.');
+    }
+
+    // Verificar se cartão não está expirado
+    const [expiryMonth, expiryYear] = tokenizedCard.expires_at.split('/');
+    const currentDate = new Date();
+    const expiryDate = new Date(2000 + parseInt(expiryYear), parseInt(expiryMonth) - 1);
+    
+    if (expiryDate < currentDate) {
+      throw new Error('Cartão de crédito expirado. Cadastre um novo cartão antes de reativar a assinatura.');
+    }
+
+    console.log(`[REACTIVATE-SUBSCRIPTION] Cartão tokenizado encontrado: ****${tokenizedCard.credit_card_last_four}`);
+
     // Buscar valor do plano atual
     const { data: planData } = await supabase
       .from('poupeja_plans')
@@ -120,7 +146,7 @@ serve(async (req) => {
 
     console.log(`[REACTIVATE-SUBSCRIPTION] Valor do plano ${cancelledSubscription.plan_type}: R$ ${planValue}`);
 
-    // Criar nova assinatura no Asaas
+    // Criar nova assinatura no Asaas com cartão de crédito
     const subscriptionData = {
       customer: asaasCustomerData.asaas_customer_id,
       billingType: 'CREDIT_CARD',
@@ -128,7 +154,14 @@ serve(async (req) => {
       cycle: cancelledSubscription.plan_type === 'monthly' ? 'MONTHLY' : 'YEARLY',
       description: cancelledSubscription.plan_type === 'monthly' ? 'Reativação - Assinatura Mensal' : 'Reativação - Assinatura Anual',
       nextDueDate: new Date().toISOString().split('T')[0], // Cobrança imediata
-      externalReference: `reactivation_${user.id}_${cancelledSubscription.plan_type}_${Date.now()}`
+      externalReference: `reactivation_${user.id}_${cancelledSubscription.plan_type}_${Date.now()}`,
+      creditCard: {
+        creditCardToken: tokenizedCard.credit_card_token,
+        holderName: tokenizedCard.holder_name,
+        number: tokenizedCard.credit_card_number,
+        expiryMonth: expiryMonth,
+        expiryYear: expiryYear
+      }
     };
 
     console.log('[REACTIVATE-SUBSCRIPTION] Criando nova assinatura:', JSON.stringify(subscriptionData, null, 2));

@@ -236,7 +236,7 @@ const AsaasManageSubscriptionButton: React.FC = () => {
         variant="outline"
         onClick={handleManageSubscription}
         disabled={isLoading}
-        className="flex items-center gap-2"
+        className="w-full flex items-center justify-center gap-2"
       >
         {isLoading ? (
           <Loader2 className="w-4 h-4 animate-spin" />

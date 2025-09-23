@@ -14,26 +14,43 @@ serve(async (req) => {
   }
 
   try {
-    console.log('[ASAAS-WEBHOOK] Processando webhook...');
+    console.log('[ASAAS-WEBHOOK] Método:', req.method, 'URL:', req.url);
+    console.log('[ASAAS-WEBHOOK] Headers recebidos:', Object.fromEntries(req.headers.entries()));
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // VALIDAÇÃO OBRIGATÓRIA DO TOKEN
-    const accessToken = req.headers.get('asaas-access-token');
-    console.log('[ASAAS-WEBHOOK] Headers recebidos:', {
-      'asaas-access-token': accessToken,
+    // Para GET requests (health checks), responder sem validação
+    if (req.method === 'GET') {
+      console.log('[ASAAS-WEBHOOK] ✅ Health check - GET request');
+      return new Response('Webhook ok', {
+        status: 200,
+        headers: corsHeaders
+      });
+    }
+
+    // VALIDAÇÃO DE TOKEN PARA POST REQUESTS
+    // Tentar múltiplas fontes de token
+    let accessToken = req.headers.get('asaas-access-token') ||
+                     req.headers.get('access_token') ||
+                     req.headers.get('authorization')?.replace('Bearer ', '') ||
+                     new URL(req.url).searchParams.get('access_token');
+
+    console.log('[ASAAS-WEBHOOK] Token encontrado:', {
+      'asaas-access-token': req.headers.get('asaas-access-token'),
+      'access_token': req.headers.get('access_token'), 
       'authorization': req.headers.get('authorization'),
-      'user-agent': req.headers.get('user-agent')
+      'query_param': new URL(req.url).searchParams.get('access_token'),
+      'token_final': accessToken
     });
 
     if (!accessToken) {
-      console.error('[ASAAS-WEBHOOK] ❌ Token ausente no header asaas-access-token');
+      console.error('[ASAAS-WEBHOOK] ❌ Token ausente em todas as fontes');
       return new Response(JSON.stringify({
-        error: 'Missing authorization header',
-        required_header: 'asaas-access-token'
+        error: 'Missing authorization token',
+        supported_sources: ['asaas-access-token header', 'access_token header', 'Authorization Bearer', 'access_token query param']
       }), {
         status: 401,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }

@@ -296,7 +296,21 @@ const PlanChangeCheckoutPage = () => {
 
       if (error) {
         console.error('[PLAN-CHANGE-CHECKOUT] Erro na Edge Function:', error);
-        throw new Error(`Edge Function Error: ${error.message || JSON.stringify(error)}`);
+        
+        // Tratamento específico para diferentes tipos de erro
+        let errorMessage = "Erro ao processar mudança de plano";
+        
+        if (error.message?.includes('fetch')) {
+          errorMessage = "Erro de conexão com o servidor. Verifique sua internet e tente novamente.";
+        } else if (error.message?.includes('401') || error.message?.includes('authentication')) {
+          errorMessage = "Sessão expirada. Faça login novamente.";
+        } else if (error.message?.includes('404')) {
+          errorMessage = "Serviço temporariamente indisponível. Tente novamente em alguns minutos.";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       if (data?.success) {
@@ -324,7 +338,9 @@ const PlanChangeCheckoutPage = () => {
       
       let errorMessage = "Ocorreu um erro ao alterar o plano. Tente novamente.";
       
-      if (error.message?.includes('Edge Function Error')) {
+      if (error.message?.includes('Failed to fetch')) {
+        errorMessage = "Erro de conexão: Verifique se a Edge Function 'change-plan-checkout' está deployada no Supabase.";
+      } else if (error.message?.includes('Edge Function Error')) {
         errorMessage = "Erro na comunicação com o servidor. Verifique sua conexão e tente novamente.";
       } else if (error.message?.includes('Failed to send a request')) {
         errorMessage = "Não foi possível conectar ao servidor. Verifique se a Edge Function foi deployada.";

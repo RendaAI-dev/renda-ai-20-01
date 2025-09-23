@@ -80,10 +80,18 @@ serve(async (req) => {
     }
 
     // Buscar configurações do Asaas
-    const { data: settings } = await supabase
+    console.log('[CHANGE-PLAN-CHECKOUT] Buscando configurações do Asaas...');
+    const { data: settings, error: settingsError } = await supabase
       .from('poupeja_settings')
       .select('key, value')
       .eq('category', 'asaas');
+
+    if (settingsError) {
+      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao buscar configurações:', settingsError);
+      throw new Error(`Erro ao buscar configurações: ${settingsError.message}`);
+    }
+
+    console.log('[CHANGE-PLAN-CHECKOUT] Configurações encontradas:', settings?.length || 0);
 
     const asaasConfig = settings?.reduce((acc, setting) => {
       acc[setting.key] = setting.value;
@@ -92,6 +100,12 @@ serve(async (req) => {
 
     const apiKey = asaasConfig.api_key;
     const environment = asaasConfig.environment || 'sandbox';
+    
+    console.log('[CHANGE-PLAN-CHECKOUT] Configuração Asaas:', {
+      hasApiKey: !!apiKey,
+      environment,
+      configKeys: Object.keys(asaasConfig)
+    });
     
     if (!apiKey) {
       throw new Error('Chave API do Asaas não configurada');
@@ -102,13 +116,17 @@ serve(async (req) => {
       : 'https://sandbox.asaas.com/api/v3';
 
     // Buscar preços das configurações públicas
-    const { data: priceData } = await supabase.functions.invoke('get-public-settings', {
+    console.log('[CHANGE-PLAN-CHECKOUT] Buscando configurações de preço...');
+    const { data: priceData, error: priceError } = await supabase.functions.invoke('get-public-settings', {
       body: { category: 'pricing' }
     });
     
-    if (!priceData?.success) {
+    if (!priceData?.success || priceError) {
+      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao buscar preços:', priceError || 'Resposta inválida');
       throw new Error('Erro ao buscar configurações de preço');
     }
+
+    console.log('[CHANGE-PLAN-CHECKOUT] Dados de preço recebidos:', priceData);
 
     const pricing = priceData.settings?.pricing || {};
     const monthlyPrice = pricing.monthly_price?.value || pricing.plan_price_monthly?.value || 49.9;
@@ -120,7 +138,8 @@ serve(async (req) => {
     console.log('[CHANGE-PLAN-CHECKOUT] Configurações do novo plano:', { 
       newPlanType, 
       newPlanPrice, 
-      newPlanCycle 
+      newPlanCycle,
+      precosMapeados: { monthlyPrice, annualPrice }
     });
 
     // PASSO 1: Cancelar assinatura atual no Asaas
@@ -217,8 +236,52 @@ serve(async (req) => {
 
     const newSubscription = await createSubscriptionResponse.json();
     console.log('[CHANGE-PLAN-CHECKOUT] ✅ Nova assinatura criada:', newSubscription.id);
+    console.log('[CHANGE-PLAN-CHECKOUT] Dados da nova assinatura:', {
+      id: newSubscription.id,
+      status: newSubscription.status,
+      nextDueDate: newSubscription.nextDueDate,
+      value: newSubscription.value,
+      cycle: newSubscription.cycle
+    });
+
+    // Validar se a assinatura foi criada com sucesso
+    if (!newSubscription.id || !newSubscription.nextDueDate) {
+      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Dados da assinatura incompletos:', newSubscription);
+      throw new Error('Assinatura criada com dados incompletos');
+    }
+
+    // Converter nextDueDate para formato ISO correto
+    let periodEndDate: string;
+    try {
+      // Se nextDueDate está em formato YYYY-MM-DD, converter para ISO timestamp 
+      if (newSubscription.nextDueDate.includes('T')) {
+        periodEndDate = newSubscription.nextDueDate;
+      } else {
+        // Adicionar horário para o final do dia
+        periodEndDate = new Date(newSubscription.nextDueDate + 'T23:59:59.999Z').toISOString();
+      }
+      console.log('[CHANGE-PLAN-CHECKOUT] Data convertida:', { original: newSubscription.nextDueDate, converted: periodEndDate });
+    } catch (dateError) {
+      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro na conversão de data:', dateError);
+      // Usar data atual + período como fallback
+      const fallbackDate = new Date();
+      if (newPlanType === 'monthly') {
+        fallbackDate.setMonth(fallbackDate.getMonth() + 1);
+      } else {
+        fallbackDate.setFullYear(fallbackDate.getFullYear() + 1);
+      }
+      periodEndDate = fallbackDate.toISOString();
+      console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Usando data fallback:', periodEndDate);
+    }
 
     // PASSO 4: Atualizar assinatura existente no banco de dados
+    console.log('[CHANGE-PLAN-CHECKOUT] Atualizando assinatura no banco com:', {
+      asaas_subscription_id: newSubscription.id,
+      plan_type: newPlanType,
+      status: 'active',
+      current_period_end: periodEndDate
+    });
+
     const { error: updateError } = await supabase
       .from('poupeja_subscriptions')
       .update({
@@ -226,7 +289,7 @@ serve(async (req) => {
         plan_type: newPlanType,
         status: 'active',
         current_period_start: new Date().toISOString(),
-        current_period_end: newSubscription.nextDueDate,
+        current_period_end: periodEndDate,
         cancel_at_period_end: false,
         updated_at: new Date().toISOString()
       })
@@ -234,6 +297,28 @@ serve(async (req) => {
 
     if (updateError) {
       console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao atualizar assinatura:', updateError);
+      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Detalhes do erro:', {
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint
+      });
+      
+      // Tentar rollback - cancelar a nova assinatura criada
+      try {
+        console.log('[CHANGE-PLAN-CHECKOUT] 🔄 Tentando rollback - cancelando nova assinatura...');
+        await fetch(`${asaasUrl}/subscriptions/${newSubscription.id}`, {
+          method: 'DELETE',
+          headers: {
+            'access_token': apiKey,
+            'Content-Type': 'application/json'
+          }
+        });
+        console.log('[CHANGE-PLAN-CHECKOUT] ✅ Rollback concluído');
+      } catch (rollbackError) {
+        console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro no rollback:', rollbackError);
+      }
+      
       throw new Error(`Erro ao atualizar assinatura: ${updateError.message}`);
     }
 

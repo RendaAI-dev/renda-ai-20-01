@@ -218,38 +218,26 @@ serve(async (req) => {
     const newSubscription = await createSubscriptionResponse.json();
     console.log('[CHANGE-PLAN-CHECKOUT] ✅ Nova assinatura criada:', newSubscription.id);
 
-    // PASSO 4: Atualizar assinatura no banco de dados (marcar antiga como cancelada)
-    const { error: cancelDbError } = await supabase
+    // PASSO 4: Atualizar assinatura existente no banco de dados
+    const { error: updateError } = await supabase
       .from('poupeja_subscriptions')
       .update({
-        status: 'canceled',
-        cancelled_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', currentSubscription.id);
-
-    if (cancelDbError) {
-      console.error('[CHANGE-PLAN-CHECKOUT] Erro ao atualizar assinatura cancelada:', cancelDbError);
-    }
-
-    // PASSO 5: Inserir nova assinatura no banco de dados
-    const { error: insertError } = await supabase
-      .from('poupeja_subscriptions')
-      .insert({
-        user_id: user.id,
         asaas_subscription_id: newSubscription.id,
-        asaas_customer_id: asaasCustomer.asaas_customer_id,
         plan_type: newPlanType,
         status: 'active',
         current_period_start: new Date().toISOString(),
         current_period_end: newSubscription.nextDueDate,
-        payment_processor: 'asaas'
-      });
+        cancel_at_period_end: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', currentSubscription.id);
 
-    if (insertError) {
-      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao inserir nova assinatura:', insertError);
-      throw new Error(`Erro ao salvar nova assinatura: ${insertError.message}`);
+    if (updateError) {
+      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao atualizar assinatura:', updateError);
+      throw new Error(`Erro ao atualizar assinatura: ${updateError.message}`);
     }
+
+    console.log('[CHANGE-PLAN-CHECKOUT] ✅ Assinatura atualizada no banco de dados');
 
     console.log('[CHANGE-PLAN-CHECKOUT] ✅ Mudança de plano concluída com sucesso');
 

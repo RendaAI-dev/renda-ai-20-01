@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import { getPlanTypeFromPriceId } from '@/utils/subscriptionUtils';
 import { useBrandingConfig } from '@/hooks/useBrandingConfig';
+import { usePreferences } from '@/contexts/PreferencesContext';
 import { CPFInput } from '@/components/common/CPFInput';
 import { CEPInput } from '@/components/common/CEPInput';
 import { AddressDisplay } from '@/components/common/AddressDisplay';
@@ -17,6 +18,7 @@ const RegisterWithPlanPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = usePreferences();
   const { companyName, logoUrl, logoAltText } = useBrandingConfig();
 
   const [fullName, setFullName] = useState('');
@@ -323,7 +325,20 @@ const RegisterWithPlanPage = () => {
             />
           </div>
 
-          <Button 
+          <div className="text-center text-sm text-muted-foreground mt-4 mb-4">
+            <p>
+              {t('auth.termsAgreement')}{' '}
+              <Link to="/terms" className="text-primary hover:underline">
+                {t('auth.termsOfUse')}
+              </Link>
+              {' '}{t('auth.andThe')}{' '}
+              <Link to="/privacy" className="text-primary hover:underline">
+                {t('auth.privacyPolicy')}
+              </Link>
+            </p>
+          </div>
+
+          <Button
             type="submit" 
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
             disabled={isLoading}

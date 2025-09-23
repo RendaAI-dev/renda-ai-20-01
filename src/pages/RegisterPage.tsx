@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getPlanTypeFromPriceId } from '@/utils/subscriptionUtils';
 import { useBrandingConfig } from '@/hooks/useBrandingConfig';
 import { useNewPlanConfig } from '@/hooks/useNewPlanConfig';
+import { usePreferences } from '@/contexts/PreferencesContext';
 import { CPFInput } from '@/components/common/CPFInput';
 import { CEPInput } from '@/components/common/CEPInput';
 import { AddressDisplay } from '@/components/common/AddressDisplay';
@@ -18,6 +19,7 @@ const RegisterPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = usePreferences();
   const { companyName, logoUrl, logoAltText } = useBrandingConfig();
   const { config } = useNewPlanConfig();
 
@@ -493,6 +495,19 @@ const RegisterPage = () => {
               onChange={(e) => setPassword(e.target.value)}
               className="mt-1"
             />
+          </div>
+
+          <div className="text-center text-sm text-muted-foreground mt-4">
+            <p>
+              {t('auth.termsAgreement')}{' '}
+              <Link to="/terms" className="text-primary hover:underline">
+                {t('auth.termsOfUse')}
+              </Link>
+              {' '}{t('auth.andThe')}{' '}
+              <Link to="/privacy" className="text-primary hover:underline">
+                {t('auth.privacyPolicy')}
+              </Link>
+            </p>
           </div>
 
           <div>

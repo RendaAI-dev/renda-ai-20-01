@@ -33,7 +33,7 @@ serve(async (req) => {
     const category = url.searchParams.get("category");
     
     // Only allow access to public categories
-    const publicCategories = ["pricing", "branding", "contact"];
+    const publicCategories = ["pricing", "branding", "contact", "legal"];
     
     let query = supabaseClient
       .from("poupeja_settings")

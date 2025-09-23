@@ -75,22 +75,42 @@ serve(async (req) => {
       });
     }
 
-    // Descriptografar token se necessário (Base64 para compatibilidade)
+    // Lógica melhorada de descriptografia com fallback
     let expectedToken = webhookTokenSetting.value;
     if (webhookTokenSetting.encrypted) {
       try {
-        expectedToken = atob(expectedToken);
+        // Verificar se o valor realmente parece ser Base64
+        const isBase64 = /^[A-Za-z0-9+/]+=*$/.test(webhookTokenSetting.value) && 
+                         webhookTokenSetting.value.length % 4 === 0;
+        
+        if (isBase64) {
+          expectedToken = atob(webhookTokenSetting.value);
+          console.log('[ASAAS-WEBHOOK] 🔓 Token descriptografado com sucesso');
+        } else {
+          // Token não está em Base64, usar diretamente
+          expectedToken = webhookTokenSetting.value;
+          console.log('[ASAAS-WEBHOOK] ⚠️ Token marcado como encrypted mas não é Base64, usando diretamente');
+        }
       } catch (error) {
-        console.error('[ASAAS-WEBHOOK] Erro ao descriptografar token:', error.message);
+        // Se falhar a descriptografia, tentar usar o valor direto
+        console.warn('[ASAAS-WEBHOOK] ⚠️ Falha na descriptografia, usando token diretamente:', error.message);
+        expectedToken = webhookTokenSetting.value;
       }
     }
+
+    console.log('[ASAAS-WEBHOOK] 🔍 Comparação de tokens:', {
+      received: accessToken,
+      expected: expectedToken,
+      encrypted_flag: webhookTokenSetting.encrypted,
+      tokens_match: accessToken === expectedToken
+    });
 
     // Validar token
     if (accessToken !== expectedToken) {
       console.error('[ASAAS-WEBHOOK] ❌ Token inválido:', {
         received: accessToken,
         expected: expectedToken,
-        match: accessToken === expectedToken
+        match: false
       });
       return new Response(JSON.stringify({
         error: 'Invalid authorization token'

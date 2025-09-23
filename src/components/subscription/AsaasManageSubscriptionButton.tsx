@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { CreditCard, Loader2, Zap, XCircle } from 'lucide-react';
+import { CreditCard, Loader2, Zap, XCircle, RotateCcw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -60,9 +60,11 @@ const AsaasManageSubscriptionButton: React.FC = () => {
   const { hasActiveSubscription, checkSubscription } = useSubscription();
   const [isLoading, setIsLoading] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isReactivating, setIsReactivating] = useState(false);
   const [portalData, setPortalData] = useState<PortalData | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [reactivateDialogOpen, setReactivateDialogOpen] = useState(false);
   const [planChangeOpen, setPlanChangeOpen] = useState(false);
   const [updateCardOnlyOpen, setUpdateCardOnlyOpen] = useState(false);
   const [updateCardCancelOverdueOpen, setUpdateCardCancelOverdueOpen] = useState(false);
@@ -131,6 +133,39 @@ const AsaasManageSubscriptionButton: React.FC = () => {
       toast.error(error.message || 'Erro ao cancelar assinatura');
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleReactivateSubscription = async () => {
+    setIsReactivating(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('reactivate-subscription');
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Erro ao reativar assinatura');
+      }
+      
+      toast.success(data.message || 'Assinatura reativada! Complete o pagamento.');
+      setReactivateDialogOpen(false);
+      
+      // Abrir URL da fatura em nova aba
+      if (data.invoiceUrl) {
+        window.open(data.invoiceUrl, '_blank');
+      }
+      
+      // Atualizar contexto
+      await checkSubscription();
+      
+    } catch (error: any) {
+      console.error('Erro ao reativar assinatura:', error);
+      toast.error(error.message || 'Erro ao reativar assinatura');
+    } finally {
+      setIsReactivating(false);
     }
   };
 
@@ -308,8 +343,21 @@ const AsaasManageSubscriptionButton: React.FC = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 gap-3">
+                    {/* Botão de Reativação - só mostra se está cancelada */}
+                    {portalData?.subscription.cancel_at_period_end && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setReactivateDialogOpen(true)}
+                        disabled={isLoading || isReactivating}
+                        className="justify-start border-green-200 text-green-700 hover:bg-green-50"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        Reativar Assinatura
+                      </Button>
+                    )}
+
                     {/* Botão para usuários em dia */}
-                    {!isSubscriptionOverdue && !hasOverduePayments && (
+                    {!isSubscriptionOverdue && !hasOverduePayments && !portalData?.subscription.cancel_at_period_end && (
                       <Button
                         variant="outline"
                         onClick={() => setUpdateCardOnlyOpen(true)}
@@ -322,7 +370,7 @@ const AsaasManageSubscriptionButton: React.FC = () => {
                     )}
                     
                     {/* Botão para usuários com dívidas */}
-                    {(isSubscriptionOverdue || hasOverduePayments) && (
+                    {(isSubscriptionOverdue || hasOverduePayments) && !portalData?.subscription.cancel_at_period_end && (
                       <Button
                         variant="outline"
                         onClick={() => setUpdateCardCancelOverdueOpen(true)}
@@ -334,15 +382,17 @@ const AsaasManageSubscriptionButton: React.FC = () => {
                       </Button>
                     )}
 
-                    <Button
-                      variant="outline"
-                      onClick={() => setPlanChangeOpen(true)}
-                      disabled={isLoading}
-                      className="justify-start"
-                    >
-                      <Zap className="w-4 h-4 mr-2" />
-                      Alterar Plano (Upgrade/Downgrade)
-                    </Button>
+                    {!portalData?.subscription.cancel_at_period_end && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setPlanChangeOpen(true)}
+                        disabled={isLoading}
+                        className="justify-start"
+                      >
+                        <Zap className="w-4 h-4 mr-2" />
+                        Alterar Plano (Upgrade/Downgrade)
+                      </Button>
+                    )}
 
                     {/* Botão de Cancelamento - só mostra se não está cancelada */}
                     {!portalData?.subscription.cancel_at_period_end && (
@@ -360,7 +410,12 @@ const AsaasManageSubscriptionButton: React.FC = () => {
                   
                   <div className="text-sm text-muted-foreground">
                     <p>
-                      {!isSubscriptionOverdue && !hasOverduePayments ? (
+                      {portalData?.subscription.cancel_at_period_end ? (
+                        <>
+                          <strong>🔄 Assinatura cancelada:</strong> Reative criando uma nova assinatura com cobrança imediata<br/>
+                          <strong>💳 Nova cobrança:</strong> O valor será cobrado no cartão assim que confirmar
+                        </>
+                      ) : !isSubscriptionOverdue && !hasOverduePayments ? (
                         <>
                           <strong>✅ Conta em dia:</strong> Atualize seu cartão de forma simples para futuras cobranças<br/>
                           <strong>📈 Upgrade/Downgrade:</strong> Altere seu plano com cobrança proporcional
@@ -439,6 +494,52 @@ const AsaasManageSubscriptionButton: React.FC = () => {
                 </>
               ) : (
                 'Sim, Cancelar Assinatura'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de Confirmação de Reativação */}
+      <AlertDialog open={reactivateDialogOpen} onOpenChange={setReactivateDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reativar Assinatura</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Deseja reativar sua assinatura? Uma nova assinatura será criada e você será cobrado imediatamente.
+              </p>
+              {portalData && (
+                <div className="bg-green-50 p-3 rounded-lg text-sm">
+                  <p className="font-medium text-green-800 mb-1">
+                    ✅ Detalhes da Reativação:
+                  </p>
+                  <ul className="text-green-700 space-y-1">
+                    <li>• Nova assinatura {portalData.subscription.plan_type === 'monthly' ? 'mensal' : 'anual'}</li>
+                    <li>• Cobrança imediata no seu cartão de crédito</li>
+                    <li>• Acesso liberado após confirmação do pagamento</li>
+                    <li>• Nova data de vencimento será definida</li>
+                  </ul>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isReactivating}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleReactivateSubscription}
+              disabled={isReactivating}
+              className="bg-green-600 text-white hover:bg-green-700"
+            >
+              {isReactivating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Reativando...
+                </>
+              ) : (
+                'Sim, Reativar Assinatura'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

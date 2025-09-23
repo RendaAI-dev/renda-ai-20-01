@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -11,7 +12,7 @@ import { SavedCardSelector } from '@/components/checkout/SavedCardSelector';
 import { CheckoutSteps } from '@/components/checkout/CheckoutSteps';
 import { CheckoutSummary } from '@/components/checkout/CheckoutSummary';
 import { PlanChangeSummary } from '@/components/checkout/PlanChangeSummary';
-import { Settings } from 'lucide-react';
+import { Settings, AlertTriangle } from 'lucide-react';
 import { PlanChangeDiagnostic } from '@/components/admin/PlanChangeDiagnostic';
 
 interface CreditCardData {
@@ -43,6 +44,7 @@ const PlanChangeCheckoutPage = () => {
   const [selectedCardToken, setSelectedCardToken] = useState<string | null>(null);
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [functionAvailable, setFunctionAvailable] = useState<boolean | null>(null);
   const [creditCardData, setCreditCardData] = useState<CreditCardData>({
     number: '',
     expiryMonth: '',
@@ -52,11 +54,39 @@ const PlanChangeCheckoutPage = () => {
     holderCpf: ''
   });
 
+  // Verificar se a Edge Function está disponível
+  const checkFunctionAvailability = async (): Promise<boolean> => {
+    try {
+      console.log('[FUNCTION-CHECK] Verificando disponibilidade da Edge Function...');
+      
+      const { error } = await supabase.functions.invoke('change-plan-checkout', {
+        body: { test: true }
+      });
+      
+      if (error && (error.message?.includes('Failed to fetch') || error.message?.includes('net::ERR_FAILED'))) {
+        console.log('[FUNCTION-CHECK] Função não está deployada:', error.message);
+        setFunctionAvailable(false);
+        return false;
+      }
+      
+      console.log('[FUNCTION-CHECK] Função está disponível');
+      setFunctionAvailable(true);
+      return true;
+    } catch (error) {
+      console.error('[FUNCTION-CHECK] Erro ao verificar função:', error);
+      setFunctionAvailable(false);
+      return false;
+    }
+  };
+
   // Get current user on mount
   useEffect(() => {
     const getCurrentUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUser(user);
+      
+      // Verificar disponibilidade da função
+      await checkFunctionAvailability();
     };
     getCurrentUser();
   }, []);
@@ -157,12 +187,50 @@ const PlanChangeCheckoutPage = () => {
   }, [subscription, navigate, toast]);
 
   // Mostrar loading
-  if (dataLoading || configLoading || !checkoutData) {
+  if (dataLoading || configLoading || !checkoutData || functionAvailable === null) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando dados da mudança...</p>
+          <p className="text-muted-foreground">
+            {functionAvailable === null ? 'Verificando disponibilidade do sistema...' : 'Carregando dados da mudança...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se a função não está disponível, mostrar alerta
+  if (functionAvailable === false) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <Alert className="border-destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Sistema Indisponível</AlertTitle>
+            <AlertDescription className="mt-2 space-y-2">
+              <p>A função de mudança de plano não está disponível no momento.</p>
+              <p className="text-sm text-muted-foreground">
+                Erro técnico: A Edge Function 'change-plan-checkout' não está deployada no Supabase.
+              </p>
+              <div className="mt-4 p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium mb-2">Para resolver:</p>
+                <ol className="text-sm space-y-1 list-decimal list-inside">
+                  <li>Acesse o painel do Supabase</li>
+                  <li>Vá para a seção "Edge Functions"</li>
+                  <li>Execute o deploy da função 'change-plan-checkout'</li>
+                </ol>
+              </div>
+            </AlertDescription>
+          </Alert>
+          <div className="mt-4 space-y-2">
+            <Button onClick={() => navigate('/plans')} className="w-full">
+              Voltar aos Planos
+            </Button>
+            <Button onClick={() => checkFunctionAvailability()} variant="outline" className="w-full">
+              Tentar Novamente
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -257,6 +325,17 @@ const PlanChangeCheckoutPage = () => {
   };
 
   const handleProcessPayment = async () => {
+    // Verificar disponibilidade da função antes de processar
+    const isAvailable = await checkFunctionAvailability();
+    if (!isAvailable) {
+      toast({
+        title: "Sistema Indisponível",
+        description: "🚀 A função de mudança de plano não está deployada. Acesse o painel do Supabase e execute o deploy das Edge Functions.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     // Validate payment method
     if (useNewCard && !validateCreditCard()) return;
     if (!useNewCard && !selectedCardToken) {
@@ -300,8 +379,8 @@ const PlanChangeCheckoutPage = () => {
         // Tratamento específico para diferentes tipos de erro
         let errorMessage = "Erro ao processar mudança de plano";
         
-        if (error.message?.includes('fetch')) {
-          errorMessage = "Erro de conexão com o servidor. Verifique sua internet e tente novamente.";
+        if (error.message?.includes('Failed to fetch') || error.message?.includes('net::ERR_FAILED')) {
+          errorMessage = "🚀 A Edge Function não está deployada ou acessível. Acesse o painel do Supabase e execute o deploy da função 'change-plan-checkout'.";
         } else if (error.message?.includes('401') || error.message?.includes('authentication')) {
           errorMessage = "Sessão expirada. Faça login novamente.";
         } else if (error.message?.includes('404')) {
@@ -338,10 +417,8 @@ const PlanChangeCheckoutPage = () => {
       
       let errorMessage = "Ocorreu um erro ao alterar o plano. Tente novamente.";
       
-      if (error.message === 'FUNCTION_NOT_DEPLOYED') {
-        errorMessage = "🚀 A função de mudança de plano precisa ser deployada. Por favor, acesse o painel do Supabase e execute o deploy das Edge Functions.";
-      } else if (error.message?.includes('Failed to fetch')) {
-        errorMessage = "Erro de conexão: A Edge Function 'change-plan-checkout' não está acessível. Verifique o deploy no Supabase.";
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('net::ERR_FAILED')) {
+        errorMessage = "🚀 A Edge Function não está deployada ou acessível. Acesse o painel do Supabase e execute o deploy da função 'change-plan-checkout'.";
       } else if (error.message?.includes('Edge Function Error')) {
         errorMessage = "Erro na comunicação com o servidor. Verifique sua conexão e tente novamente.";
       } else if (error.message?.includes('Failed to send a request')) {

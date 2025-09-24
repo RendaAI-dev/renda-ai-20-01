@@ -6,7 +6,6 @@ import { Progress } from '@/components/ui/progress';
 import { formatCurrency } from '@/utils/transactionUtils';
 import { Goal } from '@/types';
 import { usePreferences } from '@/contexts/PreferencesContext';
-import { motion } from 'framer-motion';
 
 interface GoalNavigationProps {
   goals: Goal[];
@@ -43,12 +42,7 @@ const GoalNavigation: React.FC<GoalNavigationProps> = ({
   };
   
   return (
-    <motion.div 
-      className="p-4 bg-card border rounded-lg shadow-sm"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <div className="p-4 bg-card border rounded-lg shadow-sm animate-fade-in">
       <div className="flex items-center justify-between mb-2">
         <h3 className="font-medium">{t('goals.progress')}</h3>
         
@@ -94,7 +88,7 @@ const GoalNavigation: React.FC<GoalNavigationProps> = ({
           </span>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

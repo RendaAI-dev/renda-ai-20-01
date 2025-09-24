@@ -3,7 +3,6 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/contexts/PreferencesContext';
-import { motion } from 'framer-motion';
 
 interface StatCardProps {
   title: string;
@@ -26,10 +25,7 @@ const StatCard: React.FC<StatCardProps> = ({
   const { t } = usePreferences();
   
   return (
-    <motion.div
-      whileHover={{ y: -5 }}
-      transition={{ duration: 0.3 }}
-    >
+    <div className="animate-fade-in hover-scale">
       <Card className={cn("p-6 overflow-hidden relative", className)}>
         <div className="flex justify-between items-start">
           <div>
@@ -55,7 +51,7 @@ const StatCard: React.FC<StatCardProps> = ({
         {/* Decorative element */}
         <div className="absolute -bottom-8 -right-8 w-24 h-24 rounded-full bg-white/10" />
       </Card>
-    </motion.div>
+    </div>
   );
 };
 

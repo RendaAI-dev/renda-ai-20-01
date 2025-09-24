@@ -5,7 +5,6 @@ import { Plus, TrendingUp, TrendingDown, Target, Calendar } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { usePreferences } from '@/contexts/PreferencesContext';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface QuickActionsMenuProps {
   onAddTransaction: (type: 'income' | 'expense') => void;
@@ -93,7 +92,7 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({
         <PopoverTrigger asChild>
           <Button
             size="lg"
-            className="rounded-full w-16 h-16 shadow-lg hover:shadow-xl transition-all duration-200 bg-primary hover:bg-primary/90"
+            className="rounded-full w-16 h-16 shadow-lg hover:shadow-xl transition-all duration-200 bg-primary hover:bg-primary/90 hover-scale"
           >
             <Plus className="h-6 w-6" />
           </Button>
@@ -103,30 +102,26 @@ const QuickActionsMenu: React.FC<QuickActionsMenuProps> = ({
           align="center"
           side="top"
         >
-          <AnimatePresence>
-            {isOpen && (
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                className="space-y-1"
-              >
-                {menuItems.map((item, index) => (
-                  <motion.div key={item.label} variants={itemVariants}>
-                    <Button
-                      variant="ghost"
-                      onClick={item.action}
-                      className={`w-full justify-start gap-3 ${item.bgColor} ${item.color}`}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.label}</span>
-                    </Button>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {isOpen && (
+            <div className="space-y-1 animate-scale-in">
+              {menuItems.map((item, index) => (
+                <div 
+                  key={item.label}
+                  className="animate-fade-in"
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                >
+                  <Button
+                    variant="ghost"
+                    onClick={item.action}
+                    className={`w-full justify-start gap-3 ${item.bgColor} ${item.color} hover-scale`}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.label}</span>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </PopoverContent>
       </Popover>
     </div>

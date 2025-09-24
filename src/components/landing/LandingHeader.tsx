@@ -2,7 +2,6 @@
 import React, { useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { BrandLogo } from '@/components/common/BrandLogo';
 
 const LandingHeader = () => {
@@ -15,12 +14,7 @@ const LandingHeader = () => {
   }, []);
 
   return (
-    <motion.header 
-      className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b w-full"
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
+    <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b w-full animate-fade-in">
       <div className="w-full px-4 py-4 flex items-center justify-between max-w-none">
         <BrandLogo size="lg" showCompanyName={true} />
         
@@ -31,7 +25,7 @@ const LandingHeader = () => {
           <Button 
             asChild={false} 
             onClick={scrollToPlans}
-            className="hidden sm:inline-flex text-xs sm:text-sm md:text-base"
+            className="hidden sm:inline-flex text-xs sm:text-sm md:text-base hover-scale"
             size="sm"
           >
             Estou pronto para economizar
@@ -39,14 +33,14 @@ const LandingHeader = () => {
           <Button 
             asChild={false} 
             onClick={scrollToPlans}
-            className="inline-flex sm:hidden"
+            className="inline-flex sm:hidden hover-scale"
             size="sm"
           >
             Economizar
           </Button>
         </div>
       </div>
-    </motion.header>
+    </header>
   );
 };
 

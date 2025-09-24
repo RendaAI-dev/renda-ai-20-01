@@ -9,7 +9,6 @@ import GoalNavigation from '@/components/common/GoalNavigation';
 import DashboardCharts from '@/components/dashboard/DashboardCharts';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { Goal, ScheduledTransaction } from '@/types';
-import { motion } from 'framer-motion';
 
 interface DashboardContentProps {
   filteredTransactions: any[];
@@ -52,29 +51,29 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   return (
     <>
       {/* Alerta de despesas próximas */}
-      <motion.div variants={itemVariants}>
+      <div className="animate-fade-in">
         <UpcomingExpensesAlert 
           scheduledTransactions={scheduledTransactions} 
           onMarkAsPaid={onMarkScheduledAsPaid}
         />
-      </motion.div>
+      </div>
       
       {/* Progresso das metas */}
-      <motion.div variants={itemVariants}>
+      <div className="animate-fade-in">
         <GoalNavigation goals={goals} currentGoalIndex={currentGoalIndex} onGoalChange={onGoalChange} />
-      </motion.div>
+      </div>
 
       {/* Seção de gráficos */}
-      <motion.div variants={itemVariants}>
+      <div className="animate-fade-in">
         <DashboardCharts 
           currentMonth={currentMonth} 
           hideValues={hideValues}
           monthTransactions={filteredTransactions}
         />
-      </motion.div>
+      </div>
 
       {/* Transações recentes */}
-      <motion.div variants={itemVariants}>
+      <div className="animate-fade-in">
         <Card className="shadow-lg border-0">
           <CardContent className="p-6">
             <div className="flex justify-between items-center mb-6">
@@ -98,7 +97,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
             )}
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
     </>
   );
 };

@@ -22,7 +22,6 @@ import { Badge } from '@/components/ui/badge';
 import { useAppContext } from '@/contexts/AppContext';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
 import CategoryIcon from '../categories/CategoryIcon';
 import TransactionCard from './TransactionCard';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -112,12 +111,10 @@ const TransactionList: React.FC<TransactionListProps> = ({
             const iconColor = transaction.type === 'income' ? '#26DE81' : '#EF4444';
             
             return (
-              <motion.tr
+              <tr
                 key={transaction.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05, duration: 0.3 }}
-                className="group"
+                className="group animate-fade-in hover-card"
+                style={{ animationDelay: `${index * 0.05}s` }}
               >
                 <TableCell>
                   {transaction.type === 'income' ? (
@@ -199,7 +196,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
-              </motion.tr>
+              </tr>
             );
           })}
         </TableBody>

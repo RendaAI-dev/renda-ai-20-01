@@ -13,7 +13,6 @@ import {
 import { useAppContext } from '@/contexts/AppContext';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
 import CategoryIcon from '../categories/CategoryIcon';
 
 interface TransactionCardProps {
@@ -50,12 +49,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
   const isIncome = transaction.type === 'income';
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.3 }}
-      className="bg-card border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
-    >
+    <div className="bg-card border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow animate-fade-in hover-scale">
       {/* Header: Type Icon + Amount */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
@@ -143,7 +137,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
           </span>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

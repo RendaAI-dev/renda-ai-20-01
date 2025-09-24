@@ -7,7 +7,6 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { LayoutDashboard, Receipt, Settings, Crown, Plus, Target, Calendar, Shield, User, FileText, Tag } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface MobileNavBarProps {
   onAddTransaction?: (type: 'income' | 'expense') => void;
@@ -213,20 +212,26 @@ const MobileNavBar: React.FC<MobileNavBarProps> = ({
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-56 p-2 mb-2" align="center" side="top">
-                  <AnimatePresence>
-                    {isQuickActionsOpen && (
-                      <motion.div variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="space-y-1">
-                        {quickActionItems.map(quickItem => (
-                          <motion.div key={quickItem.label} variants={itemVariants}>
-                            <Button variant="ghost" onClick={quickItem.action} className={`w-full justify-start gap-3 ${quickItem.bgColor} ${quickItem.color}`}>
-                              <quickItem.icon className="h-4 w-4" />
-                              <span>{quickItem.label}</span>
-                            </Button>
-                          </motion.div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {isQuickActionsOpen && (
+                    <div className="space-y-1 animate-scale-in">
+                      {quickActionItems.map((quickItem, index) => (
+                        <div 
+                          key={quickItem.label}
+                          className="animate-fade-in"
+                          style={{ animationDelay: `${index * 0.05}s` }}
+                        >
+                          <Button 
+                            variant="ghost" 
+                            onClick={quickItem.action} 
+                            className={`w-full justify-start gap-3 ${quickItem.bgColor} ${quickItem.color} hover-scale`}
+                          >
+                            <quickItem.icon className="h-4 w-4" />
+                            <span>{quickItem.label}</span>
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </PopoverContent>
               </Popover>
             );

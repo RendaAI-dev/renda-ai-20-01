@@ -12,7 +12,6 @@ import { calculateTotalIncome, calculateTotalExpenses, calculateMonthlyFinancial
 import { useToast } from '@/components/ui/use-toast';
 import { markAsPaid } from '@/services/scheduledTransactionService';
 import { ScheduledTransaction } from '@/types';
-import { motion } from 'framer-motion';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -176,12 +175,7 @@ const Index = () => {
   return (
     <MainLayout title={t('dashboard.title')} onAddTransaction={handleAddTransaction}>
       <SubscriptionGuard feature="o dashboard completo">
-        <motion.div 
-          className="space-y-8 min-h-0"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
+        <div className="space-y-8 min-h-0 animate-fade-in">
           {/* Header com navegação de mês e toggle de visibilidade */}
           <DashboardHeader
             currentMonth={currentMonth}
@@ -192,7 +186,7 @@ const Index = () => {
           />
           
           {/* 3 Cards principais na mesma linha */}
-          <motion.div variants={itemVariants}>
+          <div className="animate-slide-up">
             <DashboardStatCards
               totalIncome={totalIncome}
               totalExpenses={totalExpenses}
@@ -200,7 +194,7 @@ const Index = () => {
               hideValues={hideValues}
               onNavigateToTransactionType={navigateToTransactionType}
             />
-          </motion.div>
+          </div>
 
           {/* Conteúdo do dashboard */}
           <DashboardContent
@@ -215,7 +209,7 @@ const Index = () => {
             onDeleteTransaction={handleDeleteTransaction}
             onMarkScheduledAsPaid={handleMarkScheduledAsPaid}
           />
-        </motion.div>
+        </div>
       </SubscriptionGuard>
 
       {/* Dialog do formulário de transação */}

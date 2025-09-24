@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Download, X, Smartphone, Zap, Shield, Wifi } from 'lucide-react';
@@ -24,32 +23,23 @@ const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
   const { companyName } = useBrandingConfig();
 
   return (
-    <AnimatePresence>
+    <>
       {isOpen && (
         <>
           {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 animate-fade-in"
             onClick={() => onDismiss(false)}
           />
           
           {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="fixed inset-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-md z-50"
-          >
+          <div className="fixed inset-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-md z-50 animate-scale-in">
             <Card className="relative bg-background/95 backdrop-blur-lg border shadow-2xl overflow-hidden">
               {/* Close button */}
               <Button
                 variant="ghost"
                 size="sm"
-                className="absolute top-3 right-3 z-10"
+                className="absolute top-3 right-3 z-10 hover-scale"
                 onClick={() => onDismiss(false)}
               >
                 <X className="h-4 w-4" />
@@ -103,7 +93,7 @@ const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
                   <Button
                     onClick={onInstall}
                     disabled={isInstalling}
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground hover-scale"
                   >
                     {isInstalling ? (
                       <>
@@ -122,7 +112,7 @@ const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
                     <Button
                       variant="outline"
                       onClick={() => onDismiss(false)}
-                      className="flex-1"
+                      className="flex-1 hover-scale"
                       size="sm"
                     >
                       Agora não
@@ -131,7 +121,7 @@ const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
                     <Button
                       variant="ghost"
                       onClick={() => onDismiss(true)}
-                      className="flex-1 text-xs"
+                      className="flex-1 text-xs hover-scale"
                       size="sm"
                     >
                       Não mostrar novamente
@@ -140,10 +130,10 @@ const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
                 </div>
               </div>
             </Card>
-          </motion.div>
+          </div>
         </>
       )}
-    </AnimatePresence>
+    </>
   );
 };
 

@@ -4,7 +4,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { formatCurrency } from '@/utils/transactionUtils';
 import { TrendingUp, TrendingDown, Wallet } from 'lucide-react';
 import { usePreferences } from '@/contexts/PreferencesContext';
-import { motion } from 'framer-motion';
 
 interface DashboardStatCardsProps {
   totalIncome: number;
@@ -37,15 +36,9 @@ const DashboardStatCards: React.FC<DashboardStatCardsProps> = ({
   };
 
   return (
-    <motion.div 
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6"
-      variants={itemVariants}
-    >
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 animate-fade-in">
       {/* Card do Saldo */}
-      <motion.div
-        whileHover={{ scale: 1.02, y: -4 }}
-        transition={{ duration: 0.2 }}
-      >
+      <div className="hover-scale">
         <Card className="relative overflow-hidden border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-primary via-primary/90 to-primary/80">
           <CardContent className="p-4 lg:p-6">
             <div className="text-center text-white relative z-10">
@@ -62,13 +55,10 @@ const DashboardStatCards: React.FC<DashboardStatCardsProps> = ({
             <div className="absolute -bottom-2 -right-2 w-12 h-12 lg:w-16 lg:h-16 bg-white/10 rounded-full" />
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
 
       {/* Card de Receita */}
-      <motion.div
-        whileHover={{ scale: 1.02, y: -4 }}
-        transition={{ duration: 0.2 }}
-      >
+      <div className="hover-scale">
         <Card 
           className="relative overflow-hidden border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20" 
           onClick={() => onNavigateToTransactionType('income')}
@@ -90,14 +80,10 @@ const DashboardStatCards: React.FC<DashboardStatCardsProps> = ({
             <div className="absolute -bottom-2 -right-2 w-12 h-12 lg:w-16 lg:h-16 bg-green-200/30 dark:bg-green-800/20 rounded-full" />
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
 
       {/* Card de Despesa */}
-      <motion.div
-        whileHover={{ scale: 1.02, y: -4 }}
-        transition={{ duration: 0.2 }}
-        className="sm:col-span-2 lg:col-span-1"
-      >
+      <div className="hover-scale sm:col-span-2 lg:col-span-1">
         <Card 
           className="relative overflow-hidden border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/20 dark:to-rose-950/20" 
           onClick={() => onNavigateToTransactionType('expense')}
@@ -119,8 +105,8 @@ const DashboardStatCards: React.FC<DashboardStatCardsProps> = ({
             <div className="absolute -bottom-2 -right-2 w-12 h-12 lg:w-16 lg:h-16 bg-red-200/30 dark:bg-red-800/20 rounded-full" />
           </CardContent>
         </Card>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 

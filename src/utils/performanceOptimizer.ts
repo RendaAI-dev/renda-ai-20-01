@@ -43,77 +43,174 @@ export const throttle = <T extends (...args: any[]) => any>(
   };
 };
 
-// Critical resource preloader - otimizado para landing
+// Ultra-fast critical resource preloader
 export const preloadCriticalResources = () => {
-  // Preload critical fonts mais agressivo
-  const fontLink = document.createElement('link');
-  fontLink.rel = 'preload';
-  fontLink.as = 'font';
-  fontLink.type = 'font/woff2';
-  fontLink.crossOrigin = 'anonymous';
-  fontLink.href = 'https://fonts.gstatic.com/s/inter/v12/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7.woff2';
-  document.head.appendChild(fontLink);
+  const fragment = document.createDocumentFragment();
+  const addLink = (attrs: Record<string, string>) => {
+    const link = document.createElement('link');
+    Object.assign(link, attrs);
+    fragment.appendChild(link);
+  };
 
-  // Preload CSS crítico
-  const cssLink = document.createElement('link');
-  cssLink.rel = 'preload';
-  cssLink.as = 'style';
-  cssLink.href = '/src/index.css';
-  document.head.appendChild(cssLink);
+  // Critical font preloading with multiple variants
+  const fontVariants = [
+    'https://fonts.gstatic.com/s/inter/v12/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7.woff2', // Regular
+    'https://fonts.gstatic.com/s/inter/v12/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa0ZL7W1Y.woff2' // Medium
+  ];
+  
+  fontVariants.forEach(href => {
+    addLink({
+      rel: 'preload',
+      as: 'font',
+      type: 'font/woff2',
+      crossOrigin: 'anonymous',
+      href
+    });
+  });
 
-  // Preload módulos JavaScript críticos
-  const scriptLink = document.createElement('link');
-  scriptLink.rel = 'modulepreload';
-  scriptLink.href = '/src/main.tsx';
-  document.head.appendChild(scriptLink);
+  // Critical CSS with highest priority
+  addLink({
+    rel: 'preload',
+    as: 'style',
+    href: '/src/index.css',
+    fetchPriority: 'high'
+  });
+
+  // Essential modules with modulepreload
+  ['/src/main.tsx', '/src/App.tsx'].forEach(href => {
+    addLink({ rel: 'modulepreload', href });
+  });
+
+  // Batch append for performance
+  requestAnimationFrame(() => document.head.appendChild(fragment));
 };
 
-// Resource hints para otimizar ainda mais
+// Advanced resource hints with performance boost
 export const addResourceHints = () => {
-  const domains = [
+  const fragment = document.createDocumentFragment();
+  const addLink = (attrs: Record<string, string>) => {
+    const link = document.createElement('link');
+    Object.assign(link, attrs);
+    fragment.appendChild(link);
+  };
+
+  // Critical domains with preconnect + dns-prefetch
+  const criticalDomains = [
     'https://fonts.googleapis.com',
     'https://fonts.gstatic.com',
     'https://yazmxlgfraauuhmsnysh.supabase.co'
   ];
 
-  domains.forEach(domain => {
-    // DNS prefetch
-    const dnsLink = document.createElement('link');
-    dnsLink.rel = 'dns-prefetch';
-    dnsLink.href = domain;
-    document.head.appendChild(dnsLink);
-
-    // Preconnect para domínios críticos
-    if (domain.includes('supabase')) {
-      const preconnectLink = document.createElement('link');
-      preconnectLink.rel = 'preconnect';
-      preconnectLink.href = domain;
-      document.head.appendChild(preconnectLink);
+  criticalDomains.forEach(domain => {
+    addLink({ rel: 'dns-prefetch', href: domain });
+    // Preconnect for high-priority domains
+    if (domain.includes('supabase') || domain.includes('fonts.gstatic')) {
+      addLink({ rel: 'preconnect', href: domain, crossOrigin: 'anonymous' });
     }
   });
 
-  // Adicionar viewport meta se não existir
+  // Performance-optimized viewport if missing
   if (!document.querySelector('meta[name="viewport"]')) {
     const viewport = document.createElement('meta');
     viewport.name = 'viewport';
-    viewport.content = 'width=device-width, initial-scale=1';
-    document.head.appendChild(viewport);
+    viewport.content = 'width=device-width,initial-scale=1,viewport-fit=cover';
+    fragment.appendChild(viewport);
   }
+
+  // Theme color for PWA performance
+  if (!document.querySelector('meta[name="theme-color"]')) {
+    const themeColor = document.createElement('meta');
+    themeColor.name = 'theme-color';
+    themeColor.content = '#2C6E7F';
+    fragment.appendChild(themeColor);
+  }
+
+  document.head.appendChild(fragment);
 };
 
-// Optimize animations to use transform and opacity only
+// Ultra-fast performance optimization
 export const optimizeForPerformance = () => {
-  // Add will-change to elements that will animate
-  const animatedElements = document.querySelectorAll('[class*="animate-"]');
+  // Use passive event listeners for better scroll performance
+  const addPassiveListener = (element: Element, event: string) => {
+    element.addEventListener(event, null as any, { passive: true });
+  };
+
+  // Optimize scroll containers
+  document.querySelectorAll('[data-scroll]').forEach(element => {
+    addPassiveListener(element, 'scroll');
+    addPassiveListener(element, 'touchmove');
+  });
+
+  // Optimize animated elements with GPU acceleration
+  const animatedElements = document.querySelectorAll('[class*="animate-"], .transition-');
   animatedElements.forEach(element => {
-    (element as HTMLElement).style.willChange = 'transform, opacity';
+    const el = element as HTMLElement;
+    el.style.willChange = 'transform, opacity';
+    el.style.transform = 'translate3d(0, 0, 0)'; // Force GPU layer
+  });
+
+  // Preload critical images with high priority
+  document.querySelectorAll('img[data-critical]').forEach(img => {
+    (img as HTMLImageElement).loading = 'eager';
+    (img as HTMLImageElement).fetchPriority = 'high';
   });
 };
 
-// Clean up will-change after animations
+// Clean up will-change after animations with performance optimization
 export const cleanupPerformanceOptimizations = () => {
-  const animatedElements = document.querySelectorAll('[class*="animate-"]');
-  animatedElements.forEach(element => {
-    (element as HTMLElement).style.willChange = 'auto';
+  requestIdleCallback(() => {
+    const animatedElements = document.querySelectorAll('[style*="will-change"]');
+    animatedElements.forEach(element => {
+      (element as HTMLElement).style.willChange = 'auto';
+    });
   });
+};
+
+// Advanced idle-time optimization
+export const optimizeOnIdle = () => {
+  requestIdleCallback(() => {
+    // Preload non-critical components
+    import('@/components/landing/LazyLandingBenefits');
+    import('@/components/dashboard/DashboardContent');
+  });
+};
+
+// Performance monitoring and metrics
+export const initPerformanceMonitoring = () => {
+  // Web Vitals monitoring
+  if ('PerformanceObserver' in window) {
+    // First Contentful Paint
+    const observer = new PerformanceObserver((list) => {
+      list.getEntries().forEach((entry) => {
+        if (entry.entryType === 'paint' && entry.name === 'first-contentful-paint') {
+          console.log(`FCP: ${entry.startTime.toFixed(0)}ms`);
+        }
+        if (entry.entryType === 'largest-contentful-paint') {
+          console.log(`LCP: ${entry.startTime.toFixed(0)}ms`);
+        }
+      });
+    });
+    
+    observer.observe({ entryTypes: ['paint', 'largest-contentful-paint'] });
+  }
+
+  // Measure loading performance
+  window.addEventListener('load', () => {
+    const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+    console.log(`Page load complete: ${navigation.loadEventEnd - navigation.fetchStart}ms`);
+  });
+};
+
+// Critical path optimization - inline CSS and preload images
+export const inlineCriticalCSS = () => {
+  // Inline only the most critical styles to prevent FOUC
+  const criticalStyles = `
+    body { font-family: Inter, sans-serif; margin: 0; }
+    .animate-fade-in { animation: fadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1) both; }
+    @keyframes fadeIn { from { opacity: 0; transform: translate3d(0, 5px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+  `;
+  
+  const style = document.createElement('style');
+  style.textContent = criticalStyles;
+  document.head.insertBefore(style, document.head.firstChild);
 };

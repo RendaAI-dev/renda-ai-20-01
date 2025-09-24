@@ -56,7 +56,6 @@
     "cmdk": "^1.0.0",
     "date-fns": "^2.29.3",
     "embla-carousel-react": "^8.3.0",
-    "framer-motion": "^12.10.5",
     "input-otp": "^1.2.4",
     "jspdf": "^3.0.1",
     "jspdf-autotable": "^5.0.2",

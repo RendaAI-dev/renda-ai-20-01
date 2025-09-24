@@ -11,7 +11,7 @@ import { BrandingProvider } from "@/contexts/BrandingContext";
 import { AppProvider } from "@/contexts/AppContext";
 import { SupabaseInitializer } from "@/components/common/SupabaseInitializer";
 import Index from "./pages/Index";
-import LandingPage from "./pages/LandingPage";
+import OptimizedLandingPage from "./pages/OptimizedLandingPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import RegisterWithPlanPage from "./pages/RegisterWithPlanPage";
@@ -52,9 +52,9 @@ function App() {
                   <SupabaseInitializer>
                     <BrowserRouter>
                       <Routes>
-                        <Route path="/" element={<LandingPage />} />
-                        <Route path="/dashboard" element={<Index />} />
-                        <Route path="/landing" element={<LandingPage />} />
+        <Route path="/" element={<OptimizedLandingPage />} />
+        <Route path="/dashboard" element={<Index />} />
+        <Route path="/landing" element={<OptimizedLandingPage />} />
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/register" element={<RegisterPage />} />
                         <Route path="/register/:planType" element={<RegisterWithPlanPage />} />

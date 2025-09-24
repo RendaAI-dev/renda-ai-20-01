@@ -2,7 +2,6 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { BarChart3, Target, Calendar, PieChart, Wallet, TrendingUp } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 const LandingFeatures = () => {
   const features = [
@@ -41,35 +40,21 @@ const LandingFeatures = () => {
   return (
     <section className="py-20 bg-muted/30 w-full">
       <div className="w-full px-4">
-        <motion.div
-          className="text-center mb-16"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          viewport={{ once: true }}
-        >
+        <div className="text-center mb-16 animate-fade-in">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Tudo que você precisa para organizar suas finanças
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Ferramentas poderosas e intuitivas para transformar a maneira como você lida com o dinheiro
           </p>
-        </motion.div>
+        </div>
         
-        <motion.div 
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto"
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, staggerChildren: 0.1 }}
-          viewport={{ once: true }}
-        >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
           {features.map((feature, index) => (
-            <motion.div
+            <div
               key={index}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
-              viewport={{ once: true }}
+              className="animate-fade-in hover-scale"
+              style={{ animationDelay: `${index * 0.1}s` }}
             >
               <Card className="h-full hover:shadow-lg transition-shadow duration-300">
                 <CardContent className="p-6 text-center">
@@ -78,9 +63,9 @@ const LandingFeatures = () => {
                   <p className="text-muted-foreground">{feature.description}</p>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
           ))}
-        </motion.div>
+        </div>
       </div>
     </section>
   );

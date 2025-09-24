@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, lazy, Suspense } from 'react';
-import OptimizedLandingHero from '@/components/landing/OptimizedLandingHero';
+import FastLandingHero from '@/components/landing/FastLandingHero';
 import LandingPricing from '@/components/landing/LandingPricing';
 import LandingCTA from '@/components/landing/LandingCTA';
 import LandingHeader from '@/components/landing/LandingHeader';
@@ -28,9 +28,13 @@ const LandingPage = () => {
   const pwa = usePWAInstall();
   const [themeApplied, setThemeApplied] = useState(false);
 
-  // Otimizar aplicação do tema - não bloquear o render inicial
+  // Aplicação do tema assíncrona sem bloquear
   useEffect(() => {
-    const applyThemeAsync = async () => {
+    // Renderizar imediatamente
+    setThemeApplied(true);
+    
+    // Aplicar tema em background
+    const applyTheme = async () => {
       try {
         const { data, error } = await supabase.functions.invoke('get-public-settings', {
           body: { cacheBuster: Date.now() }
@@ -47,39 +51,22 @@ const LandingPage = () => {
         }
       } catch (err) {
         console.error('Erro ao carregar tema da landing:', err);
-      } finally {
-        setThemeApplied(true);
       }
     };
 
-    // Precarregar recursos críticos
-    const link1 = document.createElement('link');
-    link1.rel = 'preload';
-    link1.href = '/src/components/landing/OptimizedLandingHero.tsx';
-    link1.as = 'script';
-    document.head.appendChild(link1);
-
-    const link2 = document.createElement('link');
-    link2.rel = 'preload';
-    link2.href = '/src/components/landing/LandingPricing.tsx';
-    link2.as = 'script';
-    document.head.appendChild(link2);
-
-    // Não esperar o tema para mostrar o conteúdo
-    setThemeApplied(true);
-    applyThemeAsync();
+    applyTheme();
   }, []);
 
-  // Mostrar conteúdo imediatamente com skeleton se necessário
-  if (brandingLoading && !themeApplied) {
-    return <LandingSkeleton />;
-  }
+  // Nunca mostrar skeleton - sempre renderizar imediatamente
+  // if (brandingLoading && !themeApplied) {
+  //   return <LandingSkeleton />;
+  // }
   
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-background via-muted/20 to-background animate-fade-in">
       <LandingHeader />
       <main className="w-full">
-        <OptimizedLandingHero />
+        <FastLandingHero />
         <Suspense fallback={
           <div className="py-16 animate-fade-in">
             <div className="container mx-auto px-4">

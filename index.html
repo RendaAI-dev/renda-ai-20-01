@@ -19,12 +19,74 @@
     <link rel="preload" href="/src/index.css" as="style">
     <link rel="preload" href="/src/App.tsx" as="script">
     <style>
-      /* Critical CSS inline for faster rendering */
-      *{box-sizing:border-box;}
-      body{margin:0;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+      /* Critical CSS inline para render instantâneo */
+      :root {
+        --primary: 222.2 84% 4.9%;
+        --primary-foreground: 210 40% 98%;
+        --secondary: 210 40% 96%;
+        --secondary-foreground: 222.2 84% 4.9%;
+        --muted: 210 40% 96%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+        --accent: 210 40% 96%;
+        --accent-foreground: 222.2 84% 4.9%;
+        --background: 0 0% 100%;
+        --foreground: 222.2 84% 4.9%;
+        --card: 0 0% 100%;
+        --card-foreground: 222.2 84% 4.9%;
+        --border: 214.3 31.8% 91.4%;
+      }
+      
+      .dark {
+        --primary: 210 40% 98%;
+        --primary-foreground: 222.2 84% 4.9%;
+        --secondary: 222.2 84% 4.9%;
+        --secondary-foreground: 210 40% 98%;
+        --muted: 222.2 84% 4.9%;
+        --muted-foreground: 215 20.2% 65.1%;
+        --accent: 222.2 84% 4.9%;
+        --accent-foreground: 210 40% 98%;
+        --background: 222.2 84% 4.9%;
+        --foreground: 210 40% 98%;
+        --card: 222.2 84% 4.9%;
+        --card-foreground: 210 40% 98%;
+        --border: 217.2 32.6% 17.5%;
+      }
+      
+      *{box-sizing:border-box;border-color:hsl(var(--border));}
+      
+      body{
+        margin:0;
+        font-family:Inter,system-ui,sans-serif;
+        -webkit-font-smoothing:antialiased;
+        -moz-osx-font-smoothing:grayscale;
+        background-color:hsl(var(--background));
+        color:hsl(var(--foreground));
+        line-height:1.6;
+      }
+      
       #root{min-height:100vh;}
-      .animate-fade-in{animation:fadeIn 0.3s ease-out;}
-      @keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+      
+      .animate-fade-in{animation:fadeIn 0.6s ease-out forwards;}
+      
+      @keyframes fadeIn{
+        from{opacity:0;transform:translateY(20px);}
+        to{opacity:1;transform:translateY(0);}
+      }
+      
+      .hover-scale{transition:transform 0.2s ease;}
+      .hover-scale:hover{transform:scale(1.05);}
+      
+      .animate-pulse{animation:pulse 2s cubic-bezier(0.4,0,0.6,1) infinite;}
+      
+      @keyframes pulse{
+        0%,100%{opacity:1;}
+        50%{opacity:.5;}
+      }
+      
+      /* Gradient text */
+      .bg-gradient-to-r{background:linear-gradient(to right,hsl(var(--primary)),hsl(var(--secondary)),hsl(var(--accent)));}
+      .bg-clip-text{-webkit-background-clip:text;background-clip:text;}
+      .text-transparent{color:transparent;}
     </style>
     
     <title>Renda AI</title>

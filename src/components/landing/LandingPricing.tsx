@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { motion } from 'framer-motion';
 import { useNewPlanConfig } from '@/hooks/useNewPlanConfig';
 import { SimplePlanCard } from '@/components/landing/SimplePlanCard';
 
@@ -49,57 +48,36 @@ const LandingPricing = () => {
   return (
     <section className="py-20 w-full" id="planos">
       <div className="w-full px-4">
-        <motion.div 
-          className="text-center mb-16" 
-          initial={{ opacity: 0, y: 20 }} 
-          whileInView={{ opacity: 1, y: 0 }} 
-          transition={{ duration: 0.6 }} 
-          viewport={{ once: true }}
-        >
+        <div className="text-center mb-16 animate-fade-in">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Escolha o plano ideal para você
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Transforme sua vida financeira com nossos planos completos
           </p>
-        </motion.div>
+        </div>
         
-        <motion.div 
-          className="flex flex-wrap justify-center gap-6 max-w-5xl mx-auto mt-12" 
-          initial={{ opacity: 0, y: 40 }} 
-          whileInView={{ opacity: 1, y: 0 }} 
-          transition={{ duration: 0.6, staggerChildren: 0.1 }} 
-          viewport={{ once: true }}
-        >
+        <div className="flex flex-wrap justify-center gap-6 max-w-5xl mx-auto mt-12">
           {config.plans.map((plan, index) => (
-            <motion.div 
+            <div 
               key={plan.id} 
-              initial={{ opacity: 0, y: 20 }} 
-              whileInView={{ opacity: 1, y: 0 }} 
-              transition={{ duration: 0.6, delay: index * 0.1 }} 
-              viewport={{ once: true }}
-              className="w-72"
+              className="w-72 animate-fade-in hover-scale"
+              style={{ animationDelay: `${index * 0.1}s` }}
             >
               <SimplePlanCard
                 plan={plan}
                 isPopular={plan.is_popular}
                 onSelectPlan={handleSelectPlan}
               />
-            </motion.div>
+            </div>
           ))}
-        </motion.div>
+        </div>
         
-        <motion.div 
-          className="text-center mt-12"
-          initial={{ opacity: 0 }} 
-          whileInView={{ opacity: 1 }} 
-          transition={{ duration: 0.6, delay: 0.3 }} 
-          viewport={{ once: true }}
-        >
+        <div className="text-center mt-12 animate-fade-in" style={{ animationDelay: '0.3s' }}>
           <p className="text-sm text-muted-foreground">
             Todos os planos incluem suporte prioritário e atualizações gratuitas
           </p>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

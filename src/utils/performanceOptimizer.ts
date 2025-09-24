@@ -43,36 +43,22 @@ export const throttle = <T extends (...args: any[]) => any>(
   };
 };
 
-// Ultra-fast critical resource preloader
+// Preload critical resources intelligently
 export const preloadCriticalResources = () => {
-  const fragment = document.createDocumentFragment();
-  const addLink = (attrs: Record<string, string>) => {
-    const link = document.createElement('link');
-    Object.assign(link, attrs);
-    fragment.appendChild(link);
-  };
-
-  // Optimized font preloading - using Google Fonts CSS API instead of direct woff2
-  // This prevents 404 errors and ensures correct font loading
-  if (!document.querySelector('link[href*="fonts.googleapis.com"]')) {
-    addLink({
-      rel: 'preload',
-      as: 'style',
-      href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
-    });
-  }
-
-  // Only preload essential resources to avoid unused preloads
-  // Critical CSS is already inlined in index.html, no need to preload again
-  
-  // Essential modules with conditional modulepreload
+  // Only preload what's actually needed
   const currentPath = window.location.pathname;
-  if (currentPath === '/' || currentPath === '') {
-    addLink({ rel: 'modulepreload', href: '/src/main.tsx' });
+  
+  if (currentPath === '/' || currentPath === '/landing') {
+    // Critical font preload only
+    if (!document.querySelector('link[href*="fonts.googleapis.com"]')) {
+      const fontLink = document.createElement('link');
+      fontLink.rel = 'preload';
+      fontLink.as = 'style';
+      fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+      fontLink.crossOrigin = 'anonymous';
+      document.head.appendChild(fontLink);
+    }
   }
-
-  // Batch append for performance
-  requestAnimationFrame(() => document.head.appendChild(fragment));
 };
 
 // Advanced resource hints with performance boost
@@ -165,33 +151,29 @@ export const optimizeOnIdle = () => {
   });
 };
 
-// Performance monitoring and metrics - optimized for production
+// Performance monitoring - minimal impact
 export const initPerformanceMonitoring = () => {
-  // Only monitor in development to reduce console pollution
-  if (import.meta.env.DEV && 'PerformanceObserver' in window) {
-    // Web Vitals monitoring with reduced logging
-    const observer = new PerformanceObserver((list) => {
-      list.getEntries().forEach((entry) => {
-        // Only log if performance is concerning
-        if (entry.entryType === 'paint' && entry.name === 'first-contentful-paint' && entry.startTime > 1000) {
-          console.warn(`FCP slow: ${entry.startTime.toFixed(0)}ms`);
-        }
-        if (entry.entryType === 'largest-contentful-paint' && entry.startTime > 2500) {
-          console.warn(`LCP slow: ${entry.startTime.toFixed(0)}ms`);
-        }
-      });
-    });
+  if (typeof PerformanceObserver === 'undefined') return;
+
+  // Only monitor in development or critical thresholds
+  const observer = new PerformanceObserver((list) => {
+    if (!import.meta.env.DEV) return;
     
-    observer.observe({ entryTypes: ['paint', 'largest-contentful-paint'] });
-    
-    // Measure loading performance - only warn if slow
-    window.addEventListener('load', () => {
-      const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
-      const totalTime = navigation.loadEventEnd - navigation.fetchStart;
-      if (totalTime > 3000) {
-        console.warn(`Page load slow: ${totalTime}ms`);
+    list.getEntries().forEach((entry) => {
+      if (entry.entryType === 'paint') {
+        const paintEntry = entry as PerformanceNavigationTiming;
+        // Only log if extremely slow
+        if (paintEntry.name === 'largest-contentful-paint' && paintEntry.startTime > 4000) {
+          console.warn(`Critical LCP: ${paintEntry.startTime}ms`);
+        }
       }
     });
+  });
+  
+  try {
+    observer.observe({ entryTypes: ['paint'] });
+  } catch (e) {
+    // Ignore if not supported
   }
 };
 

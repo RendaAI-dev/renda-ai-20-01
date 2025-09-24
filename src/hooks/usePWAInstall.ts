@@ -24,8 +24,9 @@ export const usePWAInstall = () => {
   });
 
   const debug = useCallback((message: string, data?: any) => {
-    if (state.debugMode) {
-      console.log(`[PWA Install Debug] ${message}`, data || '');
+    // Only log critical errors in production
+    if (state.debugMode && (message.includes('Error') || message.includes('Failed'))) {
+      console.error(`[PWA] ${message}`, data || '');
     }
   }, [state.debugMode]);
 
@@ -94,7 +95,6 @@ export const usePWAInstall = () => {
 
     // Skip PWA logic in development to improve performance
     if (import.meta.env.DEV) {
-      debug('Development mode, skipping PWA initialization for performance');
       setState(prev => ({ ...prev, canInstall: false, showPopup: false }));
       return;
     }

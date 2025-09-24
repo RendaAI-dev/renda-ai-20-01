@@ -6,50 +6,39 @@ import './index.css';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { registerSW } from 'virtual:pwa-register';
 import { MobileAppInitializer } from './components/mobile/MobileAppInitializer';
-import { preloadCriticalResources, addResourceHints, optimizeOnIdle, initPerformanceMonitoring, inlineCriticalCSS } from './utils/performanceOptimizer';
+import { preloadCriticalResources, addResourceHints, optimizeOnIdle, initPerformanceMonitoring, inlineCriticalCSS, optimizeForPerformance } from './utils/performanceOptimizer';
 
 // Ultra-fast performance optimizations with monitoring
 inlineCriticalCSS();
-preloadCriticalResources();
-addResourceHints();
 
-// Initialize performance monitoring in development
-if (import.meta.env.DEV) {
-  initPerformanceMonitoring();
-}
+// Intelligent landing page preloader - minimal impact
+const intelligentLandingPreloader = () => {
+  const isLandingPage = window.location.pathname === '/' || window.location.pathname === '/landing';
+  if (!isLandingPage) return;
 
-// Optimized landing page preloader with conditional loading
-const optimizedLandingPreloader = () => {
-  const isLandingPage = window.location.pathname === '/' || window.location.pathname === '';
-  
-  if (isLandingPage) {
-    // Only preload components that will be immediately visible
-    import('@/components/landing/OptimizedFastLandingHero');
-    import('@/components/landing/OptimizedLandingHeader');
-    
-    // Defer non-critical components to avoid unused preloads
-    requestIdleCallback(() => {
-      import('@/components/landing/LandingPricing');
-    }, { timeout: 2000 });
-    
-    // Background preload only after user interaction
-    const preloadRemaining = () => {
+  // Preload on idle, after initial render is complete
+  requestIdleCallback(() => {
+    // Only preload if user hasn't navigated away
+    if (window.location.pathname === '/' || window.location.pathname === '/landing') {
       import('@/components/landing/LazyLandingFeatures');
-      import('@/components/landing/OptimizedLandingCTA');
-      import('@/components/landing/LazyLandingBenefits');
-    };
-    
-    // Preload on first user interaction or after 3 seconds
-    ['scroll', 'click', 'touchstart'].forEach(event => {
-      window.addEventListener(event, preloadRemaining, { once: true, passive: true });
-    });
-    setTimeout(preloadRemaining, 3000);
-  }
+      setTimeout(() => {
+        import('@/components/landing/LazyLandingBenefits');
+      }, 100);
+    }
+  }, { timeout: 2000 });
 };
 
-// Execute optimizations
-optimizedLandingPreloader();
-optimizeOnIdle();
+// Apply critical performance optimizations only
+preloadCriticalResources();
+addResourceHints();
+optimizeForPerformance();
+
+// Use idle time for non-critical optimizations
+requestIdleCallback(() => {
+  optimizeOnIdle();
+  initPerformanceMonitoring();
+  intelligentLandingPreloader();
+}, { timeout: 1000 });
 
 // Register service worker with reduced logging
 const updateSW = registerSW({

@@ -30,23 +30,17 @@ const BrandingContext = createContext<BrandingContextType | undefined>(undefined
 
 export const BrandingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [branding, setBranding] = useState<BrandingData>(() => {
-    // Tentar carregar do cache imediatamente (síncrono)
+    // Começar sempre com valores padrão para renderização imediata
     const cached = brandingPreloader.getCachedBranding();
-    if (cached) {
-      return {
-        companyName: cached.companyName,
-        logoUrl: cached.logoUrl,
-        faviconUrl: cached.faviconUrl,
-        logoAltText: cached.logoAltText
-      };
-    }
-    return defaultBranding;
+    return cached || {
+      companyName: 'FinanceFlow',
+      logoUrl: '',
+      faviconUrl: '/favicon.ico',
+      logoAltText: 'FinanceFlow Logo'
+    };
   });
   
-  const [isLoading, setIsLoading] = useState(() => {
-    // Se temos cache, não precisamos mostrar loading
-    return !brandingPreloader.getCachedBranding();
-  });
+  const [isLoading, setIsLoading] = useState(false); // Começar false para renderização imediata
   
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());

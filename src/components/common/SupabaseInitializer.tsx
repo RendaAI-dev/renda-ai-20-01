@@ -8,35 +8,28 @@ interface SupabaseInitializerProps {
 }
 
 export const SupabaseInitializer: React.FC<SupabaseInitializerProps> = ({ children }) => {
-  const [isInitialized, setIsInitialized] = useState(false);
   const [showConfigWarning, setShowConfigWarning] = useState(false);
 
   useEffect(() => {
-    const initialize = () => {
-      const configured = isSupabaseConfigured();
-      
-      if (!configured) {
-        console.log('Supabase não configurado, executando em modo demonstração');
+    // Não bloquear a renderização - inicializar em background
+    const initialize = async () => {
+      try {
+        const configured = isSupabaseConfigured();
+        
+        if (!configured) {
+          console.log('Supabase não configurado, executando em modo demonstração');
+          setShowConfigWarning(true);
+        }
+      } catch (error) {
+        console.error('Erro na inicialização do Supabase:', error);
         setShowConfigWarning(true);
       }
-      
-      setIsInitialized(true);
     };
 
     initialize();
   }, []);
 
-  // Mostrar indicador de carregamento
-  if (!isInitialized) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Carregando...</p>
-        </div>
-      </div>
-    );
-  }
+  // Renderizar imediatamente - não bloquear
 
   return (
     <>

@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { logInfo, logError } from '@/utils/consoleOptimizer';
 
 interface Subscription {
   id: string;
@@ -31,7 +32,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError || !user) {
-        console.log('User not authenticated:', userError?.message);
+        // Silent handling of unauthenticated state - this is expected
         setSubscription(null);
         return;
       }

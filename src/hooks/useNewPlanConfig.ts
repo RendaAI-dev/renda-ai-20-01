@@ -93,7 +93,9 @@ export const useNewPlanConfig = (): PlanConfigResponse => {
     // Verificar cache primeiro
     const now = Date.now();
     if (cachedConfig && cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION) {
-      console.log('[useNewPlanConfig] Usando dados do cache');
+      if (import.meta.env.DEV) {
+        console.log('[useNewPlanConfig] Usando dados do cache');
+      }
       return cachedConfig;
     }
 
@@ -101,7 +103,9 @@ export const useNewPlanConfig = (): PlanConfigResponse => {
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
     try {
-      console.log('[useNewPlanConfig] Iniciando busca de configurações...');
+      if (import.meta.env.DEV) {
+        console.log('[useNewPlanConfig] Iniciando busca de configurações...');
+      }
       
       // Promise race para timeout
       const fetchWithTimeout = async () => {
@@ -124,8 +128,10 @@ export const useNewPlanConfig = (): PlanConfigResponse => {
         if (plansResponse.status === 'fulfilled' && !plansResponse.value.error) {
           plansData = plansResponse.value.data;
         } else {
-          console.warn('[useNewPlanConfig] Erro ao buscar planos, usando fallback:', 
-            plansResponse.status === 'rejected' ? plansResponse.reason : plansResponse.value.error);
+          if (import.meta.env.DEV) {
+            console.warn('[useNewPlanConfig] Erro ao buscar planos, usando fallback:', 
+              plansResponse.status === 'rejected' ? plansResponse.reason : plansResponse.value.error);
+          }
         }
 
         // Processar resposta das configurações públicas
@@ -133,13 +139,17 @@ export const useNewPlanConfig = (): PlanConfigResponse => {
         if (publicResponse.status === 'fulfilled' && !publicResponse.value.error) {
           publicData = publicResponse.value.data;
         } else {
-          console.warn('[useNewPlanConfig] Erro ao buscar configurações públicas:', 
-            publicResponse.status === 'rejected' ? publicResponse.reason : publicResponse.value.error);
+          if (import.meta.env.DEV) {
+            console.warn('[useNewPlanConfig] Erro ao buscar configurações públicas:', 
+              publicResponse.status === 'rejected' ? publicResponse.reason : publicResponse.value.error);
+          }
         }
 
         // Se não temos dados dos planos, usar fallback
         if (!plansData?.success || !plansData?.plans?.length) {
-          console.log('[useNewPlanConfig] Usando planos de fallback');
+          if (import.meta.env.DEV) {
+            console.log('[useNewPlanConfig] Usando planos de fallback');
+          }
           const contactPhone = publicData?.success && publicData?.settings?.contact_phone?.value 
             ? publicData.settings.contact_phone.value 
             : '';
@@ -199,12 +209,16 @@ export const useNewPlanConfig = (): PlanConfigResponse => {
       cachedConfig = result;
       cacheTimestamp = now;
       
-      console.log('[useNewPlanConfig] Config carregada com sucesso');
+      if (import.meta.env.DEV) {
+        console.log('[useNewPlanConfig] Config carregada com sucesso');
+      }
       return result;
 
     } catch (err) {
       clearTimeout(timeoutId);
-      console.error('[useNewPlanConfig] Erro ao carregar configurações:', err);
+      if (import.meta.env.DEV) {
+        console.error('[useNewPlanConfig] Erro ao carregar configurações:', err);
+      }
       
       // Em caso de erro, usar fallback completo
       const fallbackConfig = {
@@ -212,7 +226,9 @@ export const useNewPlanConfig = (): PlanConfigResponse => {
         contact: { phone: '' }
       };
       
-      console.log('[useNewPlanConfig] Usando configuração de fallback completa');
+      if (import.meta.env.DEV) {
+        console.log('[useNewPlanConfig] Usando configuração de fallback completa');
+      }
       return fallbackConfig;
     }
   };

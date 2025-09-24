@@ -2,6 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { ScheduledTransaction } from "@/types";
 import { v4 as uuidv4 } from "uuid";
+import { logError, logAuthError } from '@/utils/consoleOptimizer';
 
 export const getScheduledTransactions = async (): Promise<ScheduledTransaction[]> => {
   try {
@@ -49,6 +50,7 @@ export const addScheduledTransaction = async (
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
+      logAuthError("User not authenticated when adding scheduled transaction", new Error("Authentication required"));
       throw new Error("User not authenticated");
     }
 
@@ -202,7 +204,10 @@ export const markAsPaid = async (
   try {
     // Get the current user
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error("User not authenticated");
+    if (!session) {
+      logAuthError("User not authenticated when marking as paid", new Error("Authentication required"));
+      throw new Error("User not authenticated");
+    }
 
     // Get the scheduled transaction
     const { data: scheduledTransaction, error: fetchError } = await supabase

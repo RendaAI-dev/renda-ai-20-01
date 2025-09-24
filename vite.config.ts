@@ -31,7 +31,8 @@ export default defineConfig(({ mode }) => ({
     // Enable compression and optimize chunks
     chunkSizeWarningLimit: 1000,
     minify: 'esbuild',
-    target: 'es2020'
+    target: 'es2020',
+    cssCodeSplit: true
   },
   plugins: [
     react(),

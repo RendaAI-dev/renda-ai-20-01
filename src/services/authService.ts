@@ -29,12 +29,14 @@ const recordLoginAttempt = (email: string, success: boolean) => {
     attempts.lastAttempt = now;
     loginAttempts.set(email, attempts);
     
-    // Log failed attempt for security monitoring
-    console.warn('Failed login attempt:', {
-      email: email.substring(0, 3) + '***', // Partially obscured for privacy
-      timestamp: new Date().toISOString(),
-      attemptCount: attempts.count
-    });
+    // Log failed attempt for security monitoring (production only)
+    if (import.meta.env.PROD) {
+      console.warn('Failed login attempt:', {
+        email: email.substring(0, 3) + '***',
+        timestamp: new Date().toISOString(),
+        attemptCount: attempts.count
+      });
+    }
   }
 };
 
@@ -69,7 +71,9 @@ export const loginUser = async (email: string, password: string) => {
       throw new Error('Muitas tentativas de login. Tente novamente em 15 minutos.');
     }
     
-    console.log("AuthService: Attempting login for:", sanitizedEmail.substring(0, 3) + '***');
+    if (import.meta.env.DEV) {
+      console.log("AuthService: Attempting login for:", sanitizedEmail.substring(0, 3) + '***');
+    }
     
     const { data, error } = await supabase.auth.signInWithPassword({
       email: sanitizedEmail,
@@ -83,7 +87,9 @@ export const loginUser = async (email: string, password: string) => {
     }
     
     recordLoginAttempt(sanitizedEmail, true);
-    console.log("AuthService: Login successful");
+    if (import.meta.env.DEV) {
+      console.log("AuthService: Login successful");
+    }
     
     return data;
   } catch (error) {
@@ -106,7 +112,9 @@ export const registerUser = async (email: string, password: string, name?: strin
       throw new Error('Senha deve ter entre 6 e 128 caracteres');
     }
     
-    console.log("AuthService: Attempting registration for:", sanitizedEmail.substring(0, 3) + '***');
+    if (import.meta.env.DEV) {
+      console.log("AuthService: Attempting registration for:", sanitizedEmail.substring(0, 3) + '***');
+    }
     
     const { data, error } = await supabase.auth.signUp({
       email: sanitizedEmail,
@@ -124,7 +132,9 @@ export const registerUser = async (email: string, password: string, name?: strin
       throw error;
     }
     
-    console.log("AuthService: Registration successful");
+    if (import.meta.env.DEV) {
+      console.log("AuthService: Registration successful");
+    }
     return data;
   } catch (error) {
     console.error("AuthService: Registration error:", error);

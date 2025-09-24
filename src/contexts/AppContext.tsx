@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Transaction, Goal, ScheduledTransaction } from '@/types';
 import { setupAuthListener, getCurrentSession } from '@/services/authService';
 import { recalculateGoalAmounts as recalculateGoalAmountsService } from '@/services/goalService';
+import { logInfo, logError, logAuthError } from '@/utils/consoleOptimizer';
 
 // Use database types directly from Supabase
 interface Category {
@@ -210,11 +211,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const session = await getCurrentSession();
       if (!session?.user) {
-        throw new Error('User not authenticated');
+        // Silent fail for expected authentication state
+        throw new Error('Authentication required');
       }
       return session.user;
     } catch (error) {
-      console.error('Error getting current user:', error);
+      // Only log if it's an unexpected error, not just missing auth
+      if (error instanceof Error && !error.message.includes('Authentication required')) {
+        logError('Error getting current user:', error);
+      }
       throw error;
     }
   };

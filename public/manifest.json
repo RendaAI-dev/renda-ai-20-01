@@ -8,10 +8,9 @@
   "theme_color": "#4ECDC4",
   "orientation": "portrait-primary",
   "scope": "/",
-  "categories": ["finance", "productivity", "business"],
+  "categories": ["finance", "productivity"],
   "lang": "pt-BR",
   "dir": "ltr",
-  "prefer_related_applications": false,
   "icons": [
     {
       "src": "https://yazmxlgfraauuhmsnysh.supabase.co/storage/v1/object/public/uploads/logos/1758323507026-esvi368pr4l.png",

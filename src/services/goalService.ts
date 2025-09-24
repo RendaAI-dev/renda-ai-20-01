@@ -1,7 +1,8 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { v4 as uuidv4 } from 'uuid';
 import { Goal, Transaction } from "@/types";
-import { v4 as uuidv4 } from "uuid";
+import { logError, logAuthError } from '@/utils/consoleOptimizer';
 
 export const getGoals = async (): Promise<Goal[]> => {
   try {
@@ -81,7 +82,7 @@ export const addGoal = async (goal: Omit<Goal, "id" | "transactions">): Promise<
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
-      console.error("User not authenticated when adding goal");
+      logAuthError("User not authenticated when adding goal", new Error("Authentication required"));
       throw new Error("User not authenticated");
     }
 

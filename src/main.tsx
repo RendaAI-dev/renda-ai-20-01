@@ -18,39 +18,40 @@ if (import.meta.env.DEV) {
   initPerformanceMonitoring();
 }
 
-// Advanced landing page preloader with performance optimization
-const ultraFastLandingPreloader = () => {
+// Optimized landing page preloader with conditional loading
+const optimizedLandingPreloader = () => {
   const isLandingPage = window.location.pathname === '/' || window.location.pathname === '';
   
   if (isLandingPage) {
-    // Immediate critical components
-    Promise.all([
-      import('@/components/landing/OptimizedFastLandingHero'),
-      import('@/components/landing/OptimizedLandingHeader')
-    ]);
+    // Only preload components that will be immediately visible
+    import('@/components/landing/OptimizedFastLandingHero');
+    import('@/components/landing/OptimizedLandingHeader');
     
-    // Staggered non-critical components
+    // Defer non-critical components to avoid unused preloads
     requestIdleCallback(() => {
       import('@/components/landing/LandingPricing');
-    });
+    }, { timeout: 2000 });
     
-    setTimeout(() => {
+    // Background preload only after user interaction
+    const preloadRemaining = () => {
       import('@/components/landing/LazyLandingFeatures');
       import('@/components/landing/OptimizedLandingCTA');
-    }, 150);
-    
-    // Background preload for next likely components
-    setTimeout(() => {
       import('@/components/landing/LazyLandingBenefits');
-    }, 300);
+    };
+    
+    // Preload on first user interaction or after 3 seconds
+    ['scroll', 'click', 'touchstart'].forEach(event => {
+      window.addEventListener(event, preloadRemaining, { once: true, passive: true });
+    });
+    setTimeout(preloadRemaining, 3000);
   }
 };
 
 // Execute optimizations
-ultraFastLandingPreloader();
+optimizedLandingPreloader();
 optimizeOnIdle();
 
-// Register service worker
+// Register service worker with reduced logging
 const updateSW = registerSW({
   onNeedRefresh() {
     if (confirm('Novo conteúdo disponível. Atualizar?')) {
@@ -58,7 +59,10 @@ const updateSW = registerSW({
     }
   },
   onOfflineReady() {
-    console.log('Aplicativo pronto para funcionar offline')
+    // Only log in development to reduce console pollution
+    if (import.meta.env.DEV) {
+      console.log('Aplicativo pronto para funcionar offline')
+    }
   },
 })
 

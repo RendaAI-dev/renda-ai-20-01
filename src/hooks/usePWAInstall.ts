@@ -24,9 +24,9 @@ export const usePWAInstall = () => {
   });
 
   const debug = useCallback((message: string, data?: any) => {
-    // Only log critical errors in production
-    if (state.debugMode && (message.includes('Error') || message.includes('Failed'))) {
-      console.error(`[PWA] ${message}`, data || '');
+    // Enhanced debug logging for PWA troubleshooting
+    if (state.debugMode) {
+      console.log(`[PWA] ${message}`, data || '');
     }
   }, [state.debugMode]);
 
@@ -64,7 +64,7 @@ export const usePWAInstall = () => {
     
     if (lastShown) {
       const daysSinceLastShown = (Date.now() - parseInt(lastShown)) / (1000 * 60 * 60 * 24);
-      if (daysSinceLastShown < 7) return false;
+      if (daysSinceLastShown < 3) return false; // Reduced from 7 to 3 days
     }
     
     return true;
@@ -79,7 +79,7 @@ export const usePWAInstall = () => {
       setTimeout(() => {
         debug('Showing popup after delay');
         setState(prev => ({ ...prev, showPopup: true }));
-      }, 3000);
+      }, 2000); // Reduced from 3s to 2s
     }
   }, [state.isInstalled, isMobileDevice, checkUserPreferences, debug]);
 
@@ -93,10 +93,10 @@ export const usePWAInstall = () => {
       return;
     }
 
-    // Skip PWA logic in development to improve performance
+    // Allow PWA testing in development
     if (import.meta.env.DEV) {
-      setState(prev => ({ ...prev, canInstall: false, showPopup: false }));
-      return;
+      debug('Development mode - PWA popup enabled for testing');
+      // Still allow PWA functionality in development for testing
     }
 
     const handler = (e: Event) => {
@@ -120,11 +120,11 @@ export const usePWAInstall = () => {
 
     // Fallback: show popup even without beforeinstallprompt for iOS or unsupported browsers
     const fallbackTimer = setTimeout(() => {
-      if (!state.canInstall && isMobileDevice() && !state.isInstalled) {
+      if (!state.canInstall && isMobileDevice() && !state.isInstalled && checkUserPreferences()) {
         debug('Fallback popup for unsupported browsers');
         setState(prev => ({ ...prev, showPopup: true, canInstall: false }));
       }
-    }, 5000);
+    }, 3000); // Reduced from 5s to 3s
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);

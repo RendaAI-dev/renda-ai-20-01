@@ -10,6 +10,8 @@ import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { BrandingProvider } from "@/contexts/BrandingContext";
 import { AppProvider } from "@/contexts/AppContext";
 import { SupabaseInitializer } from "@/components/common/SupabaseInitializer";
+import OptimizedPWAInstallModal from "@/components/pwa/OptimizedPWAInstallModal";
+import { usePWAInstall } from "@/hooks/usePWAInstall";
 import Index from "./pages/Index";
 import OptimizedLandingPage from "./pages/OptimizedLandingPage";
 import LoginPage from "./pages/LoginPage";
@@ -39,6 +41,21 @@ import AdminRoute from "./components/admin/AdminRoute";
 import "./App.css";
 
 const queryClient = new QueryClient();
+
+// Global PWA component to handle installation across all routes
+const GlobalPWAInstall = () => {
+  const pwaInstall = usePWAInstall();
+  
+  return (
+    <OptimizedPWAInstallModal
+      isOpen={pwaInstall.showPopup}
+      onInstall={pwaInstall.install}
+      onDismiss={pwaInstall.dismissPopup}
+      canInstall={pwaInstall.canInstall}
+      isInstalling={pwaInstall.isPrompting}
+    />
+  );
+};
 
 function App() {
   return (
@@ -89,6 +106,7 @@ function App() {
                     </BrowserRouter>
                     <Toaster />
                     <Sonner />
+                    <GlobalPWAInstall />
                   </SupabaseInitializer>
                 </AppProvider>
               </SubscriptionProvider>

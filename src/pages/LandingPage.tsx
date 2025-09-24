@@ -4,6 +4,7 @@ import OptimizedLandingHero from '@/components/landing/OptimizedLandingHero';
 import LandingPricing from '@/components/landing/LandingPricing';
 import LandingCTA from '@/components/landing/LandingCTA';
 import LandingHeader from '@/components/landing/LandingHeader';
+import LandingSkeleton from '@/components/landing/LandingSkeleton';
 import PWAInstallModal from '@/components/pwa/PWAInstallModal';
 import { Button } from '@/components/ui/button';
 import { useBrandingConfig } from '@/hooks/useBrandingConfig';
@@ -11,87 +12,112 @@ import { useBranding } from '@/contexts/BrandingContext';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { supabase } from '@/integrations/supabase/client';
 
-// Lazy load heavy components
-const LazyLandingFeatures = lazy(() => import('@/components/landing/LazyLandingFeatures'));
+// Lazy load com preload mais agressivo
+const LazyLandingFeatures = lazy(() => 
+  import('@/components/landing/LazyLandingFeatures').then(module => {
+    // Preload benefits enquanto features carrega
+    import('@/components/landing/LazyLandingBenefits');
+    return module;
+  })
+);
 const LazyLandingBenefits = lazy(() => import('@/components/landing/LazyLandingBenefits'));
 
 const LandingPage = () => {
   const { companyName } = useBrandingConfig();
-  const { isLoading: brandingLoading, lastUpdated } = useBranding();
+  const { isLoading: brandingLoading } = useBranding();
   const pwa = usePWAInstall();
-  const [isThemeLoaded, setIsThemeLoaded] = useState(false);
-  const [forcedTheme, setForcedTheme] = useState<string | null>(null);
+  const [themeApplied, setThemeApplied] = useState(false);
 
-  // Aplicar tema antes mesmo do primeiro render
+  // Otimizar aplicação do tema - não bloquear o render inicial
   useEffect(() => {
-    const loadAndApplyLandingTheme = async () => {
+    const applyThemeAsync = async () => {
       try {
-        console.log('Carregando tema da landing page...');
         const { data, error } = await supabase.functions.invoke('get-public-settings', {
-          body: { cacheBuster: Date.now() } // Cache-busting para o tema
+          body: { cacheBuster: Date.now() }
         });
         
         if (!error && data?.success && data?.settings?.branding?.landing_theme) {
           const theme = data.settings.branding.landing_theme.value;
-          setForcedTheme(theme);
           
           if (theme && theme !== 'system') {
-            // Aplicar o tema imediatamente
             const root = document.documentElement;
             root.classList.remove('light', 'dark');
             root.classList.add(theme);
-            console.log('Tema aplicado:', theme);
           }
         }
       } catch (err) {
         console.error('Erro ao carregar tema da landing:', err);
       } finally {
-        setIsThemeLoaded(true);
+        setThemeApplied(true);
       }
     };
 
-    loadAndApplyLandingTheme();
-    
-    // Cleanup: restaurar tema do sistema quando sair da landing
-    return () => {
-      if (forcedTheme && forcedTheme !== 'system') {
-        const root = document.documentElement;
-        root.classList.remove('light', 'dark');
-        
-        // Detectar preferência do sistema e aplicar
-        const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-        const savedTheme = localStorage.getItem("metacash-ui-theme");
-        
-        if (savedTheme === "system" || !savedTheme) {
-          root.classList.add(systemTheme);
-        } else {
-          root.classList.add(savedTheme);
-        }
-      }
-    };
-  }, [lastUpdated]); // Reagir a mudanças no branding
+    // Precarregar recursos críticos
+    const link1 = document.createElement('link');
+    link1.rel = 'preload';
+    link1.href = '/src/components/landing/OptimizedLandingHero.tsx';
+    link1.as = 'script';
+    document.head.appendChild(link1);
 
-  // Mostrar um loading mínimo enquanto carrega o tema para evitar flash
-  if (!isThemeLoaded || brandingLoading) {
-    return (
-      <div className="min-h-screen w-full bg-gradient-to-br from-background via-muted/20 to-background flex items-center justify-center">
-        <div className="animate-pulse">
-          <div className="h-8 w-32 bg-muted rounded"></div>
-        </div>
-      </div>
-    );
+    const link2 = document.createElement('link');
+    link2.rel = 'preload';
+    link2.href = '/src/components/landing/LandingPricing.tsx';
+    link2.as = 'script';
+    document.head.appendChild(link2);
+
+    // Não esperar o tema para mostrar o conteúdo
+    setThemeApplied(true);
+    applyThemeAsync();
+  }, []);
+
+  // Mostrar conteúdo imediatamente com skeleton se necessário
+  if (brandingLoading && !themeApplied) {
+    return <LandingSkeleton />;
   }
   
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-background via-muted/20 to-background">
+    <div className="min-h-screen w-full bg-gradient-to-br from-background via-muted/20 to-background animate-fade-in">
       <LandingHeader />
       <main className="w-full">
         <OptimizedLandingHero />
-        <Suspense fallback={<div className="h-96 w-full animate-pulse bg-muted/30"></div>}>
+        <Suspense fallback={
+          <div className="py-16 animate-fade-in">
+            <div className="container mx-auto px-4">
+              <div className="grid md:grid-cols-3 gap-8">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="text-center space-y-4">
+                    <div className="h-16 w-16 bg-muted rounded-full animate-pulse mx-auto"></div>
+                    <div className="h-6 w-32 bg-muted rounded animate-pulse mx-auto"></div>
+                    <div className="space-y-2">
+                      <div className="h-4 w-full bg-muted rounded animate-pulse"></div>
+                      <div className="h-4 w-3/4 bg-muted rounded animate-pulse mx-auto"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        }>
           <LazyLandingFeatures />
         </Suspense>
         <LandingPricing />
-        <Suspense fallback={<div className="h-96 w-full animate-pulse bg-muted/30"></div>}>
+        <Suspense fallback={
+          <div className="py-16 animate-fade-in">
+            <div className="container mx-auto px-4">
+              <div className="grid md:grid-cols-2 gap-12 items-center">
+                <div className="space-y-6">
+                  <div className="h-8 w-48 bg-muted rounded animate-pulse"></div>
+                  <div className="space-y-3">
+                    <div className="h-4 w-full bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-5/6 bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-4/5 bg-muted rounded animate-pulse"></div>
+                  </div>
+                </div>
+                <div className="h-64 bg-muted rounded animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        }>
           <LazyLandingBenefits />
         </Suspense>
         <LandingCTA />

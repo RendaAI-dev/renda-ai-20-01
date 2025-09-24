@@ -6,8 +6,10 @@
     
     <!-- DNS Prefetch and Preconnect for external resources -->
     <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="dns-prefetch" href="//yazmxlgfraauuhmsnysh.supabase.co">
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://yazmxlgfraauuhmsnysh.supabase.co" crossorigin>
     
     <!-- Preload critical fonts -->
     <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style">
@@ -15,6 +17,15 @@
     
     <!-- Critical CSS preload -->
     <link rel="preload" href="/src/index.css" as="style">
+    <link rel="preload" href="/src/App.tsx" as="script">
+    <style>
+      /* Critical CSS inline for faster rendering */
+      *{box-sizing:border-box;}
+      body{margin:0;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+      #root{min-height:100vh;}
+      .animate-fade-in{animation:fadeIn 0.3s ease-out;}
+      @keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+    </style>
     
     <title>Renda AI</title>
     <meta name="description" content="Gerencia suas finanças com o Renda AI." />

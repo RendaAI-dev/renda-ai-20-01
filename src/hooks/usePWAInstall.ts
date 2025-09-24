@@ -92,6 +92,13 @@ export const usePWAInstall = () => {
       return;
     }
 
+    // Skip PWA logic in development to improve performance
+    if (import.meta.env.DEV) {
+      debug('Development mode, skipping PWA initialization for performance');
+      setState(prev => ({ ...prev, canInstall: false, showPopup: false }));
+      return;
+    }
+
     const handler = (e: Event) => {
       debug('beforeinstallprompt event fired');
       e.preventDefault();

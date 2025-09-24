@@ -43,9 +43,9 @@ export const throttle = <T extends (...args: any[]) => any>(
   };
 };
 
-// Critical resource preloader
+// Critical resource preloader - otimizado para landing
 export const preloadCriticalResources = () => {
-  // Preload critical fonts
+  // Preload critical fonts mais agressivo
   const fontLink = document.createElement('link');
   fontLink.rel = 'preload';
   fontLink.as = 'font';
@@ -54,15 +54,21 @@ export const preloadCriticalResources = () => {
   fontLink.href = 'https://fonts.gstatic.com/s/inter/v12/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7.woff2';
   document.head.appendChild(fontLink);
 
-  // Preload critical images
-  const heroImageLink = document.createElement('link');
-  heroImageLink.rel = 'preload';
-  heroImageLink.as = 'image';
-  heroImageLink.href = '/hero-background.jpg';
-  document.head.appendChild(heroImageLink);
+  // Preload CSS crítico
+  const cssLink = document.createElement('link');
+  cssLink.rel = 'preload';
+  cssLink.as = 'style';
+  cssLink.href = '/src/index.css';
+  document.head.appendChild(cssLink);
+
+  // Preload módulos JavaScript críticos
+  const scriptLink = document.createElement('link');
+  scriptLink.rel = 'modulepreload';
+  scriptLink.href = '/src/main.tsx';
+  document.head.appendChild(scriptLink);
 };
 
-// Resource hints for external domains
+// Resource hints para otimizar ainda mais
 export const addResourceHints = () => {
   const domains = [
     'https://fonts.googleapis.com',
@@ -71,11 +77,28 @@ export const addResourceHints = () => {
   ];
 
   domains.forEach(domain => {
-    const link = document.createElement('link');
-    link.rel = 'dns-prefetch';
-    link.href = domain;
-    document.head.appendChild(link);
+    // DNS prefetch
+    const dnsLink = document.createElement('link');
+    dnsLink.rel = 'dns-prefetch';
+    dnsLink.href = domain;
+    document.head.appendChild(dnsLink);
+
+    // Preconnect para domínios críticos
+    if (domain.includes('supabase')) {
+      const preconnectLink = document.createElement('link');
+      preconnectLink.rel = 'preconnect';
+      preconnectLink.href = domain;
+      document.head.appendChild(preconnectLink);
+    }
   });
+
+  // Adicionar viewport meta se não existir
+  if (!document.querySelector('meta[name="viewport"]')) {
+    const viewport = document.createElement('meta');
+    viewport.name = 'viewport';
+    viewport.content = 'width=device-width, initial-scale=1';
+    document.head.appendChild(viewport);
+  }
 };
 
 // Optimize animations to use transform and opacity only

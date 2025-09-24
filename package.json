@@ -73,6 +73,7 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "vaul": "^0.9.3",
+    "vite-plugin-compression2": "^2.2.1",
     "vite-plugin-pwa": "^1.0.0",
     "workbox-window": "^7.3.0",
     "zod": "^3.23.8"

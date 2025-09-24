@@ -10,6 +10,7 @@ import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { BrandingProvider } from "@/contexts/BrandingContext";
 import { AppProvider } from "@/contexts/AppContext";
 import { SupabaseInitializer } from "@/components/common/SupabaseInitializer";
+import { CriticalResourcePreloader } from "@/components/common/CriticalResourcePreloader";
 import OptimizedPWAInstallModal from "@/components/pwa/OptimizedPWAInstallModal";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import Index from "./pages/Index";
@@ -67,6 +68,7 @@ function App() {
               <SubscriptionProvider>
                 <AppProvider>
                   <SupabaseInitializer>
+                    <CriticalResourcePreloader />
                     <BrowserRouter>
                       <Routes>
         <Route path="/" element={<OptimizedLandingPage />} />

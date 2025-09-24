@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import SubscriptionGuard from '@/components/subscription/SubscriptionGuard';
@@ -12,8 +12,10 @@ import { calculateTotalIncome, calculateTotalExpenses, calculateMonthlyFinancial
 import { useToast } from '@/components/ui/use-toast';
 import { markAsPaid } from '@/services/scheduledTransactionService';
 import { ScheduledTransaction } from '@/types';
+import { logInfo } from '@/utils/consoleOptimizer';
+import { CriticalResourcePreloader } from '@/components/common/CriticalResourcePreloader';
 
-const Index = () => {
+const Index = memo(() => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const {
@@ -37,7 +39,8 @@ const Index = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [currentGoalIndex, setCurrentGoalIndex] = useState(0);
   
-  console.log("Dashboard rendered with:", {
+  // Only log in development to reduce console noise
+  logInfo("Dashboard rendered", {
     transactionsCount: transactions.length, 
     filteredTransactionsCount: filteredTransactions.length,
     goalsCount: goals.length,
@@ -55,12 +58,12 @@ const Index = () => {
   // Load initial data only once when component mounts
   useEffect(() => {
     const loadInitialData = async () => {
-      console.log("Dashboard: Loading initial data...");
+      logInfo("Dashboard: Loading initial data...");
       try {
         await Promise.all([getTransactions(), getGoals()]);
-        console.log("Dashboard: Initial data loaded successfully");
+        logInfo("Dashboard: Initial data loaded successfully");
       } catch (error) {
-        console.error("Dashboard: Error loading initial data:", error);
+        logInfo("Dashboard: Error loading initial data:", error);
       }
     };
     
@@ -72,21 +75,21 @@ const Index = () => {
     const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
     const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59);
     setCustomDateRange(firstDay, lastDay);
-    console.log("Dashboard: Date range updated for month:", currentMonth.toDateString());
+    logInfo("Dashboard: Date range updated for month:", currentMonth.toDateString());
   }, [currentMonth, setCustomDateRange]);
 
   // Removed auto-refresh to prevent performance issues
   // Data will be refreshed when user performs actions (add/edit/delete transactions)
   
-  const handleMonthChange = (date: Date) => {
-    console.log("Dashboard: Month changed to:", date.toDateString());
+  const handleMonthChange = useCallback((date: Date) => {
+    logInfo("Dashboard: Month changed to:", date.toDateString());
     setCurrentMonth(date);
     
     // Update filtered transactions range to match the selected month
     const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
     const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59);
     setCustomDateRange(firstDay, lastDay);
-  };
+  }, [setCustomDateRange]);
   
   const handleAddTransaction = (type: 'income' | 'expense' = 'expense') => {
     setSelectedTransaction(null);
@@ -101,7 +104,7 @@ const Index = () => {
     setTransactionDialogOpen(true);
   };
   
-  const handleDeleteTransaction = async (id: string) => {
+  const handleDeleteTransaction = useCallback(async (id: string) => {
     try {
       await deleteTransaction(id);
       toast({
@@ -110,22 +113,22 @@ const Index = () => {
       });
       
       // Refresh transactions and goals
-      console.log("Dashboard: Refreshing data after delete...");
+      logInfo("Dashboard: Refreshing data after delete...");
       await Promise.all([
         getTransactions(),
         getGoals()
       ]);
     } catch (error) {
-      console.error('Error deleting transaction:', error);
+      logInfo('Error deleting transaction:', error);
       toast({
         title: t('common.error'),
         description: t('transactions.deleteError'),
         variant: 'destructive',
       });
     }
-  };
+  }, [deleteTransaction, toast, t, getTransactions, getGoals]);
 
-  const handleMarkScheduledAsPaid = async (transaction: ScheduledTransaction) => {
+  const handleMarkScheduledAsPaid = useCallback(async (transaction: ScheduledTransaction) => {
     const success = await markAsPaid(transaction.id);
     if (success) {
       toast({
@@ -133,7 +136,7 @@ const Index = () => {
         description: t('schedule.transaction_marked_as_paid')
       });
       // Refresh data to update the alert
-      console.log("Dashboard: Refreshing data after marking as paid...");
+      logInfo("Dashboard: Refreshing data after marking as paid...");
       await Promise.all([
         getTransactions(),
         getGoals()
@@ -145,7 +148,7 @@ const Index = () => {
         variant: "destructive"
       });
     }
-  };
+  }, [toast, t, getTransactions, getGoals]);
   
   const navigateToTransactionType = (type: 'income' | 'expense') => {
     navigate(`/transactions?type=${type}`);
@@ -222,6 +225,8 @@ const Index = () => {
       />
     </MainLayout>
   );
-};
+});
+
+Index.displayName = 'Index';
 
 export default Index;

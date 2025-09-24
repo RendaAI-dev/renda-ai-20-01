@@ -4,9 +4,9 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
-import { registerSW } from 'virtual:pwa-register'
-import { MobileAppInitializer } from './components/mobile/MobileAppInitializer'
-import { preloadCriticalResources, addResourceHints } from './utils/performanceOptimizer'
+import { registerSW } from 'virtual:pwa-register';
+import { MobileAppInitializer } from './components/mobile/MobileAppInitializer';
+import { preloadCriticalResources, addResourceHints } from './utils/performanceOptimizer';
 
 // Performance optimizations - mais agressivo
 preloadCriticalResources();

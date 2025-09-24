@@ -20,7 +20,7 @@ export const usePWAInstall = () => {
     isInstalled: false,
     showPopup: false,
     isPrompting: false,
-    debugMode: process.env.NODE_ENV === 'development'
+    debugMode: import.meta.env.DEV
   });
 
   const debug = useCallback((message: string, data?: any) => {

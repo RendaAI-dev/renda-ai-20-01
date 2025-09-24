@@ -113,8 +113,8 @@ const LandingPage = () => {
         canInstall={pwa.canInstall}
       />
       
-      {/* Debug panel for development */}
-      {process.env.NODE_ENV === 'development' && (
+      {/* Debug panel for development - simplified */}
+      {import.meta.env.DEV && (
         <div className="fixed bottom-4 right-4 bg-muted p-4 rounded-lg shadow-lg text-xs z-[60]">
           <div>PWA Debug:</div>
           <div>Mobile: {pwa.isMobile ? 'Yes' : 'No'}</div>

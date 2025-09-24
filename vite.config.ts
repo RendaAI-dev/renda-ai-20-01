@@ -21,7 +21,6 @@ export default defineConfig(({ mode }) => ({
           supabase: ['@supabase/supabase-js'],
           ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
           icons: ['lucide-react'],
-          animations: ['framer-motion'],
           charts: ['recharts'],
           forms: ['react-hook-form', '@hookform/resolvers', 'zod'],
           routing: ['react-router-dom'],

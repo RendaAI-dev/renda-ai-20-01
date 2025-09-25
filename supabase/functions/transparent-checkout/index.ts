@@ -482,25 +482,26 @@ serve(async (req) => {
       const subscription = await subscriptionResponse.json();
       console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura criada:', subscription.id);
 
-      // Save subscription in database with ACTIVE status
+      // Save subscription in database with PENDING status - aguarda webhook PAYMENT_CONFIRMED
       await supabase.from('poupeja_subscriptions').insert({
         user_id: user.id,
         asaas_subscription_id: subscription.id,
         asaas_customer_id: asaasCustomerId,
         plan_type: planType,
-        status: 'active', // ATIVO imediatamente - sem chargeNow
+        status: 'pending', // PENDENTE até confirmação via webhook
         current_period_start: new Date().toISOString(),
         current_period_end: subscription.nextDueDate,
         payment_processor: 'asaas'
       });
 
-      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura ATIVA criada imediatamente');
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura PENDENTE criada - aguarda confirmação');
 
       result = {
         success: true,
         type: 'new_subscription',
         subscriptionId: subscription.id,
-        status: 'active'
+        status: 'pending',
+        paymentId: subscription.id
       };
       
       console.log('[TRANSPARENT-CHECKOUT] ✅ Nova assinatura processada');

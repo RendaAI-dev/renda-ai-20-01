@@ -9,7 +9,7 @@ import { useContactConfig } from '@/hooks/useContactConfig';
 import { useAutoLogin } from '@/hooks/useAutoLogin';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { usePreferences } from '@/contexts/PreferencesContext';
-import { ImmediateSync } from '@/components/sync/ImmediateSync';
+
 
 const PaymentSuccessPage = () => {
   const [searchParams] = useSearchParams();
@@ -385,11 +385,6 @@ const PaymentSuccessPage = () => {
               <p className="mt-1">
                 Precisa de ajuda? Entre em contato com nosso suporte.
               </p>
-            </div>
-
-            {/* Sincronização Imediata - Auto-executa */}
-            <div className="mt-4">
-              <ImmediateSync />
             </div>
           </CardContent>
         </Card>

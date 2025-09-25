@@ -321,25 +321,41 @@ const CheckoutPage = () => {
       if (error) throw error;
 
       if (data.success) {
-        setStep(4); // Success step
-        
-        // Refresh subscription data
-        await checkSubscription();
-        
-        toast({
-          title: "Pagamento processado!",
-          description: "Redirecionando para confirmação...",
-        });
+        if (data.status === 'pending') {
+          // Assinatura criada mas pagamento pendente - aguardar confirmação
+          toast({
+            title: "Pagamento iniciado!",
+            description: "Aguardando confirmação do pagamento...",
+          });
 
-        // Redirect to payment success page with session info
-        setTimeout(() => {
+          // Redirect to confirmation page with payment info
           const params = new URLSearchParams({
             email: currentUser?.email || '',
             plan_type: checkoutData.planType || 'monthly',
-            session_id: data.sessionId || Date.now().toString()
+            subscription_id: data.subscriptionId || '',
+            payment_id: data.paymentId || ''
           });
-          navigate(`/payment-success?${params.toString()}`);
-        }, 1500);
+          navigate(`/payment-confirmation?${params.toString()}`);
+        } else {
+          // Pagamento já confirmado (caso raro)
+          setStep(4); // Success step
+          
+          await checkSubscription();
+          
+          toast({
+            title: "Pagamento confirmado!",
+            description: "Redirecionando para confirmação...",
+          });
+
+          setTimeout(() => {
+            const params = new URLSearchParams({
+              email: currentUser?.email || '',
+              plan_type: checkoutData.planType || 'monthly',
+              session_id: data.sessionId || Date.now().toString()
+            });
+            navigate(`/payment-success?${params.toString()}`);
+          }, 1500);
+        }
       } else {
         throw new Error(data.error || 'Erro no processamento do pagamento');
       }

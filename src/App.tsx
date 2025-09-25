@@ -30,6 +30,7 @@ import SettingsPage from "./pages/SettingsPage";
 import CategoriesPage from "./pages/CategoriesPage";
 import PlansPage from "./pages/PlansPage";
 import PaymentSuccessPage from "./pages/PaymentSuccessPage";
+import PaymentConfirmationPage from "./pages/PaymentConfirmationPage";
 import ThankYouPage from "./pages/ThankYouPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AchievementsPage from "./pages/AchievementsPage";
@@ -74,6 +75,7 @@ function App() {
                         <Route path="/plans" element={<PlansPage />} />
                         <Route path="/checkout" element={<CheckoutPage />} />
                         <Route path="/checkout/change-plan" element={<PlanChangeCheckoutPage />} />
+                        <Route path="/payment-confirmation" element={<PaymentConfirmationPage />} />
                         <Route path="/payment-success" element={<PaymentSuccessPage />} />
                         <Route path="/thank-you" element={<ThankYouPage />} />
                         <Route path="/achievements" element={<AchievementsPage />} />

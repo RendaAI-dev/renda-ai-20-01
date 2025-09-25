@@ -48,17 +48,9 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
         
         setUserData(user);
         
-        // Pré-preencher campos se estiverem vazios
+        // Pré-preencher apenas o nome se estiver vazio
         if (user.name && !data.holderName) {
           onChange('holderName', user.name.toUpperCase());
-        }
-        
-        if (user.cpf && !data.holderCpf) {
-          // Garantir que o CPF seja válido antes de pré-preencher
-          const cleanCpf = user.cpf.replace(/\D/g, '');
-          if (validateCPF(cleanCpf)) {
-            onChange('holderCpf', cleanCpf);
-          }
         }
       } catch (error) {
         console.error('Erro ao buscar dados do usuário:', error);
@@ -273,21 +265,14 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="holderCpf">
-          CPF do Titular do Cartão
-          {userData?.cpf && (
-            <span className="text-xs text-muted-foreground ml-2">
-              (Pré-preenchido com seu CPF cadastrado)
-            </span>
-          )}
-        </Label>
+        <Label htmlFor="holderCpf">CPF do Titular do Cartão</Label>
         <Input
           id="holderCpf"
           type="text"
           placeholder="000.000.000-00"
           value={formatCPF(data.holderCpf)}
           onChange={handleHolderCpfChange}
-          disabled={disabled || (userData?.cpf && validateCPF(userData.cpf))}
+          disabled={disabled}
           maxLength={14}
           className={data.holderCpf.length === 11 && !validateCPF(data.holderCpf) ? 'border-destructive' : ''}
         />

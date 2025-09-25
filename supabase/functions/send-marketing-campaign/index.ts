@@ -16,6 +16,12 @@ interface CampaignRequest {
   testMode: boolean;
 }
 
+interface TargetUser {
+  id: string;
+  email: string;
+  name?: string;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -68,27 +74,41 @@ serve(async (req) => {
       throw new Error('Acesso negado - apenas administradores podem enviar campanhas');
     }
 
-    let targetUsers = [];
+    let targetUsers: TargetUser[] = [];
 
     if (testMode) {
       console.log('Modo de teste: enviando apenas para admins');
       
-      // Buscar apenas usuários admin
-      const { data: adminUsers, error: adminUsersError } = await supabase
+      // Buscar IDs de usuários admin primeiro
+      const { data: adminRoles, error: adminRolesError } = await supabase
         .from('user_roles')
-        .select(`
-          user_id,
-          poupeja_users!inner(
-            id,
-            email,
-            name
-          )
-        `)
+        .select('user_id')
         .eq('role', 'admin');
 
-      if (adminUsersError) throw adminUsersError;
+      if (adminRolesError) {
+        console.error('Erro ao buscar roles admin:', adminRolesError);
+        throw adminRolesError;
+      }
 
-      targetUsers = adminUsers?.map((role: any) => role.poupeja_users).flat() || [];
+      const adminUserIds = adminRoles?.map(role => role.user_id) || [];
+      
+      if (adminUserIds.length === 0) {
+        console.log('Nenhum usuário admin encontrado');
+        targetUsers = [];
+      } else {
+        // Buscar dados dos usuários admin
+        const { data: adminUsersData, error: adminUsersError } = await supabase
+          .from('poupeja_users')
+          .select('id, email, name')
+          .in('id', adminUserIds);
+
+        if (adminUsersError) {
+          console.error('Erro ao buscar dados dos usuários admin:', adminUsersError);
+          throw adminUsersError;
+        }
+
+        targetUsers = adminUsersData || [];
+      }
       
     } else {
       // Buscar usuários com base na segmentação

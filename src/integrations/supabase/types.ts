@@ -933,7 +933,15 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_user_roles_poupeja_users"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "poupeja_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

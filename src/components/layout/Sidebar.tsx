@@ -19,8 +19,7 @@ import {
   Calendar, 
   Crown, 
   LogOut, 
-  Shield,
-  Bell
+  Shield
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -137,11 +136,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onProfileClick, onConfigClick }) => {
       icon: Target,
       label: t('nav.goals'),
       href: '/goals'
-    },
-    {
-      icon: Bell,
-      label: 'Notificações',
-      href: '/notifications'
     },
     {
       icon: Calendar,

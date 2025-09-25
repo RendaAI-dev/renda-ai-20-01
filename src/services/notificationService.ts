@@ -67,12 +67,13 @@ class NotificationService {
         const permission = await Notification.requestPermission();
         
         if (permission === 'granted') {
+          // Get VAPID public key from environment or use a placeholder for development
+          const vapidPublicKey = import.meta.env?.VITE_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa40HI0L5HyDX4VbXcZgN4b6F8H3M6LdE1l8R9xQ4ZX6J7Z8K4HdM3L5P2N6V9X';
+          
           // Subscribe to push notifications
           const subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: this.urlBase64ToUint8Array(
-              'BEl62iUYgUivxIkv69yViEuiBIa40HI0L5HyDX4VbXcZgN4b6F8H3M6LdE1l8R9xQ4ZX6J7Z8K4HdM3L5P2N6V9X'
-            )
+            applicationServerKey: this.urlBase64ToUint8Array(vapidPublicKey)
           });
 
           console.log('Web push subscription:', subscription);
@@ -142,16 +143,20 @@ class NotificationService {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Use direct RPC call to avoid TypeScript issues
-      const { error } = await supabase.rpc('upsert_setting', {
-        p_category: 'device_tokens',
-        p_key: `${user.id}_${Capacitor.getPlatform()}`,
-        p_value: token,
-        p_description: `Device token for ${Capacitor.getPlatform()}`
-      });
+      const { error } = await supabase
+        .from('poupeja_device_tokens')
+        .upsert({
+          user_id: user.id,
+          token: token,
+          platform: Capacitor.getPlatform()
+        }, {
+          onConflict: 'user_id,platform'
+        });
 
       if (error) {
         console.error('Error saving device token:', error);
+      } else {
+        console.log('Device token saved successfully');
       }
     } catch (error) {
       console.error('Error saving device token:', error);
@@ -163,16 +168,19 @@ class NotificationService {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Use direct RPC call to avoid TypeScript issues
-      const { error } = await supabase.rpc('upsert_setting', {
-        p_category: 'web_push',
-        p_key: `${user.id}_subscription`,
-        p_value: JSON.stringify(subscription),
-        p_description: 'Web push subscription data'
-      });
+      const { error } = await supabase
+        .from('poupeja_web_push_subscriptions')
+        .upsert({
+          user_id: user.id,
+          subscription: subscription.toJSON() as any
+        }, {
+          onConflict: 'user_id'
+        });
 
       if (error) {
         console.error('Error saving web push subscription:', error);
+      } else {
+        console.log('Web push subscription saved successfully');
       }
     } catch (error) {
       console.error('Error saving web push subscription:', error);

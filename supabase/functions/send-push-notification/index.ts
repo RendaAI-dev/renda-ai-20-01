@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import webpush from 'https://esm.sh/web-push@3.6.6'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -81,23 +82,49 @@ serve(async (req) => {
       }
     }
 
+    // Configure VAPID keys for web push
+    const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
+    const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
+    
+    if (vapidPublicKey && vapidPrivateKey) {
+      webpush.setVapidDetails(
+        'https://4d231c4d-6668-4329-9646-544656a66e35.lovableproject.com',
+        vapidPublicKey,
+        vapidPrivateKey
+      );
+    }
+
     // Send to web browsers (using Web Push Protocol)
     for (const sub of webSubscriptions || []) {
       try {
-        const subscription = JSON.parse(sub.subscription);
+        const subscription = sub.subscription;
         
-        // Here you would use a web push library to send the notification
-        // For now, we'll just log the intent
-        console.log('Would send web push to:', {
-          endpoint: subscription.endpoint,
-          notification
+        const payload = JSON.stringify({
+          title: notification.title,
+          body: notification.body,
+          icon: '/icon-192x192.png',
+          badge: '/icon-192x192.png',
+          data: notification.data || {}
         });
-        
-        results.push({
-          platform: 'web',
-          endpoint: subscription.endpoint,
-          status: 'sent'
-        });
+
+        if (vapidPublicKey && vapidPrivateKey) {
+          await webpush.sendNotification(subscription, payload);
+          console.log('Web push notification sent successfully to:', subscription.endpoint);
+          
+          results.push({
+            platform: 'web',
+            endpoint: subscription.endpoint,
+            status: 'sent'
+          });
+        } else {
+          console.warn('VAPID keys not configured, skipping web push');
+          results.push({
+            platform: 'web',
+            endpoint: subscription.endpoint,
+            status: 'skipped',
+            error: 'VAPID keys not configured'
+          });
+        }
       } catch (error) {
         console.error('Error sending web push:', error);
         results.push({

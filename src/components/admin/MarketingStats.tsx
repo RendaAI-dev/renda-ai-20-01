@@ -23,84 +23,35 @@ export const MarketingStats: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // Buscar estatísticas de campanhas
-      const { data: campaigns, error: campaignsError } = await supabase
-        .from('poupeja_notification_logs')
-        .select('id, results, sent_at')
-        .eq('type', 'marketing');
+      // Call the Edge Function to get marketing stats
+      const { data, error } = await supabase.functions.invoke('get-marketing-stats');
 
-      if (campaignsError) throw campaignsError;
+      if (error) {
+        console.error('Edge Function error:', error);
+        throw new Error(error.message || 'Erro ao carregar estatísticas');
+      }
 
-      // Buscar estatísticas de usuários com activity tracking
-      const { data: users, error: usersError } = await supabase
-        .from('poupeja_users')
-        .select('id, created_at, last_activity_at');
+      if (!data.success) {
+        throw new Error(data.error || 'Erro na resposta do servidor');
+      }
 
-      if (usersError) throw usersError;
-
-      // Buscar preferências de marketing
-      const { data: preferences, error: prefError } = await supabase
-        .from('poupeja_user_preferences')
-        .select('user_id, notification_preferences');
-
-      if (prefError) throw prefError;
-
-      // Calcular estatísticas
-      const totalCampaigns = campaigns?.length || 0;
-      let totalNotificationsSent = 0;
-      let totalSuccessful = 0;
-
-      campaigns?.forEach(campaign => {
-        const resultsArray = Array.isArray(campaign.results) ? campaign.results : [];
-        if (resultsArray.length > 0) {
-          totalNotificationsSent += resultsArray.length;
-          totalSuccessful += resultsArray.filter((r: any) => r.status === 'sent').length;
-        }
-      });
-
-      const successRate = totalNotificationsSent > 0 ? 
-        Math.round((totalSuccessful / totalNotificationsSent) * 100) : 0;
-
-      const totalUsers = users?.length || 0;
+      const serverStats = data.data;
       
-      // Contar usuários que aceitam marketing (opt-out model)
-      const marketingEnabledUsers = preferences?.filter(pref => {
-        const notifPrefs = pref.notification_preferences as any;
-        return notifPrefs?.marketing !== false; // Changed: use opt-out model
-      }).length || totalUsers; // Default to all users if no preferences
-
-      // Calculate REAL active users (activity in last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
-      const activeUsers = users?.filter(user => {
-        const lastActivity = user.last_activity_at ? new Date(user.last_activity_at) : new Date(user.created_at);
-        return lastActivity >= thirtyDaysAgo;
-      }).length || 0;
-
-      // Campanhas recentes (últimos 7 dias)
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
-      const recentCampaigns = campaigns?.filter(campaign => 
-        new Date(campaign.sent_at || '') > sevenDaysAgo
-      ).length || 0;
-
       setStats({
-        totalCampaigns,
-        totalNotificationsSent,
-        successRate,
-        totalUsers,
-        marketingEnabledUsers,
-        activeUsers,
-        recentCampaigns
+        totalCampaigns: serverStats.totalCampaigns,
+        totalNotificationsSent: serverStats.totalNotifications,
+        successRate: serverStats.successRate,
+        totalUsers: serverStats.totalUsers,
+        marketingEnabledUsers: serverStats.marketingUsers,
+        activeUsers: serverStats.activeUsers,
+        recentCampaigns: serverStats.recentCampaigns
       });
 
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error);
       toast({
         title: "Erro",
-        description: "Não foi possível carregar as estatísticas",
+        description: error instanceof Error ? error.message : "Não foi possível carregar as estatísticas",
         variant: "destructive",
       });
     } finally {

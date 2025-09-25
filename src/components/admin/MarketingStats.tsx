@@ -31,10 +31,10 @@ export const MarketingStats: React.FC = () => {
 
       if (campaignsError) throw campaignsError;
 
-      // Buscar estatísticas de usuários
+      // Buscar estatísticas de usuários com activity tracking
       const { data: users, error: usersError } = await supabase
         .from('poupeja_users')
-        .select('id, created_at');
+        .select('id, created_at, last_activity_at');
 
       if (usersError) throw usersError;
 
@@ -63,19 +63,20 @@ export const MarketingStats: React.FC = () => {
 
       const totalUsers = users?.length || 0;
       
-      // Contar usuários que aceitam marketing
+      // Contar usuários que aceitam marketing (opt-out model)
       const marketingEnabledUsers = preferences?.filter(pref => {
         const notifPrefs = pref.notification_preferences as any;
-        return notifPrefs?.marketing_notifications !== false;
-      }).length || 0;
+        return notifPrefs?.marketing !== false; // Changed: use opt-out model
+      }).length || totalUsers; // Default to all users if no preferences
 
-      // Usuários ativos (últimos 30 dias)
+      // Calculate REAL active users (activity in last 30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      const activeUsers = users?.filter(user => 
-        new Date(user.created_at) > thirtyDaysAgo
-      ).length || 0;
+      const activeUsers = users?.filter(user => {
+        const lastActivity = user.last_activity_at ? new Date(user.last_activity_at) : new Date(user.created_at);
+        return lastActivity >= thirtyDaysAgo;
+      }).length || 0;
 
       // Campanhas recentes (últimos 7 dias)
       const sevenDaysAgo = new Date();

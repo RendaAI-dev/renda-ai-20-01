@@ -820,6 +820,7 @@ export type Database = {
           email: string
           ibge: string | null
           id: string
+          last_activity_at: string | null
           name: string | null
           neighborhood: string | null
           number: string | null
@@ -840,6 +841,7 @@ export type Database = {
           email: string
           ibge?: string | null
           id: string
+          last_activity_at?: string | null
           name?: string | null
           neighborhood?: string | null
           number?: string | null
@@ -860,6 +862,7 @@ export type Database = {
           email?: string
           ibge?: string | null
           id?: string
+          last_activity_at?: string | null
           name?: string | null
           neighborhood?: string | null
           number?: string | null
@@ -975,6 +978,10 @@ export type Database = {
       }
       encrypt_setting_value: {
         Args: { p_value: string }
+        Returns: string
+      }
+      ensure_user_preferences: {
+        Args: { user_id: string }
         Returns: string
       }
       generate_upload_path: {

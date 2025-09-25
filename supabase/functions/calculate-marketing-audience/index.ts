@@ -7,7 +7,7 @@ const corsHeaders = {
 }
 
 interface AudienceRequest {
-  segmentType: 'all' | 'by_plan' | 'active_users' | 'marketing_enabled';
+  segmentType: 'all' | 'active' | 'inactive' | 'new' | 'subscribers';
   planFilter?: string;
   activeOnly: boolean;
   marketingOnly: boolean;
@@ -60,55 +60,95 @@ serve(async (req) => {
       throw new Error('Acesso negado - apenas administradores podem calcular audiência');
     }
 
-    // Construir query para contar usuários
+    // Build the base query - now with proper joins
     let query = supabase
       .from('poupeja_users')
       .select(`
         id,
+        email,
+        name,
         created_at,
-        poupeja_subscriptions(status, plan_type),
-        poupeja_user_preferences(notification_preferences)
+        last_activity_at,
+        poupeja_subscriptions!left (
+          status,
+          plan_type,
+          current_period_end
+        ),
+        poupeja_user_preferences!left (
+          notification_preferences
+        )
       `);
 
-    // Aplicar filtros baseados na segmentação
-    if (segmentType === 'by_plan' && planFilter) {
+    // Apply segmentation filters
+    switch (segmentType) {
+      case 'active':
+        // Users active in last 30 days
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        query = query.gte('last_activity_at', thirtyDaysAgo.toISOString());
+        break;
+      case 'inactive':
+        // Users not active in last 30 days
+        const inactiveDate = new Date();
+        inactiveDate.setDate(inactiveDate.getDate() - 30);
+        query = query.lt('last_activity_at', inactiveDate.toISOString());
+        break;
+      case 'new':
+        // Users registered in last 7 days
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        query = query.gte('created_at', sevenDaysAgo.toISOString());
+        break;
+      case 'subscribers':
+        // Users with active subscriptions
+        query = query.eq('poupeja_subscriptions.status', 'active');
+        break;
+      case 'all':
+      default:
+        // No additional filters for 'all'
+        break;
+    }
+
+    // Apply plan filter (only if not conflicting with segmentType)
+    if (planFilter && planFilter !== 'all' && segmentType !== 'subscribers') {
       query = query.eq('poupeja_subscriptions.plan_type', planFilter);
     }
 
-    if (activeOnly) {
-      // Usuários ativos nos últimos 30 dias
+    // Apply active only filter (deprecated, now using segmentType)
+    if (activeOnly && segmentType === 'all') {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      query = query.gte('created_at', thirtyDaysAgo.toISOString());
+      query = query.gte('last_activity_at', thirtyDaysAgo.toISOString());
     }
 
-    const { data: users, error: usersError } = await query;
+    const { data: users, error: queryError } = await query;
 
-    if (usersError) throw usersError;
+    if (queryError) {
+      console.error('Error querying users:', queryError);
+      throw queryError;
+    }
 
-    let targetUsers = users || [];
+    console.log(`Found ${users?.length || 0} users before preference filtering`);
 
-    // Filtrar usuários que aceitam marketing
+    // Filter by marketing preferences
+    let filteredUsers = users || [];
+    
     if (marketingOnly) {
-      targetUsers = targetUsers.filter(user => {
-        const preferences = user.poupeja_user_preferences?.[0];
-        if (!preferences) return true; // Se não tem preferência, aceita por padrão
-        
-        const notifPrefs = preferences.notification_preferences as any;
-        return notifPrefs?.marketing_notifications !== false;
+      filteredUsers = filteredUsers.filter(user => {
+        const preferences = user.poupeja_user_preferences?.[0]?.notification_preferences;
+        // Default to true if no preferences (opt-out model)
+        return preferences?.marketing !== false;
       });
+      console.log(`After marketing filter: ${filteredUsers.length} users`);
     }
-
-    const count = targetUsers.length;
-
-    console.log(`Público-alvo calculado: ${count} usuários`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        count,
-        segmentation: {
-          segmentType,
+        count: filteredUsers.length,
+        totalFound: users?.length || 0,
+        segment: segmentType,
+        filters: {
           planFilter,
           activeOnly,
           marketingOnly
@@ -116,7 +156,7 @@ serve(async (req) => {
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+        status: 200
       }
     );
 

@@ -7,6 +7,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { MarketingCampaignForm } from './MarketingCampaignForm';
 import { MarketingCampaignList } from './MarketingCampaignList';
 import { MarketingStats } from './MarketingStats';
+import AudienceSegmentation from './AudienceSegmentation';
 
 const MarketingManager: React.FC = () => {
   const { toast } = useToast();
@@ -80,16 +81,7 @@ const MarketingManager: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="audience" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Segmentação de Público</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Funcionalidade de segmentação será implementada na próxima versão.
-                </p>
-              </CardContent>
-            </Card>
+            <AudienceSegmentation />
           </TabsContent>
 
           <TabsContent value="stats" className="mt-6">

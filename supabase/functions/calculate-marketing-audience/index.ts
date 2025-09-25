@@ -60,93 +60,123 @@ serve(async (req) => {
       throw new Error('Acesso negado - apenas administradores podem calcular audiência');
     }
 
-    // Build the base query - now with proper joins
-    let query = supabase
+    // Step 1: Get base users with segmentation filters
+    let baseQuery = supabase
       .from('poupeja_users')
-      .select(`
-        id,
-        email,
-        name,
-        created_at,
-        last_activity_at,
-        poupeja_subscriptions!left (
-          status,
-          plan_type,
-          current_period_end
-        ),
-        poupeja_user_preferences!left (
-          notification_preferences
-        )
-      `);
+      .select('id, email, name, created_at, last_activity_at');
 
-    // Apply segmentation filters
+    // Apply time-based segmentation filters
     switch (segmentType) {
       case 'active':
         // Users active in last 30 days
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        query = query.gte('last_activity_at', thirtyDaysAgo.toISOString());
+        baseQuery = baseQuery.gte('last_activity_at', thirtyDaysAgo.toISOString());
         break;
       case 'inactive':
         // Users not active in last 30 days
         const inactiveDate = new Date();
         inactiveDate.setDate(inactiveDate.getDate() - 30);
-        query = query.lt('last_activity_at', inactiveDate.toISOString());
+        baseQuery = baseQuery.lt('last_activity_at', inactiveDate.toISOString());
         break;
       case 'new':
         // Users registered in last 7 days
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        query = query.gte('created_at', sevenDaysAgo.toISOString());
+        baseQuery = baseQuery.gte('created_at', sevenDaysAgo.toISOString());
         break;
       case 'subscribers':
-        // Users with active subscriptions
-        query = query.eq('poupeja_subscriptions.status', 'active');
-        break;
       case 'all':
       default:
-        // No additional filters for 'all'
+        // No time-based filters for these segments
         break;
     }
 
-    // Apply plan filter (only if not conflicting with segmentType)
-    if (planFilter && planFilter !== 'all' && segmentType !== 'subscribers') {
-      query = query.eq('poupeja_subscriptions.plan_type', planFilter);
-    }
-
-    // Apply active only filter (deprecated, now using segmentType)
+    // Apply active only filter (legacy support)
     if (activeOnly && segmentType === 'all') {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      query = query.gte('last_activity_at', thirtyDaysAgo.toISOString());
+      baseQuery = baseQuery.gte('last_activity_at', thirtyDaysAgo.toISOString());
     }
 
-    const { data: users, error: queryError } = await query;
+    const { data: baseUsers, error: usersError } = await baseQuery;
 
-    if (queryError) {
-      console.error('Error querying users:', queryError);
-      throw queryError;
+    if (usersError) {
+      console.error('Error querying base users:', usersError);
+      throw new Error(`Failed to query users: ${usersError.message}`);
     }
 
-    console.log(`Found ${users?.length || 0} users before preference filtering`);
+    console.log(`Found ${baseUsers?.length || 0} base users`);
+    let filteredUserIds = new Set(baseUsers?.map(u => u.id) || []);
 
-    // Filter by marketing preferences
-    let filteredUsers = users || [];
-    
-    if (marketingOnly) {
-      filteredUsers = filteredUsers.filter(user => {
-        const preferences = user.poupeja_user_preferences?.[0]?.notification_preferences;
-        // Default to true if no preferences (opt-out model)
-        return preferences?.marketing !== false;
+    // Step 2: Apply subscription filters if needed
+    if (segmentType === 'subscribers' || (planFilter && planFilter !== 'all')) {
+      let subscriptionQuery = supabase
+        .from('poupeja_subscriptions')
+        .select('user_id, status, plan_type')
+        .eq('status', 'active');
+
+      if (planFilter && planFilter !== 'all') {
+        subscriptionQuery = subscriptionQuery.eq('plan_type', planFilter);
+      }
+
+      const { data: subscriptions, error: subscriptionError } = await subscriptionQuery;
+
+      if (subscriptionError) {
+        console.error('Error querying subscriptions:', subscriptionError);
+        throw new Error(`Failed to query subscriptions: ${subscriptionError.message}`);
+      }
+
+      console.log(`Found ${subscriptions?.length || 0} matching subscriptions`);
+      
+      // Filter users to only those with matching subscriptions
+      const subscriberIds = new Set(subscriptions?.map(s => s.user_id) || []);
+      filteredUserIds = new Set([...filteredUserIds].filter(id => subscriberIds.has(id)));
+      
+      console.log(`After subscription filter: ${filteredUserIds.size} users`);
+    }
+
+    // Step 3: Apply marketing preferences filter if needed
+    if (marketingOnly && filteredUserIds.size > 0) {
+      const { data: preferences, error: preferencesError } = await supabase
+        .from('poupeja_user_preferences')
+        .select('user_id, notification_preferences')
+        .in('user_id', Array.from(filteredUserIds));
+
+      if (preferencesError) {
+        console.error('Error querying preferences:', preferencesError);
+        throw new Error(`Failed to query preferences: ${preferencesError.message}`);
+      }
+
+      console.log(`Found ${preferences?.length || 0} user preferences`);
+
+      // Create a map of user preferences
+      const preferencesMap = new Map();
+      preferences?.forEach(pref => {
+        preferencesMap.set(pref.user_id, pref.notification_preferences);
       });
-      console.log(`After marketing filter: ${filteredUsers.length} users`);
+
+      // Filter users based on marketing preferences (opt-out model)
+      const marketingAllowedIds = new Set();
+      filteredUserIds.forEach(userId => {
+        const userPrefs = preferencesMap.get(userId);
+        // Default to true if no preferences (opt-out model)
+        if (!userPrefs || userPrefs.marketing !== false) {
+          marketingAllowedIds.add(userId);
+        }
+      });
+
+      filteredUserIds = marketingAllowedIds;
+      console.log(`After marketing preferences filter: ${filteredUserIds.size} users`);
     }
+
+    const finalCount = filteredUserIds.size;
 
     return new Response(
       JSON.stringify({
         success: true,
-        count: filteredUsers.length,
-        totalFound: users?.length || 0,
+        count: finalCount,
+        totalFound: baseUsers?.length || 0,
         segment: segmentType,
         filters: {
           planFilter,

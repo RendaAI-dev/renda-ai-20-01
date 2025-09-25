@@ -58,16 +58,30 @@ const AudienceSegmentation: React.FC = () => {
 
       if (error) throw error;
 
-      setResult(data);
-      toast({
-        title: "Público calculado com sucesso",
-        description: `Encontrados ${data.count} usuários no segmento selecionado.`
-      });
+      if (data.success) {
+        setResult(data);
+        toast({
+          title: "Público calculado com sucesso",
+          description: `Encontrados ${data.count} usuários no segmento selecionado.`
+        });
+      } else {
+        console.error('Erro na resposta:', data);
+        toast({
+          title: "Erro ao calcular público",
+          description: data.error || "Erro desconhecido na resposta",
+          variant: "destructive"
+        });
+      }
     } catch (error) {
       console.error('Error calculating audience:', error);
+      const errorMessage = error instanceof Error ? error.message : 
+                           typeof error === 'object' && error !== null && 'message' in error ? 
+                           (error as any).message : 
+                           "Erro desconhecido";
+      
       toast({
         title: "Erro ao calcular público",
-        description: "Tente novamente em alguns instantes.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {

@@ -636,7 +636,15 @@ export type Database = {
           updated_at?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_poupeja_subscriptions_user_id"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "poupeja_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       poupeja_tokenized_cards: {
         Row: {
@@ -806,7 +814,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_poupeja_user_preferences_user_id"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "poupeja_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       poupeja_users: {
         Row: {

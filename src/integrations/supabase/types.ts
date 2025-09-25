@@ -285,6 +285,48 @@ export type Database = {
         }
         Relationships: []
       }
+      poupeja_notifications: {
+        Row: {
+          category: string | null
+          created_at: string
+          data: Json | null
+          expires_at: string | null
+          id: string
+          is_read: boolean
+          message: string
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          data?: Json | null
+          expires_at?: string | null
+          id?: string
+          is_read?: boolean
+          message: string
+          read_at?: string | null
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          data?: Json | null
+          expires_at?: string | null
+          id?: string
+          is_read?: boolean
+          message?: string
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       poupeja_payment_redirects: {
         Row: {
           asaas_payment_id: string
@@ -992,6 +1034,17 @@ export type Database = {
         Args: { admin_email?: string }
         Returns: undefined
       }
+      create_notification: {
+        Args: {
+          p_category?: string
+          p_data?: Json
+          p_message: string
+          p_title: string
+          p_type?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       create_update_goal_amount_function: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -1030,6 +1083,10 @@ export type Database = {
           value_type: string
         }[]
       }
+      get_unread_notifications_count: {
+        Args: { p_user_id?: string }
+        Returns: number
+      }
       get_user_subscription_status: {
         Args: { p_user_id?: string }
         Returns: {
@@ -1057,6 +1114,14 @@ export type Database = {
       }
       is_admin: {
         Args: { user_id?: string }
+        Returns: boolean
+      }
+      mark_all_notifications_read: {
+        Args: { p_user_id?: string }
+        Returns: number
+      }
+      mark_notification_read: {
+        Args: { notification_id: string }
         Returns: boolean
       }
       migrate_existing_auth_users: {

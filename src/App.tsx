@@ -37,6 +37,7 @@ import AchievementsPage from "./pages/AchievementsPage";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import NotFound from "./pages/NotFound";
+import NotificationsPage from "./pages/NotificationsPage";
 import AdminRoute from "./components/admin/AdminRoute";
 import "./App.css";
 
@@ -72,8 +73,9 @@ function App() {
                         <Route path="/schedule" element={<SchedulePage />} />
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/categories" element={<CategoriesPage />} />
-                        <Route path="/plans" element={<PlansPage />} />
-                        <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/plans" element={<PlansPage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
                         <Route path="/checkout/change-plan" element={<PlanChangeCheckoutPage />} />
                         <Route path="/payment-confirmation" element={<PaymentConfirmationPage />} />
                         <Route path="/payment-success" element={<PaymentSuccessPage />} />

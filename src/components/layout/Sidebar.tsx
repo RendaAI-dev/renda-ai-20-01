@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -8,7 +7,21 @@ import { usePreferences } from '@/contexts/PreferencesContext';
 import { useUserRole } from '@/hooks/useUserRole';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
-import { LayoutDashboard, Receipt, BarChart3, Target, User, Settings, FolderOpen, Calendar, Crown, LogOut, Shield } from 'lucide-react';
+import { NotificationBell } from '@/components/common/NotificationBell';
+import { 
+  LayoutDashboard, 
+  Receipt, 
+  BarChart3, 
+  Target, 
+  User, 
+  Settings, 
+  FolderOpen, 
+  Calendar, 
+  Crown, 
+  LogOut, 
+  Shield,
+  Bell
+} from 'lucide-react';
 
 interface SidebarProps {
   onProfileClick?: () => void;
@@ -126,6 +139,11 @@ const Sidebar: React.FC<SidebarProps> = ({ onProfileClick, onConfigClick }) => {
       href: '/goals'
     },
     {
+      icon: Bell,
+      label: 'Notificações',
+      href: '/notifications'
+    },
+    {
       icon: Calendar,
       label: t('schedule.title'),
       href: '/schedule'
@@ -172,7 +190,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onProfileClick, onConfigClick }) => {
     <div className="hidden md:flex h-screen w-64 lg:w-64 xl:w-72 flex-col bg-background border-r overflow-hidden">
       {/* Logo/Header */}
       <div className="p-6 border-b flex-shrink-0">
-        <BrandLogo size="md" showCompanyName={true} />
+        <div className="flex items-center justify-between">
+          <BrandLogo size="md" showCompanyName={true} />
+          <NotificationBell />
+        </div>
       </div>
 
       {/* Navigation - Scrollable content */}

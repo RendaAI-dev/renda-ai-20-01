@@ -45,19 +45,29 @@ export const throttle = <T extends (...args: any[]) => any>(
 
 // Preload critical resources intelligently
 export const preloadCriticalResources = () => {
-  // Only preload what's actually needed
-  const currentPath = window.location.pathname;
-  
-  if (currentPath === '/' || currentPath === '/landing') {
-    // Critical font preload only
-    if (!document.querySelector('link[href*="fonts.googleapis.com"]')) {
-      const fontLink = document.createElement('link');
-      fontLink.rel = 'preload';
-      fontLink.as = 'style';
-      fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
-      fontLink.crossOrigin = 'anonymous';
-      document.head.appendChild(fontLink);
+  try {
+    // Only preload what's actually needed
+    const currentPath = window.location.pathname;
+    
+    // Add Supabase DNS prefetch
+    const supabaseLink = document.createElement('link');
+    supabaseLink.rel = 'dns-prefetch';
+    supabaseLink.href = 'https://yazmxlgfraauuhmsnysh.supabase.co';
+    document.head.appendChild(supabaseLink);
+    
+    if (currentPath === '/' || currentPath === '/landing') {
+      // Critical font preload only
+      if (!document.querySelector('link[href*="fonts.googleapis.com"]')) {
+        const fontLink = document.createElement('link');
+        fontLink.rel = 'preload';
+        fontLink.as = 'style';
+        fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+        fontLink.crossOrigin = 'anonymous';
+        document.head.appendChild(fontLink);
+      }
     }
+  } catch (error) {
+    // Silent fail for preloading
   }
 };
 
@@ -145,10 +155,14 @@ export const cleanupPerformanceOptimizations = () => {
 // Advanced idle-time optimization
 export const optimizeOnIdle = () => {
   requestIdleCallback(() => {
-    // Preload non-critical components
-    import('@/components/landing/LazyLandingBenefits');
-    import('@/components/dashboard/DashboardContent');
-  });
+    try {
+      // Preload non-critical components safely
+      import('@/components/landing/LazyLandingBenefits').catch(() => {});
+      import('@/components/dashboard/DashboardContent').catch(() => {});
+    } catch (error) {
+      // Silent fail for component preloading
+    }
+  }, { timeout: 2000 });
 };
 
 // Performance monitoring - minimal impact

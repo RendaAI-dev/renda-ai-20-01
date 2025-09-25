@@ -22,21 +22,6 @@ export default defineConfig(({ mode }) => ({
           vendor: ['react', 'react-dom'],
           routing: ['react-router-dom'],
           
-          // Heavy dashboard components - separate chunk
-          dashboard: [
-            '@/pages/Index',
-            '@/components/dashboard/DashboardContent',
-            '@/components/dashboard/DashboardCharts',
-            '@/components/dashboard/StatCards'
-          ],
-          
-          // Admin components - separate chunk  
-          admin: [
-            '@/pages/AdminDashboard',
-            '@/components/admin/AdminSectionTabs',
-            '@/components/admin/EnhancedPlanManager'
-          ],
-          
           // Heavy libraries
           charts: ['recharts'],
           pdf: ['jspdf', 'jspdf-autotable'],
@@ -52,14 +37,7 @@ export default defineConfig(({ mode }) => ({
     },
     // Aggressive optimization
     chunkSizeWarningLimit: 800,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-        pure_funcs: ['console.log', 'console.info', 'console.debug']
-      }
-    },
+    minify: 'esbuild',
     target: 'es2020',
     cssCodeSplit: true,
     assetsInlineLimit: 4096

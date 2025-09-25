@@ -64,6 +64,7 @@ export type Database = {
           asaas_customer_id: string
           asaas_payment_id: string
           bank_slip_url: string | null
+          confirmed_date: string | null
           created_at: string | null
           description: string | null
           due_date: string
@@ -81,6 +82,7 @@ export type Database = {
           asaas_customer_id: string
           asaas_payment_id: string
           bank_slip_url?: string | null
+          confirmed_date?: string | null
           created_at?: string | null
           description?: string | null
           due_date: string
@@ -98,6 +100,7 @@ export type Database = {
           asaas_customer_id?: string
           asaas_payment_id?: string
           bank_slip_url?: string | null
+          confirmed_date?: string | null
           created_at?: string | null
           description?: string | null
           due_date?: string

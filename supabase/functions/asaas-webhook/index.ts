@@ -145,7 +145,7 @@ serve(async (req) => {
       billingType: payment?.billingType,
       customerId: payment?.customer,
       paymentValue: payment?.value,
-      confirmedDate: payment?.confirmedDate,
+      confirmedDate: payment?.confirmedDate, // ✅ CAMPO confirmedDate CAPTURADO
       paymentDate: payment?.paymentDate,
       subscription: payment?.subscription,
       externalReference: payment?.externalReference,
@@ -209,7 +209,7 @@ async function processCheckoutEvent(supabase: any, event: string, checkout: any,
       console.log(`[ASAAS-WEBHOOK] Pagamento ${payment.id} - Status: ${payment.status}`);
       
       // Se já está confirmado, ativar assinatura
-      if (['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(payment.status)) {
+      if (isPaymentConfirmed(payment)) {
         await processPaymentFromCheckout(supabase, payment);
         processedCount++;
       }
@@ -348,6 +348,7 @@ async function processPaymentFromCheckout(supabase: any, payment: any) {
         amount: payment.value,
         due_date: payment.dueDate,
         payment_date: payment.paymentDate || null,
+        confirmed_date: payment.confirmedDate ? new Date(payment.confirmedDate).toISOString() : null,
         method: 'CHECKOUT',
         description: payment.description || null,
         external_reference: payment.externalReference || null,
@@ -370,6 +371,7 @@ async function processPaymentFromCheckout(supabase: any, payment: any) {
         .update({
           status: payment.status,
           payment_date: payment.paymentDate || null,
+          confirmed_date: payment.confirmedDate ? new Date(payment.confirmedDate).toISOString() : null,
           invoice_url: payment.invoiceUrl || null,
           updated_at: new Date().toISOString()
         })
@@ -379,13 +381,24 @@ async function processPaymentFromCheckout(supabase: any, payment: any) {
     }
 
     // Ativar assinatura se pagamento confirmado
-    if (['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(payment.status)) {
+    if (isPaymentConfirmed(payment)) {
       await handlePaymentSuccess(supabase, userId, payment, paymentRecord);
     }
 
   } catch (error) {
     console.error('[ASAAS-WEBHOOK] Erro ao processar pagamento do checkout:', error instanceof Error ? error.message : String(error));
   }
+}
+
+// Verificar se pagamento está confirmado (por status ou confirmedDate)
+function isPaymentConfirmed(payment: any): boolean {
+  // Se tem confirmedDate, consideramos confirmado
+  if (payment.confirmedDate) {
+    return true;
+  }
+  
+  // Senão, verificar status
+  return ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(payment.status);
 }
 
 // Processar eventos de PAYMENT
@@ -443,6 +456,7 @@ async function processPaymentEvent(supabase: any, event: string, payment: any) {
       amount: payment.value,
       due_date: payment.dueDate,
       payment_date: payment.paymentDate || null,
+      confirmed_date: payment.confirmedDate ? new Date(payment.confirmedDate).toISOString() : null,
       method: payment.billingType || 'CREDIT_CARD',
       description: payment.description || null,
       external_reference: payment.externalReference || null,
@@ -467,6 +481,7 @@ async function processPaymentEvent(supabase: any, event: string, payment: any) {
       .update({
         status: payment.status,
         payment_date: payment.paymentDate || null,
+        confirmed_date: payment.confirmedDate ? new Date(payment.confirmedDate).toISOString() : null,
         invoice_url: payment.invoiceUrl || null,
         updated_at: new Date().toISOString()
       })
@@ -502,14 +517,16 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
   switch (event) {
     case 'PAYMENT_CREATED':
       // Pagamento criado - salvar URL para redirecionamento
-      console.log('[ASAAS-WEBHOOK] ✨ Pagamento criado:', payment.id, {
-        invoiceUrl: payment.invoiceUrl,
-        bankSlipUrl: payment.bankSlipUrl,
-        paymentValue: payment.value,
-        customerId: payment.customer,
-        subscription: payment.subscription,
-        billingType: payment.billingType
-      });
+  console.log('[ASAAS-WEBHOOK] ✨ Pagamento criado:', payment.id, {
+    invoiceUrl: payment.invoiceUrl,
+    bankSlipUrl: payment.bankSlipUrl,
+    paymentValue: payment.value,
+    customerId: payment.customer,
+    subscription: payment.subscription,
+    billingType: payment.billingType,
+    confirmedDate: payment.confirmedDate, // ✅ NOVO CAMPO CAPTURADO
+    paymentDate: payment.paymentDate
+  });
       
       // Verificar se é uma mudança de plano
       const isPlanChange = !!payment.subscription;
@@ -610,7 +627,7 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
 
     case 'PAYMENT_UPDATED':
       // Pagamento atualizado - verificar status
-      if (['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(payment.status)) {
+      if (isPaymentConfirmed(payment)) {
         await handlePaymentSuccess(supabase, userId, payment, paymentRecord);
       } else if (payment.status === 'OVERDUE') {
         await handlePaymentOverdue(supabase, userId, payment);

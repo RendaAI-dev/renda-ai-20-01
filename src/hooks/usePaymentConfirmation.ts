@@ -48,50 +48,50 @@ export const usePaymentConfirmation = (subscriptionId?: string, paymentId?: stri
   }, [subscriptionId]);
 
   const verifyPaymentOnAsaas = useCallback(async () => {
-    if (!paymentId || !subscriptionId) return false;
-
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id || (!subscriptionId && !paymentId)) return false;
+    
     try {
-      console.log('🔍 Verificando status no Asaas...');
+      console.log('[PAYMENT_CONFIRMATION] Verificando no Asaas...');
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setState({ status: 'error', error: 'Usuário não autenticado' });
-        return false;
-      }
-
       const { data, error } = await supabase.functions.invoke('verify-asaas-payment-status', {
         body: { 
-          paymentId: paymentId,
-          userId: user.id 
+          subscriptionId: subscriptionId,
+          paymentId: paymentId && paymentId !== subscriptionId ? paymentId : undefined,
+          userId: user.id
         }
       });
 
       if (error) {
-        console.error('Erro ao verificar no Asaas:', error);
+        console.error('[PAYMENT_CONFIRMATION] Erro ao verificar no Asaas:', error);
         setState({ status: 'error', error: error.message });
         return false;
       }
 
-      if (data.status === 'confirmed') {
-        console.log('✅ Pagamento confirmado no Asaas e processado localmente');
+      console.log('[PAYMENT_CONFIRMATION] Resposta do Asaas:', data);
+      
+      if (data?.status === 'active' || data?.status === 'confirmed') {
         setState({ 
           status: 'confirmed',
-          subscription: data.payment 
+          subscription: data.data 
         });
         return true;
+      } else if (data?.status === 'error') {
+        setState({ status: 'error', error: 'Erro na verificação' });
+        return false;
       } else {
-        console.log(`❌ Pagamento ainda não confirmado: ${data.status}`);
+        console.log(`❌ Ainda não confirmado: ${data?.status}`);
         return false;
       }
     } catch (error) {
-      console.error('Erro na verificação do Asaas:', error);
+      console.error('[PAYMENT_CONFIRMATION] Erro na verificação Asaas:', error);
       setState({ 
         status: 'error', 
-        error: 'Erro ao verificar pagamento no Asaas' 
+        error: 'Erro ao verificar no Asaas' 
       });
       return false;
     }
-  }, [paymentId, subscriptionId]);
+  }, [subscriptionId, paymentId]);
 
   useEffect(() => {
     if (!subscriptionId) return;
@@ -102,9 +102,9 @@ export const usePaymentConfirmation = (subscriptionId?: string, paymentId?: stri
     const interval = setInterval(async () => {
       attempts++;
       
-      // Após 2 minutos sem confirmação, tentar verificar no Asaas
-      if (attempts === 24 && paymentId) {
-        console.log('⏰ 2 minutos sem confirmação. Verificando no Asaas...');
+      // Após 30 segundos sem confirmação, tentar verificar no Asaas
+      if (attempts === 6) {
+        console.log('⏰ 30 segundos sem confirmação. Verificando no Asaas...');
         const asaasConfirmed = await verifyPaymentOnAsaas();
         if (asaasConfirmed) {
           clearInterval(interval);

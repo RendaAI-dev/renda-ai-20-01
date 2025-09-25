@@ -12,8 +12,17 @@ function decryptValue(encryptedValue: string, isEncrypted: boolean = false): str
   }
   
   try {
-    // Por enquanto apenas base64 decode - implementar criptografia real depois
-    return atob(encryptedValue);
+    // Se o valor não é base64, retorna como está
+    if (!encryptedValue || encryptedValue.length === 0) {
+      return encryptedValue;
+    }
+    // Verifica se é base64 válido antes de tentar decodificar
+    const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+    if (base64Regex.test(encryptedValue) && encryptedValue.length % 4 === 0) {
+      return atob(encryptedValue);
+    } else {
+      return encryptedValue;
+    }
   } catch (error) {
     console.error('Erro ao descriptografar:', error);
     return encryptedValue;
@@ -39,14 +48,15 @@ async function getAsaasConfig(supabase: any) {
   return config;
 }
 
-async function verifyPaymentOnAsaas(paymentId: string, apiKey: string, environment: string) {
+async function verifyOnAsaas(id: string, apiKey: string, environment: string, type: 'payment' | 'subscription' = 'payment') {
   const baseUrl = environment === 'production' 
     ? 'https://api.asaas.com/v3' 
     : 'https://sandbox.asaas.com/api/v3';
 
-  console.log(`[VERIFY-PAYMENT] Consultando pagamento ${paymentId} no Asaas...`);
+  console.log(`[VERIFY-ASAAS] Consultando ${type} ${id} no Asaas...`);
 
-  const response = await fetch(`${baseUrl}/payments/${paymentId}`, {
+  const endpoint = type === 'payment' ? 'payments' : 'subscriptions';
+  const response = await fetch(`${baseUrl}/${endpoint}/${id}`, {
     method: 'GET',
     headers: {
       'access_token': apiKey,
@@ -58,16 +68,84 @@ async function verifyPaymentOnAsaas(paymentId: string, apiKey: string, environme
     throw new Error(`Erro na API Asaas: ${response.status} - ${await response.text()}`);
   }
 
-  const payment = await response.json();
-  console.log(`[VERIFY-PAYMENT] Status no Asaas: ${payment.status}, Confirmed: ${payment.confirmedDate}`);
+  const result = await response.json();
+  console.log(`[VERIFY-ASAAS] ${type} encontrado:`, { id: result.id, status: result.status });
   
-  return payment;
+  return result;
 }
 
-async function processConfirmedPayment(supabase: any, payment: any, userId: string) {
-  console.log(`[VERIFY-PAYMENT] Processando pagamento confirmado: ${payment.id}`);
+async function getSubscriptionPayments(subscriptionId: string, apiKey: string, environment: string) {
+  const baseUrl = environment === 'production' 
+    ? 'https://api.asaas.com/v3' 
+    : 'https://sandbox.asaas.com/api/v3';
 
-  // 1. Atualizar/inserir pagamento
+  console.log(`[VERIFY-ASAAS] Buscando pagamentos da assinatura ${subscriptionId}...`);
+
+  const response = await fetch(`${baseUrl}/payments?subscription=${subscriptionId}`, {
+    method: 'GET',
+    headers: {
+      'access_token': apiKey,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Erro ao buscar pagamentos: ${response.status} - ${await response.text()}`);
+  }
+
+  const result = await response.json();
+  console.log(`[VERIFY-ASAAS] Encontrados ${result.data?.length || 0} pagamentos`);
+  
+  return result.data || [];
+}
+
+async function processSubscription(supabase: any, subscription: any, userId: string) {
+  console.log(`[VERIFY-SUBSCRIPTION] Processando assinatura: ${subscription.id}`);
+
+  // Determinar tipo de plano baseado no external_reference
+  let planType = 'monthly';
+  if (subscription.externalReference?.includes('_annual_') || subscription.externalReference?.includes('_change_annual_')) {
+    planType = 'annual';
+  } else if (subscription.cycle === 'YEARLY') {
+    planType = 'annual';
+  }
+
+  // Calcular datas - converter formato DD/MM/YYYY para YYYY-MM-DD
+  const nextDueDateParts = subscription.nextDueDate.split('/');
+  const currentPeriodEnd = new Date(`${nextDueDateParts[2]}-${nextDueDateParts[1]}-${nextDueDateParts[0]}`);
+  const currentPeriodStart = new Date(subscription.dateCreated.split('/').reverse().join('-'));
+
+  // Upsert subscription
+  const { error: subError } = await supabase
+    .from('poupeja_subscriptions')
+    .upsert({
+      user_id: userId,
+      asaas_subscription_id: subscription.id,
+      asaas_customer_id: subscription.customer,
+      status: subscription.status.toLowerCase(),
+      plan_type: planType,
+      payment_processor: 'asaas',
+      current_period_start: currentPeriodStart.toISOString(),
+      current_period_end: currentPeriodEnd.toISOString(),
+      cancel_at_period_end: false,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: 'asaas_subscription_id'
+    });
+
+  if (subError) {
+    console.error('[VERIFY-SUBSCRIPTION] Erro ao criar/atualizar assinatura:', subError);
+    throw subError;
+  }
+
+  console.log(`[VERIFY-SUBSCRIPTION] ✅ Assinatura processada: ${subscription.id}`);
+  return subscription;
+}
+
+async function processPayment(supabase: any, payment: any, userId: string) {
+  console.log(`[VERIFY-PAYMENT] Processando pagamento: ${payment.id}`);
+
+  // Criar/atualizar pagamento
   const { error: paymentError } = await supabase
     .from('poupeja_asaas_payments')
     .upsert({
@@ -94,65 +172,8 @@ async function processConfirmedPayment(supabase: any, payment: any, userId: stri
     throw paymentError;
   }
 
-  // 2. Se tem subscription, ativar assinatura
-  if (payment.subscription) {
-    console.log(`[VERIFY-PAYMENT] Ativando assinatura: ${payment.subscription}`);
-
-    // Buscar informações da subscription no Asaas
-    const config = await getAsaasConfig(supabase);
-    const baseUrl = config.environment === 'production' 
-      ? 'https://api.asaas.com/v3' 
-      : 'https://sandbox.asaas.com/api/v3';
-
-    const subResponse = await fetch(`${baseUrl}/subscriptions/${payment.subscription}`, {
-      method: 'GET',
-      headers: {
-        'access_token': config.api_key,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (subResponse.ok) {
-      const subscription = await subResponse.json();
-      
-      // Determinar tipo de plano baseado no external_reference
-      let planType = 'monthly';
-      if (payment.externalReference?.includes('_annual_') || payment.externalReference?.includes('_change_annual_')) {
-        planType = 'annual';
-      }
-
-      // Calcular datas
-      const currentPeriodStart = new Date();
-      const currentPeriodEnd = new Date(subscription.nextDueDate.split('/').reverse().join('-'));
-
-      // Upsert subscription
-      const { error: subError } = await supabase
-        .from('poupeja_subscriptions')
-        .upsert({
-          user_id: userId,
-          asaas_subscription_id: payment.subscription,
-          asaas_customer_id: payment.customer,
-          status: 'active',
-          plan_type: planType,
-          payment_processor: 'asaas',
-          current_period_start: currentPeriodStart.toISOString(),
-          current_period_end: currentPeriodEnd.toISOString(),
-          cancel_at_period_end: false,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'asaas_subscription_id'
-        });
-
-      if (subError) {
-        console.error('[VERIFY-PAYMENT] Erro ao criar/atualizar assinatura:', subError);
-        throw subError;
-      }
-
-      console.log(`[VERIFY-PAYMENT] ✅ Assinatura ativada com sucesso: ${payment.subscription}`);
-    }
-  }
-
-  return true;
+  console.log(`[VERIFY-PAYMENT] ✅ Pagamento processado: ${payment.id}`);
+  return payment;
 }
 
 Deno.serve(async (req) => {
@@ -167,19 +188,17 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { paymentId, userId } = await req.json();
+    const { paymentId, subscriptionId, userId } = await req.json();
 
-    if (!paymentId || !userId) {
+    if ((!paymentId && !subscriptionId) || !userId) {
       return new Response(
-        JSON.stringify({ error: 'paymentId e userId são obrigatórios' }),
+        JSON.stringify({ error: 'paymentId ou subscriptionId e userId são obrigatórios' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }
-
-    console.log(`[VERIFY-PAYMENT] Iniciando verificação para pagamento: ${paymentId}, usuário: ${userId}`);
 
     // Buscar configuração do Asaas
     const config = await getAsaasConfig(supabase);
@@ -188,46 +207,81 @@ Deno.serve(async (req) => {
       throw new Error('API Key do Asaas não configurada');
     }
 
-    // Verificar status no Asaas
-    const payment = await verifyPaymentOnAsaas(paymentId, config.api_key, config.environment || 'sandbox');
+    let result: { success: boolean; status: string; data: any } = { success: true, status: '', data: null };
 
-    // Se o pagamento foi confirmado, processar
-    if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
-      await processConfirmedPayment(supabase, payment, userId);
+    // Se foi fornecido subscriptionId, processar assinatura
+    if (subscriptionId) {
+      console.log(`[VERIFY-SUBSCRIPTION] Iniciando verificação para assinatura: ${subscriptionId}, usuário: ${userId}`);
       
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          status: 'confirmed',
-          payment: {
-            id: payment.id,
-            status: payment.status,
-            confirmedDate: payment.confirmedDate,
-            subscription: payment.subscription
+      try {
+        // Verificar se assinatura existe no Asaas
+        const subscription = await verifyOnAsaas(subscriptionId, config.api_key, config.environment || 'sandbox', 'subscription');
+        
+        if (subscription.status === 'ACTIVE') {
+          // Processar assinatura localmente
+          await processSubscription(supabase, subscription, userId);
+          
+          // Buscar pagamentos da assinatura
+          const payments = await getSubscriptionPayments(subscriptionId, config.api_key, config.environment || 'sandbox');
+          
+          // Processar pagamentos confirmados
+          for (const payment of payments) {
+            if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
+              await processPayment(supabase, payment, userId);
+            }
           }
-        }),
-        { 
-          status: 200, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          
+          result.status = 'active';
+          result.data = { subscription, payments };
+        } else {
+          result.status = subscription.status.toLowerCase();
+          result.data = { subscription };
         }
-      );
-    } else {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          status: payment.status.toLowerCase(),
-          payment: {
-            id: payment.id,
-            status: payment.status,
-            confirmedDate: payment.confirmedDate
-          }
-        }),
-        { 
-          status: 200, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      } catch (error) {
+        console.error('[VERIFY-SUBSCRIPTION] Erro:', error);
+        result.success = false;
+        result.status = 'error';
+        result.data = { error: error instanceof Error ? error.message : String(error) };
+      }
     }
+    
+    // Se foi fornecido paymentId, processar pagamento
+    if (paymentId && !subscriptionId) {
+      console.log(`[VERIFY-PAYMENT] Iniciando verificação para pagamento: ${paymentId}, usuário: ${userId}`);
+      
+      try {
+        const payment = await verifyOnAsaas(paymentId, config.api_key, config.environment || 'sandbox', 'payment');
+        
+        if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
+          await processPayment(supabase, payment, userId);
+          
+          // Se tem subscription, processar também
+          if (payment.subscription) {
+            const subscription = await verifyOnAsaas(payment.subscription, config.api_key, config.environment || 'sandbox', 'subscription');
+            await processSubscription(supabase, subscription, userId);
+          }
+          
+          result.status = 'confirmed';
+          result.data = { payment };
+        } else {
+          result.status = payment.status.toLowerCase();
+          result.data = { payment };
+        }
+      } catch (error) {
+        console.error('[VERIFY-PAYMENT] Erro:', error);
+        result.success = false;
+        result.status = 'error';
+        result.data = { error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+
+    return new Response(
+      JSON.stringify(result),
+      { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
 
   } catch (error) {
     console.error('[VERIFY-PAYMENT] Erro:', error);

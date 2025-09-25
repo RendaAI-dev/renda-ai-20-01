@@ -1,13 +1,13 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useBrandingConfig } from '@/hooks/useBrandingConfig';
 import { useBranding } from '@/contexts/BrandingContext';
-import { usePWAInstall } from '@/hooks/usePWAInstall';
+
 import StaticLandingHeader from '@/components/landing/StaticLandingHeader';
 import UltraFastHero from '@/components/landing/UltraFastHero';
 import LandingPricing from '@/components/landing/LandingPricing';
 import OptimizedLandingCTA from '@/components/landing/OptimizedLandingCTA';
 import LandingSkeleton from '@/components/landing/LandingSkeleton';
-import OptimizedPWAInstallModal from '@/components/pwa/OptimizedPWAInstallModal';
+
 
 // Lazy load non-critical components for better performance
 const LazyLandingFeatures = React.lazy(() => 
@@ -29,13 +29,6 @@ const OptimizedLandingPage = () => {
   const { isLoading: brandingLoading } = useBranding();
   const [isReady, setIsReady] = useState(false);
   
-  const {
-    showPopup,
-    install,
-    dismissPopup,
-    canInstall,
-    isPrompting
-  } = usePWAInstall();
 
   useEffect(() => {
     // Mark as ready immediately for ultra-fast render
@@ -74,13 +67,6 @@ const OptimizedLandingPage = () => {
         </div>
       </footer>
 
-      <OptimizedPWAInstallModal
-        isOpen={showPopup}
-        onInstall={install}
-        onDismiss={dismissPopup}
-        isInstalling={isPrompting}
-        canInstall={canInstall}
-      />
 
     </div>
   );

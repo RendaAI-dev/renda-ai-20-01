@@ -28,7 +28,6 @@ export function PaymentDebugger() {
       const requestBody: any = {};
       if (options.email) requestBody.email = options.email;
       if (options.forceSync) requestBody.forceSync = true;
-      if (options.forceSync) requestBody.maxAge = 0;
       
       const { data, error } = await supabase.functions.invoke('sync-pending-payments', {
         body: requestBody
@@ -45,7 +44,7 @@ export function PaymentDebugger() {
         
       toast({
         title,
-        description: `Pendentes: ${data.pendingPayments}, Processados: ${data.processedCount}, Confirmados: ${data.confirmedCount}`,
+        description: `${data.details?.verified || 0} verificados, ${data.details?.updated || 0} atualizados, ${data.details?.confirmed || 0} confirmados`,
       });
     } catch (error: any) {
       console.error('Erro na sincronização:', error);
@@ -68,16 +67,16 @@ export function PaymentDebugger() {
 
       setWebhookConfig(data);
       
-      if (data.analysis.issues.length > 0) {
+      if (data.status === 'ok') {
         toast({
-          title: "Problemas encontrados no webhook",
-          description: `${data.analysis.issues.length} problema(s) detectado(s)`,
-          variant: "destructive",
+          title: "Webhook configurado corretamente",
+          description: "Todas as configurações estão corretas",
         });
       } else {
         toast({
-          title: "Webhook configurado corretamente",
-          description: "Todos os eventos necessários estão habilitados",
+          title: "Problemas encontrados no webhook",
+          description: `${data.issues?.length || 0} problemas detectados`,
+          variant: "destructive"
         });
       }
     } catch (error: any) {
@@ -111,22 +110,22 @@ export function PaymentDebugger() {
 
       setCardValidation(data);
       
-      if (data.validation.isValidTestCard && data.validation.expectedResult === 'approved') {
+      if (data.isTestCard) {
         toast({
-          title: "Cartão válido",
-          description: "Este cartão será aprovado automaticamente no sandbox",
+          title: "Cartão de teste válido",
+          description: data.recommendation,
         });
-      } else if (data.validation.isTestCard) {
+      } else if (data.isValid) {
         toast({
-          title: "Cartão de teste",
-          description: data.validation.recommendation,
-          variant: "destructive",
+          title: "Cartão real detectado",
+          description: "Use cartões de teste no sandbox",
+          variant: "destructive"
         });
       } else {
         toast({
-          title: "Cartão real detectado",
-          description: "Use apenas cartões de teste no sandbox",
-          variant: "destructive",
+          title: "Cartão inválido",
+          description: data.recommendation,
+          variant: "destructive"
         });
       }
     } catch (error: any) {
@@ -235,22 +234,45 @@ export function PaymentDebugger() {
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <span className="font-medium">Pagamentos Pendentes:</span>
-                        <div className="text-lg font-bold text-blue-600">{syncResult.pendingPayments}</div>
+                        <span className="font-medium">Verificados:</span>
+                        <div className="text-lg font-bold text-blue-600">{syncResult.details?.verified || 0}</div>
                       </div>
                       <div>
-                        <span className="font-medium">Verificados:</span>
-                        <div className="text-lg font-bold text-gray-600">{syncResult.processedCount}</div>
+                        <span className="font-medium">Atualizados:</span>
+                        <div className="text-lg font-bold text-orange-600">{syncResult.details?.updated || 0}</div>
                       </div>
                       <div>
                         <span className="font-medium">Confirmados:</span>
-                        <div className="text-lg font-bold text-green-600">{syncResult.confirmedCount}</div>
+                        <div className="text-lg font-bold text-green-600">{syncResult.details?.confirmed || 0}</div>
                       </div>
                       <div>
-                        <span className="font-medium">Erros:</span>
-                        <div className="text-lg font-bold text-red-600">{syncResult.errorCount}</div>
+                        <span className="font-medium">Processados:</span>
+                        <div className="text-lg font-bold text-gray-600">{syncResult.details?.processed || 0}</div>
                       </div>
                     </div>
+
+                    {syncResult.results && syncResult.results.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="font-medium">Detalhes dos pagamentos:</p>
+                        <div className="max-h-40 overflow-y-auto space-y-1">
+                          {syncResult.results.map((result: any, index: number) => (
+                            <div key={index} className="text-sm p-2 bg-muted rounded">
+                              <div className="font-mono">{result.paymentId}</div>
+                              <div className="text-muted-foreground">
+                                {result.updated ? (
+                                  <span className="text-green-600">
+                                    {result.oldStatus} → {result.newStatus}
+                                    {result.processed && " (processado)"}
+                                  </span>
+                                ) : (
+                                  <span>{result.message || result.status}</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     
                     {syncResult.environment && (
                       <div className="flex items-center gap-2">
@@ -260,28 +282,6 @@ export function PaymentDebugger() {
                         <span className="text-xs text-muted-foreground">Ambiente Asaas</span>
                       </div>
                     )}
-                    
-                    {syncResult.processedPayments && syncResult.processedPayments.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-sm">Pagamentos Processados:</h4>
-                        <div className="space-y-1 max-h-32 overflow-y-auto">
-                          {syncResult.processedPayments.map((payment: any, index: number) => (
-                            <div key={index} className="flex items-center justify-between text-xs bg-muted p-2 rounded">
-                              <span className="font-mono">{payment.paymentId}</span>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs">
-                                  {payment.oldStatus} → {payment.newStatus}
-                                </Badge>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="text-xs text-muted-foreground mt-2">
-                      Última sincronização: {new Date(syncResult.timestamp).toLocaleString('pt-BR')}
-                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -308,62 +308,43 @@ export function PaymentDebugger() {
               {webhookConfig && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Status do Webhook</CardTitle>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      {webhookConfig.status === 'ok' ? (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <AlertCircle className="h-5 w-5 text-yellow-600" />
+                      )}
+                      Status do Webhook
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium">Total de Webhooks:</span>
-                        <div className="text-lg font-bold">{webhookConfig.analysis.totalWebhooks}</div>
-                      </div>
-                      <div>
-                        <span className="font-medium">Ativos:</span>
-                        <div className="text-lg font-bold text-green-600">{webhookConfig.analysis.activeWebhooks}</div>
-                      </div>
-                      <div>
-                        <span className="font-medium">Problemas:</span>
-                        <div className="text-lg font-bold text-red-600">{webhookConfig.analysis.issues.length}</div>
-                      </div>
+                    <div className="space-y-2">
+                      <div>URL: {webhookConfig.webhook?.url}</div>
+                      <div>Configurado: {webhookConfig.webhook?.configured ? 'Sim' : 'Não'}</div>
+                      <div>Ambiente: {webhookConfig.environment}</div>
                     </div>
 
-                    {webhookConfig.analysis.correctWebhook && (
-                      <div>
-                        <h4 className="font-medium mb-2">Eventos Configurados:</h4>
-                        <div className="flex flex-wrap gap-1">
-                          {webhookConfig.analysis.paymentEvents.map((event: string) => (
-                            <Badge key={event} variant={event === 'PAYMENT_CONFIRMED' ? 'default' : 'secondary'}>
-                              {event}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {webhookConfig.analysis.issues.length > 0 && (
-                      <div>
-                        <h4 className="font-medium mb-2 text-red-600">Problemas Encontrados:</h4>
-                        <ul className="list-disc list-inside space-y-1 text-sm">
-                          {webhookConfig.analysis.issues.map((issue: string, index: number) => (
-                            <li key={index} className="text-red-600">{issue}</li>
+                    {webhookConfig.issues && webhookConfig.issues.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="font-medium text-destructive">Problemas encontrados:</p>
+                        <ul className="text-sm space-y-1 text-muted-foreground">
+                          {webhookConfig.issues.map((issue: string, index: number) => (
+                            <li key={index}>• {issue}</li>
                           ))}
                         </ul>
                       </div>
                     )}
 
-                    {webhookConfig.analysis.recommendations.length > 0 && (
-                      <div>
-                        <h4 className="font-medium mb-2 text-blue-600">Recomendações:</h4>
-                        <ul className="list-disc list-inside space-y-1 text-sm">
-                          {webhookConfig.analysis.recommendations.map((rec: string, index: number) => (
-                            <li key={index} className="text-blue-600">{rec}</li>
+                    {webhookConfig.recommendations && webhookConfig.recommendations.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="font-medium text-yellow-600">Recomendações:</p>
+                        <ul className="text-sm space-y-1 text-muted-foreground">
+                          {webhookConfig.recommendations.map((rec: string, index: number) => (
+                            <li key={index}>• {rec}</li>
                           ))}
                         </ul>
                       </div>
                     )}
-
-                    <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                      <strong>URL esperada:</strong> {webhookConfig.analysis.expectedUrl}
-                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -404,16 +385,45 @@ export function PaymentDebugger() {
               {cardValidation && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Resultado da Validação</CardTitle>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      {cardValidation.isTestCard ? (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      ) : cardValidation.isValid ? (
+                        <AlertCircle className="h-5 w-5 text-yellow-600" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-600" />
+                      )}
+                      Resultado da Validação
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <span className="font-medium">Cartão:</span>
-                        <div className="text-lg font-mono">{cardValidation.cardNumber}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {cardValidation.recommendation}
+                    </div>
+
+                    {cardValidation.recommendedTestCards && (
+                      <div className="space-y-2">
+                        <p className="font-medium">Cartões recomendados para teste:</p>
+                        <div className="space-y-1">
+                          {cardValidation.recommendedTestCards.map((card: any, index: number) => (
+                            <div key={index} className="text-sm p-2 bg-muted rounded">
+                              <div className="font-mono">{card.number}</div>
+                              <div className="text-muted-foreground">{card.brand} - {card.description}</div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div>
-                        <span className="font-medium">Bandeira:</span>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
                         <div className="text-lg">{cardValidation.validation.brand}</div>
                       </div>
                       <div>

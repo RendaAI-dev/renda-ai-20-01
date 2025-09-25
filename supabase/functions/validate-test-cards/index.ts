@@ -1,195 +1,175 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
-};
-
-// Cartões de teste válidos do Asaas
-const VALID_TEST_CARDS = {
-  // Cartões que são aprovados automaticamente no sandbox
-  approved: [
-    {
-      number: '5162306219378829',
-      brand: 'Mastercard',
-      description: 'Cartão aprovado automaticamente'
-    },
-    {
-      number: '5448280000000007',
-      brand: 'Mastercard',
-      description: 'Cartão aprovado automaticamente'
-    },
-    {
-      number: '4111111111111111',
-      brand: 'Visa',
-      description: 'Cartão aprovado automaticamente'
-    },
-    {
-      number: '4000000000000010',
-      brand: 'Visa',
-      description: 'Cartão aprovado automaticamente'
-    }
-  ],
-  // Cartões que são rejeitados automaticamente (para testes)
-  declined: [
-    {
-      number: '4000000000000002',
-      brand: 'Visa',
-      description: 'Cartão rejeitado automaticamente'
-    },
-    {
-      number: '5555555555554444',
-      brand: 'Mastercard',
-      description: 'Cartão rejeitado automaticamente'
-    }
-  ]
-};
+}
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { cardNumber, returnType = 'validation' } = await req.json();
-
-    console.log('[VALIDATE-TEST-CARDS] Validando cartão:', cardNumber?.slice(0, 6) + '****');
-
-    // Se é uma consulta para listar cartões válidos
-    if (returnType === 'list') {
-      return new Response(JSON.stringify({
-        success: true,
-        testCards: VALID_TEST_CARDS
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
+    const { cardNumber } = await req.json()
+    
     if (!cardNumber) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Número do cartão é obrigatório'
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      throw new Error('Número do cartão é obrigatório')
     }
 
-    // Remover espaços e formatação
-    const cleanCardNumber = cardNumber.replace(/\s+/g, '');
+    console.log(`[VALIDATE-TEST-CARDS] Validando cartão: ${cardNumber}`)
 
-    // Verificar se é um cartão de teste válido
-    const approvedCard = VALID_TEST_CARDS.approved.find(card => 
-      card.number === cleanCardNumber
-    );
-
-    const declinedCard = VALID_TEST_CARDS.declined.find(card => 
-      card.number === cleanCardNumber
-    );
-
-    let validation = {
-      isTestCard: false,
-      isValidTestCard: false,
-      expectedResult: null as string | null,
-      brand: null as string | null,
-      recommendation: ''
-    };
-
-    if (approvedCard) {
-      validation = {
-        isTestCard: true,
-        isValidTestCard: true,
-        expectedResult: 'approved',
-        brand: approvedCard.brand,
-        recommendation: 'Este cartão será aprovado automaticamente no sandbox do Asaas'
-      };
-    } else if (declinedCard) {
-      validation = {
-        isTestCard: true,
-        isValidTestCard: true,
-        expectedResult: 'declined',
-        brand: declinedCard.brand,
-        recommendation: 'Este cartão será rejeitado automaticamente no sandbox do Asaas'
-      };
-    } else {
-      // Verificar se é um cartão de teste (sandbox) genérico
-      const isLikelyTestCard = cleanCardNumber.startsWith('4111') || 
-                              cleanCardNumber.startsWith('5555') ||
-                              cleanCardNumber.startsWith('4000') ||
-                              cleanCardNumber.startsWith('5448');
-
-      if (isLikelyTestCard) {
-        validation = {
-          isTestCard: true,
-          isValidTestCard: false,
-          expectedResult: 'pending',
-          brand: getBrandFromNumber(cleanCardNumber),
-          recommendation: 'Este cartão pode ficar em PENDING no sandbox. Recomendamos usar um dos cartões aprovados automaticamente.'
-        };
-      } else {
-        validation = {
-          isTestCard: false,
-          isValidTestCard: false,
-          expectedResult: 'unknown',
-          brand: getBrandFromNumber(cleanCardNumber),
-          recommendation: 'Cartão real - não deve ser usado no ambiente sandbox'
-        };
+    // Cartões de teste do Asaas Sandbox
+    const testCards = {
+      // Cartões que são aprovados automaticamente
+      '5162306219378829': {
+        type: 'test',
+        brand: 'MASTERCARD',
+        status: 'approved',
+        description: 'Cartão de teste - Aprovado automaticamente'
+      },
+      '5448280000000007': {
+        type: 'test',
+        brand: 'MASTERCARD', 
+        status: 'approved',
+        description: 'Cartão de teste - Aprovado automaticamente'
+      },
+      '4111111111111111': {
+        type: 'test',
+        brand: 'VISA',
+        status: 'approved',
+        description: 'Cartão de teste - Aprovado automaticamente'
+      },
+      '4000000000000002': {
+        type: 'test',
+        brand: 'VISA',
+        status: 'declined',
+        description: 'Cartão de teste - Rejeitado automaticamente'
+      },
+      '5555555555554444': {
+        type: 'test',
+        brand: 'MASTERCARD',
+        status: 'approved', 
+        description: 'Cartão de teste - Aprovado automaticamente'
+      },
+      '378282246310005': {
+        type: 'test',
+        brand: 'AMEX',
+        status: 'approved',
+        description: 'Cartão de teste - Aprovado automaticamente'
       }
     }
 
-    console.log('[VALIDATE-TEST-CARDS] Resultado da validação:', validation);
+    // Remover espaços e caracteres especiais
+    const cleanCardNumber = cardNumber.replace(/\D/g, '')
+    
+    let result = {
+      cardNumber: cleanCardNumber,
+      isValid: false,
+      isTestCard: false,
+      recommendation: '',
+      details: null
+    }
+
+    // Verificar se é um cartão de teste conhecido
+    if (testCards[cleanCardNumber]) {
+      const testCard = testCards[cleanCardNumber]
+      result = {
+        ...result,
+        isValid: true,
+        isTestCard: true,
+        recommendation: testCard.status === 'approved' 
+          ? 'Este cartão de teste deveria ser aprovado automaticamente no sandbox'
+          : 'Este cartão de teste será rejeitado automaticamente',
+        details: testCard
+      }
+    } else {
+      // Validação básica do número do cartão (algoritmo de Luhn)
+      const isLuhnValid = validateLuhn(cleanCardNumber)
+      
+      if (isLuhnValid && cleanCardNumber.length >= 13 && cleanCardNumber.length <= 19) {
+        result = {
+          ...result,
+          isValid: true,
+          isTestCard: false,
+          recommendation: 'Este parece ser um cartão real. No ambiente sandbox, use cartões de teste para evitar problemas.',
+          details: {
+            type: 'real',
+            length: cleanCardNumber.length
+          }
+        }
+      } else {
+        result = {
+          ...result,
+          isValid: false,
+          recommendation: 'Número de cartão inválido. Verifique se digitou corretamente.',
+          details: {
+            luhnValid: isLuhnValid,
+            lengthValid: cleanCardNumber.length >= 13 && cleanCardNumber.length <= 19
+          }
+        }
+      }
+    }
+
+    // Adicionar lista de cartões recomendados para teste
+    result.recommendedTestCards = [
+      {
+        number: '5162306219378829',
+        brand: 'MASTERCARD',
+        description: 'Aprovado automaticamente'
+      },
+      {
+        number: '4111111111111111', 
+        brand: 'VISA',
+        description: 'Aprovado automaticamente'
+      },
+      {
+        number: '5555555555554444',
+        brand: 'MASTERCARD',
+        description: 'Aprovado automaticamente'
+      }
+    ]
+
+    console.log('[VALIDATE-TEST-CARDS] Resultado:', result)
 
     return new Response(JSON.stringify({
       success: true,
-      cardNumber: cleanCardNumber.slice(0, 6) + '****' + cleanCardNumber.slice(-4),
-      validation,
-      suggestedCards: validation.isValidTestCard ? null : VALID_TEST_CARDS.approved.slice(0, 2)
+      ...result
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    })
 
   } catch (error) {
-    console.error('[VALIDATE-TEST-CARDS] Erro:', error.message);
+    console.error('[VALIDATE-TEST-CARDS] Erro:', error)
     return new Response(JSON.stringify({
       success: false,
       error: error.message
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    })
   }
-});
+})
 
-// Detectar bandeira do cartão baseado no número
-function getBrandFromNumber(cardNumber: string): string {
-  const firstDigit = cardNumber.charAt(0);
-  const firstTwoDigits = cardNumber.substring(0, 2);
-  const firstFourDigits = cardNumber.substring(0, 4);
-
-  // Visa
-  if (firstDigit === '4') {
-    return 'Visa';
+// Algoritmo de Luhn para validar número do cartão
+function validateLuhn(cardNumber: string): boolean {
+  let sum = 0
+  let isEven = false
+  
+  // Percorrer os dígitos da direita para a esquerda
+  for (let i = cardNumber.length - 1; i >= 0; i--) {
+    let digit = parseInt(cardNumber.charAt(i))
+    
+    if (isEven) {
+      digit *= 2
+      if (digit > 9) {
+        digit -= 9
+      }
+    }
+    
+    sum += digit
+    isEven = !isEven
   }
   
-  // Mastercard
-  if (firstTwoDigits >= '51' && firstTwoDigits <= '55') {
-    return 'Mastercard';
-  }
-  if (firstTwoDigits >= '22' && firstTwoDigits <= '27') {
-    return 'Mastercard';
-  }
-  
-  // American Express
-  if (firstTwoDigits === '34' || firstTwoDigits === '37') {
-    return 'American Express';
-  }
-  
-  // Discover
-  if (firstFourDigits === '6011' || firstTwoDigits === '65') {
-    return 'Discover';
-  }
-  
-  return 'Unknown';
+  return sum % 10 === 0
 }

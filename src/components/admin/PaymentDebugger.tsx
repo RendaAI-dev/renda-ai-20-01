@@ -11,32 +11,51 @@ import { RefreshCw, CreditCard, Webhook, Search, CheckCircle, XCircle, AlertCirc
 
 export function PaymentDebugger() {
   const [loading, setLoading] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [forceLoading, setForceLoading] = useState(false);
   const [syncResult, setSyncResult] = useState<any>(null);
   const [webhookConfig, setWebhookConfig] = useState<any>(null);
   const [cardValidation, setCardValidation] = useState<any>(null);
   const [testCardNumber, setTestCardNumber] = useState('');
+  const [targetEmail, setTargetEmail] = useState('');
   const { toast } = useToast();
 
-  const syncPendingPayments = async () => {
-    setLoading(true);
+  const syncPendingPayments = async (options: { email?: string; forceSync?: boolean } = {}) => {
+    const loadingState = options.email ? setEmailLoading : (options.forceSync ? setForceLoading : setLoading);
+    loadingState(true);
+    
     try {
-      const { data, error } = await supabase.functions.invoke('sync-pending-payments');
+      const requestBody: any = {};
+      if (options.email) requestBody.email = options.email;
+      if (options.forceSync) requestBody.forceSync = true;
+      if (options.forceSync) requestBody.maxAge = 0;
+      
+      const { data, error } = await supabase.functions.invoke('sync-pending-payments', {
+        body: requestBody
+      });
       
       if (error) throw error;
 
       setSyncResult(data);
+      const title = options.email 
+        ? `Sincronização para ${options.email} concluída`
+        : options.forceSync 
+        ? "Sincronização forçada concluída"
+        : "Sincronização concluída";
+        
       toast({
-        title: "Sincronização concluída",
-        description: `${data.confirmedCount} pagamentos confirmados de ${data.processedCount} verificados`,
+        title,
+        description: `Pendentes: ${data.pendingPayments}, Processados: ${data.processedCount}, Confirmados: ${data.confirmedCount}`,
       });
     } catch (error: any) {
+      console.error('Erro na sincronização:', error);
       toast({
         title: "Erro na sincronização",
         description: error.message,
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      loadingState(false);
     }
   };
 
@@ -157,22 +176,63 @@ export function PaymentDebugger() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Verifica pagamentos que estão há mais de 5 minutos em status PENDING e consulta o Asaas para obter o status atual.
                 </p>
-                <Button 
-                  onClick={syncPendingPayments}
-                  disabled={loading}
-                  className="flex items-center gap-2"
-                >
-                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                  {loading ? 'Sincronizando...' : 'Sincronizar Agora'}
-                </Button>
+                
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => syncPendingPayments()}
+                      disabled={loading}
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                      {loading ? 'Sincronizando...' : 'Sincronizar (>5min)'}
+                    </Button>
+                    
+                    <Button 
+                      onClick={() => syncPendingPayments({ forceSync: true })}
+                      disabled={forceLoading}
+                      variant="outline"
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${forceLoading ? 'animate-spin' : ''}`} />
+                      {forceLoading ? 'Sincronizando...' : 'Forçar Todos'}
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="targetEmail">Sincronizar por Email:</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="targetEmail"
+                        type="email"
+                        placeholder="usuario@email.com"
+                        value={targetEmail}
+                        onChange={(e) => setTargetEmail(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={() => syncPendingPayments({ email: targetEmail })}
+                        disabled={!targetEmail || emailLoading}
+                        variant="secondary"
+                        className="flex items-center gap-2"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${emailLoading ? 'animate-spin' : ''}`} />
+                        {emailLoading ? 'Sincronizando...' : 'Sincronizar'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {syncResult && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Resultado da Sincronização</CardTitle>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      Resultado da Sincronização
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
+                  <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
                         <span className="font-medium">Pagamentos Pendentes:</span>
@@ -183,13 +243,44 @@ export function PaymentDebugger() {
                         <div className="text-lg font-bold text-gray-600">{syncResult.processedCount}</div>
                       </div>
                       <div>
-                        <span className="font-medium">Atualizados:</span>
-                        <div className="text-lg font-bold text-orange-600">{syncResult.updatedCount}</div>
-                      </div>
-                      <div>
                         <span className="font-medium">Confirmados:</span>
                         <div className="text-lg font-bold text-green-600">{syncResult.confirmedCount}</div>
                       </div>
+                      <div>
+                        <span className="font-medium">Erros:</span>
+                        <div className="text-lg font-bold text-red-600">{syncResult.errorCount}</div>
+                      </div>
+                    </div>
+                    
+                    {syncResult.environment && (
+                      <div className="flex items-center gap-2">
+                        <Badge variant={syncResult.environment === 'production' ? 'destructive' : 'secondary'}>
+                          {syncResult.environment.toUpperCase()}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">Ambiente Asaas</span>
+                      </div>
+                    )}
+                    
+                    {syncResult.processedPayments && syncResult.processedPayments.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-sm">Pagamentos Processados:</h4>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {syncResult.processedPayments.map((payment: any, index: number) => (
+                            <div key={index} className="flex items-center justify-between text-xs bg-muted p-2 rounded">
+                              <span className="font-mono">{payment.paymentId}</span>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {payment.oldStatus} → {payment.newStatus}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="text-xs text-muted-foreground mt-2">
+                      Última sincronização: {new Date(syncResult.timestamp).toLocaleString('pt-BR')}
                     </div>
                   </CardContent>
                 </Card>

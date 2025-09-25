@@ -112,12 +112,23 @@ export const usePaymentConfirmation = (subscriptionId?: string, paymentId?: stri
         }
       }
       
+      // Após 5 minutos, executar verificação proativa de pagamentos pendentes
+      if (attempts === 60) {
+        console.log('⏰ 5 minutos sem confirmação. Executando verificação proativa...');
+        try {
+          await supabase.functions.invoke('verify-pending-payments');
+          console.log('✅ Verificação proativa executada');
+        } catch (error) {
+          console.error('❌ Erro na verificação proativa:', error);
+        }
+      }
+      
       // Após 10 minutos, dar timeout
       if (attempts >= maxAttempts) {
         clearInterval(interval);
         setState({ 
           status: 'timeout', 
-          error: 'Timeout - pagamento não confirmado em 10 minutos' 
+          error: 'Timeout - pagamento não confirmado em 10 minutos. Verifique se o pagamento foi processado corretamente.' 
         });
         return;
       }

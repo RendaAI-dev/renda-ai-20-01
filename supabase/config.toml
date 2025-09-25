@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.reactivate-subscription]
 verify_jwt = true
+
+[functions.verify-pending-payments]
+verify_jwt = true

@@ -16,6 +16,7 @@ const SubscriptionStatusCard: React.FC = () => {
 
   const getStatusVariant = () => {
     if (isSubscriptionExpired) return 'destructive';
+    if (subscription?.status === 'pending_payment') return 'outline';
     if (!hasActiveSubscription) return 'destructive';
     if (isSubscriptionExpiring) return 'outline';
     return 'success';
@@ -23,6 +24,7 @@ const SubscriptionStatusCard: React.FC = () => {
 
   const getStatusText = () => {
     if (isSubscriptionExpired) return 'Plano Vencido';
+    if (subscription?.status === 'pending_payment') return 'Aguardando Pagamento';
     if (!hasActiveSubscription) return t('plans.status.inactive');
     if (isSubscriptionExpiring) return t('plans.status.expiring');
     return t('plans.status.active');

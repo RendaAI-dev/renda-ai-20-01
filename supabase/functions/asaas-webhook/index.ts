@@ -641,8 +641,9 @@ async function processPaymentStatus(supabase: any, event: string, userId: string
 
     case 'PAYMENT_DELETED':
     case 'PAYMENT_REFUNDED':
-      // Pagamento cancelado/estornado
-      await handlePaymentCancelled(supabase, userId);
+    case 'PAYMENT_DENIED':
+      // Pagamento cancelado/estornado/negado
+      await handlePaymentCancelled(supabase, userId, payment);
       break;
 
     default:
@@ -912,18 +913,53 @@ async function handlePaymentOverdue(supabase: any, userId: string, payment: any)
   console.log('[ASAAS-WEBHOOK] Status atualizado para past_due com carência até:', gracePeriodEnd);
 }
 
-async function handlePaymentCancelled(supabase: any, userId: string) {
-  console.log('[ASAAS-WEBHOOK] Processando cancelamento para usuário:', userId);
+async function handlePaymentCancelled(supabase: any, userId: string, payment?: any) {
+  console.log('[ASAAS-WEBHOOK] 🚫 PROCESSANDO PAGAMENTO NEGADO/CANCELADO:', {
+    userId,
+    paymentId: payment?.id,
+    paymentStatus: payment?.status,
+    subscription: payment?.subscription,
+    timestamp: new Date().toISOString()
+  });
+  
+  // Se o pagamento tem uma assinatura associada, cancelar a assinatura
+  if (payment?.subscription) {
+    console.log('[ASAAS-WEBHOOK] 🚫 Cancelando assinatura por pagamento negado:', payment.subscription);
+    
+    const { error: subscriptionError } = await supabase
+      .from('poupeja_subscriptions')
+      .update({ 
+        status: 'cancelled',
+        updated_at: new Date().toISOString()
+      })
+      .eq('asaas_subscription_id', payment.subscription);
+      
+    if (subscriptionError) {
+      console.error('[ASAAS-WEBHOOK] ❌ Erro ao cancelar assinatura:', subscriptionError);
+    } else {
+      console.log('[ASAAS-WEBHOOK] ✅ Assinatura cancelada por pagamento negado');
+    }
+    
+    // Notificar usuário sobre problema no pagamento
+    await supabase.functions.invoke('send-push-notification', {
+      body: {
+        userId,
+        title: 'Problema no Pagamento',
+        body: 'Houve um problema com seu pagamento. Por favor, verifique seus dados do cartão e tente novamente.',
+        data: { type: 'payment_failed', paymentId: payment.id }
+      }
+    }).catch((error: any) => console.error('[ASAAS-WEBHOOK] Erro ao enviar notificação:', error));
+  } else {
+    // Cancelamento geral da assinatura  
+    await supabase
+      .from('poupeja_subscriptions')
+      .update({
+        status: 'cancelled',
+        cancel_at_period_end: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId);
+  }
 
-  // Cancelar assinatura
-  await supabase
-    .from('poupeja_subscriptions')
-    .update({
-      status: 'cancelled',
-      cancel_at_period_end: true,
-      updated_at: new Date().toISOString()
-    })
-    .eq('user_id', userId);
-
-  console.log('[ASAAS-WEBHOOK] Assinatura cancelada para usuário:', userId);
+  console.log('[ASAAS-WEBHOOK] ✅ Processamento de cancelamento concluído');
 }

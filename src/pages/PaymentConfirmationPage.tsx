@@ -17,7 +17,7 @@ const PaymentConfirmationPage = () => {
   const subscriptionId = searchParams.get('subscription_id') || '';
   const paymentId = searchParams.get('payment_id') || '';
 
-  const { status, subscription, error } = usePaymentConfirmation(subscriptionId);
+  const { status, subscription, error, verifyPaymentOnAsaas } = usePaymentConfirmation(subscriptionId, paymentId);
 
   useEffect(() => {
     if (status === 'confirmed') {
@@ -69,10 +69,20 @@ const PaymentConfirmationPage = () => {
             <p className="text-muted-foreground">
               O pagamento está demorando mais que o esperado para ser processado.
             </p>
-            <Button onClick={() => navigate('/payment-success?timeout=true')} className="mt-4">
-              Continuar para página de sucesso
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center mt-4">
+              <Button 
+                onClick={verifyPaymentOnAsaas}
+                variant="outline"
+                className="flex items-center"
+              >
+                Verificar Status
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+              <Button onClick={() => navigate('/payment-success?timeout=true')}>
+                Continuar para página de sucesso
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
           </div>
         );
       

@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => ({
           routing: ['react-router-dom'],
           
           // Heavy libraries
-          charts: ['recharts'],
+          charts: ['recharts', 'react-is'],
           pdf: ['jspdf', 'jspdf-autotable'],
           supabase: ['@supabase/supabase-js'],
           
@@ -183,7 +183,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', '@supabase/supabase-js'],
+    include: ['react', 'react-dom', '@supabase/supabase-js', 'react-is', 'recharts'],
     exclude: ['jspdf', 'jspdf-autotable'] // Heavy libs only when needed
   },
 }));

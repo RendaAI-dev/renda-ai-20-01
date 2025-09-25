@@ -96,6 +96,32 @@ export function useNotifications() {
     }
   });
 
+  // Mutation para excluir notificação
+  const deleteNotificationMutation = useMutation({
+    mutationFn: async (notificationId: string) => {
+      const { error } = await supabase
+        .from("poupeja_notifications")
+        .delete()
+        .eq("id", notificationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-count"] });
+      toast({
+        title: "Sucesso",
+        description: "Notificação excluída com sucesso."
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir a notificação.",
+        variant: "destructive"
+      });
+    }
+  });
+
   // Setup realtime subscription
   useEffect(() => {
     const channel = supabase
@@ -139,9 +165,11 @@ export function useNotifications() {
     error: notificationsQuery.error || unreadCountQuery.error,
     markAsRead: markAsReadMutation.mutate,
     markAllAsRead: markAllAsReadMutation.mutate,
+    deleteNotification: deleteNotificationMutation.mutate,
     createTestNotification: createTestNotificationMutation.mutate,
     isMarkingAsRead: markAsReadMutation.isPending,
     isMarkingAllAsRead: markAllAsReadMutation.isPending,
+    isDeleting: deleteNotificationMutation.isPending,
     isCreatingTest: createTestNotificationMutation.isPending,
     refetch: () => {
       notificationsQuery.refetch();

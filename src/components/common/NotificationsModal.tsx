@@ -4,10 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { BellRing, CheckCheck } from "lucide-react";
+import { NotificationList } from "./NotificationList";
 import { toast } from "@/hooks/use-toast";
-import { BellRing, CheckCheck, ArrowLeft } from "lucide-react";
-import { NotificationList } from "@/components/common/NotificationList";
-import { useNavigate } from "react-router-dom";
 
 interface Notification {
   id: string;
@@ -21,10 +27,14 @@ interface Notification {
   read_at?: string;
 }
 
-export default function NotificationsPage() {
+interface NotificationsModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function NotificationsModal({ open, onOpenChange }: NotificationsModalProps) {
   const [selectedTab, setSelectedTab] = useState("all");
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
   // Buscar notificações
   const { data: notifications = [], isLoading } = useQuery({
@@ -47,7 +57,8 @@ export default function NotificationsPage() {
       const { data, error } = await query;
       if (error) throw error;
       return data as Notification[];
-    }
+    },
+    enabled: open
   });
 
   // Buscar contagem de não lidas
@@ -57,7 +68,8 @@ export default function NotificationsPage() {
       const { data, error } = await supabase.rpc("get_unread_notifications_count");
       if (error) throw error;
       return data;
-    }
+    },
+    enabled: open
   });
 
   // Marcar como lida
@@ -139,64 +151,62 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => navigate(-1)}
-              className="mr-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <BellRing className="h-6 w-6" />
-            <h1 className="text-2xl font-bold">Notificações</h1>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-4xl max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <BellRing className="h-6 w-6" />
+              <DialogTitle>Notificações</DialogTitle>
+              {unreadCount > 0 && (
+                <Badge variant="default">{unreadCount} não lidas</Badge>
+              )}
+            </div>
+            
             {unreadCount > 0 && (
-              <Badge variant="default">{unreadCount} não lidas</Badge>
+              <Button
+                onClick={() => markAllAsReadMutation.mutate()}
+                disabled={markAllAsReadMutation.isPending}
+                variant="outline"
+                size="sm"
+              >
+                <CheckCheck className="h-4 w-4 mr-2" />
+                Marcar todas como lidas
+              </Button>
             )}
           </div>
-          
-          {unreadCount > 0 && (
-            <Button
-              onClick={() => markAllAsReadMutation.mutate()}
-              disabled={markAllAsReadMutation.isPending}
-              variant="outline"
-            >
-              <CheckCheck className="h-4 w-4 mr-2" />
-              Marcar todas como lidas
-            </Button>
-          )}
-        </div>
-      </div>
+        </DialogHeader>
 
-      <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="all">Todas</TabsTrigger>
-          <TabsTrigger value="unread">Não lidas</TabsTrigger>
-          <TabsTrigger value="transaction">Transações</TabsTrigger>
-          <TabsTrigger value="goal">Metas</TabsTrigger>
-          <TabsTrigger value="schedule">Agendadas</TabsTrigger>
-          <TabsTrigger value="payment">Pagamentos</TabsTrigger>
-          <TabsTrigger value="marketing">Marketing</TabsTrigger>
-        </TabsList>
+        <Separator />
 
-        <TabsContent value={selectedTab} className="mt-6">
-          <NotificationList
-            notifications={notifications}
-            isLoading={isLoading}
-            onMarkAsRead={handleMarkAsRead}
-            onDelete={handleDelete}
-            isMarkingAsRead={markAsReadMutation.isPending}
-            isDeleting={deleteNotificationMutation.isPending}
-            emptyMessage={selectedTab === "all" 
-              ? "Nenhuma notificação"
-              : `Nenhuma notificação do tipo "${selectedTab}"`
-            }
-          />
-        </TabsContent>
-      </Tabs>
-    </div>
+        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="flex-1 flex flex-col">
+          <TabsList className="grid w-full grid-cols-7 mb-4">
+            <TabsTrigger value="all">Todas</TabsTrigger>
+            <TabsTrigger value="unread">Não lidas</TabsTrigger>
+            <TabsTrigger value="transaction">Transações</TabsTrigger>
+            <TabsTrigger value="goal">Metas</TabsTrigger>
+            <TabsTrigger value="schedule">Agendadas</TabsTrigger>
+            <TabsTrigger value="payment">Pagamentos</TabsTrigger>
+            <TabsTrigger value="marketing">Marketing</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value={selectedTab} className="flex-1">
+            <NotificationList
+              notifications={notifications}
+              isLoading={isLoading}
+              onMarkAsRead={handleMarkAsRead}
+              onDelete={handleDelete}
+              isMarkingAsRead={markAsReadMutation.isPending}
+              isDeleting={deleteNotificationMutation.isPending}
+              height="h-[50vh]"
+              emptyMessage={selectedTab === "all" 
+                ? "Nenhuma notificação"
+                : `Nenhuma notificação do tipo "${selectedTab}"`
+              }
+            />
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 }

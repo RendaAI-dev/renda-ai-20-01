@@ -91,14 +91,14 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         
         <div className="p-6 max-h-[calc(85vh-120px)] overflow-y-auto">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <TransactionTypeSelector form={form} onTypeChange={handleTypeChange} />
-              <AmountInput form={form} />
-              <CategoryDateFields form={form} transactionType={selectedType} />
-              <DescriptionField form={form} />
+            <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
+              <TransactionTypeSelector form={form as any} onTypeChange={handleTypeChange} />
+              <AmountInput form={form as any} />
+              <CategoryDateFields form={form as any} transactionType={selectedType} />
+              <DescriptionField form={form as any} />
               
               {selectedType === 'income' && (
-                <GoalSelector form={form} />
+                <GoalSelector form={form as any} />
               )}
 
               <DialogFooter className="pt-4">

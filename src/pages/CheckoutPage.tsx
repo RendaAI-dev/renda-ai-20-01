@@ -178,6 +178,32 @@ const CheckoutPage = () => {
     }));
   };
 
+  // Função de validação de CPF usando algoritmo correto
+  const validateCPF = (cpf: string): boolean => {
+    const cleanCPF = cpf.replace(/\D/g, '');
+    
+    if (cleanCPF.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(cleanCPF)) return false;
+
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+      sum += parseInt(cleanCPF.charAt(i)) * (10 - i);
+    }
+    let remainder = (sum * 10) % 11;
+    if (remainder === 10 || remainder === 11) remainder = 0;
+    if (remainder !== parseInt(cleanCPF.charAt(9))) return false;
+
+    sum = 0;
+    for (let i = 0; i < 10; i++) {
+      sum += parseInt(cleanCPF.charAt(i)) * (11 - i);
+    }
+    remainder = (sum * 10) % 11;
+    if (remainder === 10 || remainder === 11) remainder = 0;
+    if (remainder !== parseInt(cleanCPF.charAt(10))) return false;
+
+    return true;
+  };
+
   const validateCreditCard = (): boolean => {
     const { number, expiryMonth, expiryYear, ccv, holderName, holderCpf } = creditCardData;
     
@@ -190,11 +216,11 @@ const CheckoutPage = () => {
       return false;
     }
 
-    // Validate CPF length
-    if (holderCpf.length !== 11) {
+    // Validate CPF using correct algorithm
+    if (!validateCPF(holderCpf)) {
       toast({
         title: "CPF inválido",
-        description: "O CPF do titular deve ter 11 dígitos",
+        description: "Por favor, digite um CPF válido para o titular do cartão",
         variant: "destructive"
       });
       return false;
@@ -387,6 +413,7 @@ const CheckoutPage = () => {
                         data={creditCardData}
                         onChange={handleCreditCardChange}
                         disabled={loading}
+                        currentUser={currentUser}
                       />
                     </CardContent>
                   </Card>

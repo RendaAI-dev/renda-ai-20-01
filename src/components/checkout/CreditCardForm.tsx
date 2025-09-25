@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface CreditCardData {
   number: string;
@@ -16,13 +17,56 @@ interface CreditCardFormProps {
   data: CreditCardData;
   onChange: (field: keyof CreditCardData, value: string) => void;
   disabled?: boolean;
+  currentUser?: any;
 }
 
 export const CreditCardForm: React.FC<CreditCardFormProps> = ({
   data,
   onChange,
-  disabled = false
+  disabled = false,
+  currentUser
 }) => {
+  const { toast } = useToast();
+  const [userData, setUserData] = useState<any>(null);
+
+  // Buscar dados do usuário logado para pré-preenchimento
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!currentUser?.id) return;
+      
+      try {
+        const { data: user, error } = await supabase
+          .from('poupeja_users')
+          .select('name, cpf')
+          .eq('id', currentUser.id)
+          .single();
+          
+        if (error) {
+          console.error('Erro ao buscar dados do usuário:', error);
+          return;
+        }
+        
+        setUserData(user);
+        
+        // Pré-preencher campos se estiverem vazios
+        if (user.name && !data.holderName) {
+          onChange('holderName', user.name.toUpperCase());
+        }
+        
+        if (user.cpf && !data.holderCpf) {
+          // Garantir que o CPF seja válido antes de pré-preencher
+          const cleanCpf = user.cpf.replace(/\D/g, '');
+          if (validateCPF(cleanCpf)) {
+            onChange('holderCpf', cleanCpf);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao buscar dados do usuário:', error);
+      }
+    };
+
+    fetchUserData();
+  }, [currentUser, data.holderName, data.holderCpf]);
   
   const formatCardNumber = (value: string) => {
     // Remove all non-digits
@@ -61,6 +105,37 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
   const formatCCV = (value: string) => {
     const v = value.replace(/\D/g, '');
     return v.substring(0, 4);
+  };
+
+  // Função completa de validação de CPF usando algoritmo de dígitos verificadores
+  const validateCPF = (cpf: string): boolean => {
+    const cleanCPF = cpf.replace(/\D/g, '');
+    
+    // Verificar se tem 11 dígitos
+    if (cleanCPF.length !== 11) return false;
+    
+    // Verificar se não é uma sequência de números iguais
+    if (/^(\d)\1{10}$/.test(cleanCPF)) return false;
+
+    // Validar primeiro dígito verificador
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+      sum += parseInt(cleanCPF.charAt(i)) * (10 - i);
+    }
+    let remainder = (sum * 10) % 11;
+    if (remainder === 10 || remainder === 11) remainder = 0;
+    if (remainder !== parseInt(cleanCPF.charAt(9))) return false;
+
+    // Validar segundo dígito verificador
+    sum = 0;
+    for (let i = 0; i < 10; i++) {
+      sum += parseInt(cleanCPF.charAt(i)) * (11 - i);
+    }
+    remainder = (sum * 10) % 11;
+    if (remainder === 10 || remainder === 11) remainder = 0;
+    if (remainder !== parseInt(cleanCPF.charAt(10))) return false;
+
+    return true;
   };
 
   const formatCPF = (value: string) => {
@@ -141,8 +216,20 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
   };
 
   const handleHolderCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCPF(e.target.value);
-    onChange('holderCpf', formatted.replace(/\D/g, ''));
+    const cleanValue = e.target.value.replace(/\D/g, '');
+    
+    // Validar CPF em tempo real
+    if (cleanValue.length === 11) {
+      if (!validateCPF(cleanValue)) {
+        toast({
+          title: "CPF inválido",
+          description: "Por favor, digite um CPF válido",
+          variant: "destructive"
+        });
+      }
+    }
+    
+    onChange('holderCpf', cleanValue);
   };
 
   return (
@@ -186,16 +273,29 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="holderCpf">CPF do Titular do Cartão</Label>
+        <Label htmlFor="holderCpf">
+          CPF do Titular do Cartão
+          {userData?.cpf && (
+            <span className="text-xs text-muted-foreground ml-2">
+              (Pré-preenchido com seu CPF cadastrado)
+            </span>
+          )}
+        </Label>
         <Input
           id="holderCpf"
           type="text"
           placeholder="000.000.000-00"
           value={formatCPF(data.holderCpf)}
           onChange={handleHolderCpfChange}
-          disabled={disabled}
+          disabled={disabled || (userData?.cpf && validateCPF(userData.cpf))}
           maxLength={14}
+          className={data.holderCpf.length === 11 && !validateCPF(data.holderCpf) ? 'border-destructive' : ''}
         />
+        {data.holderCpf.length === 11 && !validateCPF(data.holderCpf) && (
+          <p className="text-xs text-destructive">
+            CPF inválido. Verifique os dígitos inseridos.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-4 gap-4">

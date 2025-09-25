@@ -47,7 +47,7 @@ const GoalForm: React.FC<GoalFormProps> = ({
   type GoalFormValues = z.infer<typeof goalSchema>;
 
   const form = useForm<GoalFormValues>({
-    resolver: zodResolver(goalSchema),
+    resolver: zodResolver(goalSchema) as any,
     defaultValues: {
       name: initialData?.name || '',
       target_amount: initialData?.targetAmount || 0,

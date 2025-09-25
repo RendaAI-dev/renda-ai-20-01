@@ -203,8 +203,8 @@ const DashboardCharts: React.FC<DashboardChartsProps> = ({
                       paddingAngle={2}
                       dataKey="amount"
                       nameKey="category"
-                      label={({ category, percent }) => 
-                        `${category}: ${(percent * 100).toFixed(0)}%`
+                      label={({ category, percent }: any) => 
+                        `${category}: ${((percent as number) * 100).toFixed(0)}%`
                       }
                     >
                       {expenseSummaries.map((entry, index) => (

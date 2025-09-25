@@ -38,7 +38,7 @@ export const useTransactionForm = ({
 
   // Initialize form with proper defaults
   const form = useForm<TransactionFormValues>({
-    resolver: zodResolver(transactionSchema),
+    resolver: zodResolver(transactionSchema) as any,
     defaultValues: {
       type: initialData?.type || defaultType,
       amount: initialData?.amount || 0,

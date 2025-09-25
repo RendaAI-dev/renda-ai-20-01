@@ -128,7 +128,7 @@ serve(async (req) => {
           }
         } catch (error) {
           console.error(`Error updating setting ${key}:`, error);
-          errors.push(`Error updating ${key}: ${error.message}`);
+          errors.push(`Error updating ${key}: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
     }
@@ -183,7 +183,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error updating plan configuration:", error);
     
-    let errorMessage = error.message || "Erro interno do servidor";
+    let errorMessage = error instanceof Error ? error.message : String(error);
     let statusCode = 500;
 
     // Handle specific error cases

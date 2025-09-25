@@ -76,7 +76,7 @@ serve(async (req) => {
           platform: token.platform,
           token: token.token,
           status: 'failed',
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }
@@ -103,7 +103,7 @@ serve(async (req) => {
         results.push({
           platform: 'web',
           status: 'failed',
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }
@@ -142,7 +142,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

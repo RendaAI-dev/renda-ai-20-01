@@ -250,7 +250,7 @@ serve(async (req) => {
           }
         }
       } catch (error) {
-        console.log(`[REACTIVATE-SUBSCRIPTION] Erro na tentativa ${retryCount + 1}: ${error.message}`);
+        console.log(`[REACTIVATE-SUBSCRIPTION] Erro na tentativa ${retryCount + 1}: ${error instanceof Error ? error.message : String(error)}`);
       }
       
       retryCount++;
@@ -301,23 +301,26 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[REACTIVATE-SUBSCRIPTION] Erro:', error.message);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[REACTIVATE-SUBSCRIPTION] Erro:', errorMessage);
     
     // Try to parse card error response
     let errorResponse: any = {
       success: false,
-      error: error.message
+      error: errorMessage
     };
     
     try {
-      const parsedError = JSON.parse(error.message);
-      if (parsedError.action) {
-        errorResponse = {
-          success: false,
-          error: parsedError.message,
-          action: parsedError.action,
-          details: parsedError.details
-        };
+      if (error instanceof Error) {
+        const parsedError = JSON.parse(errorMessage);
+        if (parsedError.action) {
+          errorResponse = {
+            success: false,
+            error: parsedError.message,
+            action: parsedError.action,
+            details: parsedError.details
+          };
+        }
       }
     } catch {
       // Not a JSON error, use original message

@@ -100,13 +100,14 @@ serve(async (req) => {
             paymentId: payment.asaas_payment_id,
             oldStatus: payment.status,
             newStatus: asaasPayment.status,
-            updated: true
-          });
+            updated: true,
+            processed: false
+          } as any);
 
           if (['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(asaasPayment.status)) {
             await processConfirmedPayment(supabase, payment.user_id, asaasPayment, payment);
             confirmedCount++;
-            results[results.length - 1].processed = true;
+            (results[results.length - 1] as any).processed = true;
           }
         } else {
           results.push({
@@ -123,7 +124,7 @@ serve(async (req) => {
         results.push({
           paymentId: payment.asaas_payment_id,
           status: 'error',
-          message: error.message
+          message: error instanceof Error ? error.message : String(error)
         });
       }
     }
@@ -147,7 +148,7 @@ serve(async (req) => {
     console.error('[SYNC-PENDING-PAYMENTS] Erro:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

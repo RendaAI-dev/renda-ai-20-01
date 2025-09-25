@@ -177,10 +177,11 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[CHANGE-PLAN] ❌ Erro:', error.message);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[CHANGE-PLAN] ❌ Erro:', errorMessage);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: errorMessage
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

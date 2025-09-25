@@ -106,10 +106,11 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[UPDATE-PAYMENT-METHOD] ❌ Erro:', error.message);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[UPDATE-PAYMENT-METHOD] ❌ Erro:', errorMessage);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: errorMessage
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

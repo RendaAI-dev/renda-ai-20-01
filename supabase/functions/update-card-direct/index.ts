@@ -194,11 +194,11 @@ serve(async (req) => {
 
     switch (scenario) {
       case 'update_card_only':
-        result = await updateCardOnly(asaasUrl, apiKey, subscription.asaas_subscription_id, finalCardToken);
+        result = await updateCardOnly(asaasUrl, apiKey, subscription.asaas_subscription_id, finalCardToken || '');
         break;
       
       case 'update_card_cancel_overdue':
-        result = await updateCardCancelOverdue(asaasUrl, apiKey, asaasCustomer.asaas_customer_id, subscription.asaas_subscription_id, finalCardToken);
+        result = await updateCardCancelOverdue(asaasUrl, apiKey, asaasCustomer.asaas_customer_id, subscription.asaas_subscription_id, finalCardToken || '');
         break;
       
       default:
@@ -215,10 +215,11 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[UPDATE-CARD-DIRECT] ❌ Erro:', error.message);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[UPDATE-CARD-DIRECT] ❌ Erro:', errorMessage);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: errorMessage
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

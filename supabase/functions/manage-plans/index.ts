@@ -177,14 +177,14 @@ serve(async (req) => {
     console.error('Erro no manage-plans:', error);
     
     let status = 500;
-    let errorMessage = error.message || 'Erro interno do servidor';
+    let errorMessage = error instanceof Error ? error.message : String(error);
     
     // Determinar status code baseado no tipo de erro
-    if (error.message?.includes('Token de autenticação')) {
+    if (error instanceof Error && error.message?.includes('Token de autenticação')) {
       status = 401;
-    } else if (error.message?.includes('Acesso negado')) {
+    } else if (error instanceof Error && error.message?.includes('Acesso negado')) {
       status = 403;
-    } else if (error.message?.includes('não encontrado')) {
+    } else if (error instanceof Error && error.message?.includes('não encontrado')) {
       status = 404;
     }
     

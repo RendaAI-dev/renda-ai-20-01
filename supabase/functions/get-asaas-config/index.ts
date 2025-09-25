@@ -119,7 +119,7 @@ serve(async (req) => {
         }
       } catch (error) {
         connectionStatus = 'connection_error';
-        console.error('[GET-ASAAS-CONFIG] Erro ao testar conexão:', error.message);
+        console.error('[GET-ASAAS-CONFIG] Erro ao testar conexão:', error instanceof Error ? error.message : String(error));
       }
     }
 
@@ -140,10 +140,11 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[GET-ASAAS-CONFIG] Erro:', error.message);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[GET-ASAAS-CONFIG] Erro:', errorMessage);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: errorMessage
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

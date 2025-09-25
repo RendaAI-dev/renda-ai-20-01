@@ -148,8 +148,8 @@ serve(async (req) => {
 
       try {
         let processedValue = String(secretValue || '');
-        let valueType = mapping.type || 'string';
-        let shouldEncrypt = mapping.encrypted || false;
+        let valueType = 'type' in mapping ? mapping.type || 'string' : 'string';
+        let shouldEncrypt = 'encrypted' in mapping ? mapping.encrypted || false : false;
 
         // Process value based on type
         if (valueType === 'number' && processedValue) {

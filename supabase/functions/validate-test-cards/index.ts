@@ -63,7 +63,7 @@ serve(async (req) => {
     // Remover espaços e caracteres especiais
     const cleanCardNumber = cardNumber.replace(/\D/g, '')
     
-    let result = {
+    let result: any = {
       cardNumber: cleanCardNumber,
       isValid: false,
       isTestCard: false,
@@ -72,8 +72,8 @@ serve(async (req) => {
     }
 
     // Verificar se é um cartão de teste conhecido
-    if (testCards[cleanCardNumber]) {
-      const testCard = testCards[cleanCardNumber]
+    if (testCards[cleanCardNumber as keyof typeof testCards]) {
+      const testCard = testCards[cleanCardNumber as keyof typeof testCards];
       result = {
         ...result,
         isValid: true,
@@ -143,7 +143,7 @@ serve(async (req) => {
     console.error('[VALIDATE-TEST-CARDS] Erro:', error)
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

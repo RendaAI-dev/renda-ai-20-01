@@ -133,7 +133,7 @@ serve(async (req) => {
         current_period_end: subscription.current_period_end,
         cancel_at_period_end: subscription.cancel_at_period_end
       },
-      recent_payments: payments.map(payment => ({
+      recent_payments: payments.map((payment: any) => ({
         id: payment.id,
         value: payment.value,
         status: payment.status,
@@ -163,10 +163,11 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[ASAAS-CUSTOMER-PORTAL] Erro:', error.message);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[ASAAS-CUSTOMER-PORTAL] Erro:', errorMessage);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: errorMessage
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

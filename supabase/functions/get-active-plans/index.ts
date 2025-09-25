@@ -77,7 +77,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message || 'Erro ao buscar planos' 
+        error: error instanceof Error ? error.message : (error || 'Erro ao buscar planos') 
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

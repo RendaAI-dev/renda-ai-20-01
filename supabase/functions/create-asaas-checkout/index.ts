@@ -294,7 +294,7 @@ serve(async (req) => {
           }
         }
       } catch (error) {
-        console.log(`[ASAAS-PAYMENT] ❌ Erro na tentativa ${retryCount + 1}: ${error.message}`);
+        console.log(`[ASAAS-PAYMENT] ❌ Erro na tentativa ${retryCount + 1}: ${error instanceof Error ? error.message : String(error)}`);
       }
       
       retryCount++;
@@ -320,10 +320,11 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[ASAAS-PAYMENT] Erro:', error.message);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[ASAAS-PAYMENT] Erro:', errorMessage);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: errorMessage
     }), {
       status: 500,
       headers: { 

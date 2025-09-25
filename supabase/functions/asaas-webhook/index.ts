@@ -92,7 +92,7 @@ serve(async (req) => {
           console.log('[ASAAS-WEBHOOK] ⚠️ Token não está em Base64, usando diretamente');
         }
       } catch (error) {
-        console.warn('[ASAAS-WEBHOOK] ⚠️ Falha na descriptografia, usando token original:', error.message);
+        console.warn('[ASAAS-WEBHOOK] ⚠️ Falha na descriptografia, usando token original:', error instanceof Error ? error.message : String(error));
       }
     } else {
       console.log('[ASAAS-WEBHOOK] ✅ Token não criptografado, usando diretamente');
@@ -174,9 +174,11 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[ASAAS-WEBHOOK] Erro:', error.message, error.stack);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('[ASAAS-WEBHOOK] Erro:', errorMessage, errorStack);
     return new Response(JSON.stringify({
-      error: error.message,
+      error: errorMessage,
       received: false
     }), {
       status: 500,
@@ -303,7 +305,7 @@ async function fetchCheckoutPayments(supabase: any, checkoutId: string): Promise
     return data.data || [];
     
   } catch (error) {
-    console.error('[ASAAS-WEBHOOK] Erro ao buscar pagamentos do checkout:', error.message);
+    console.error('[ASAAS-WEBHOOK] Erro ao buscar pagamentos do checkout:', error instanceof Error ? error.message : String(error));
     return [];
   }
 }
@@ -382,7 +384,7 @@ async function processPaymentFromCheckout(supabase: any, payment: any) {
     }
 
   } catch (error) {
-    console.error('[ASAAS-WEBHOOK] Erro ao processar pagamento do checkout:', error.message);
+    console.error('[ASAAS-WEBHOOK] Erro ao processar pagamento do checkout:', error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -859,7 +861,7 @@ async function handlePlanChangePayment(supabase: any, changeRequest: any, paymen
     console.log('[ASAAS-WEBHOOK] ✅ Mudança de plano confirmada com sucesso');
 
   } catch (error) {
-    console.error('[ASAAS-WEBHOOK] ❌ Erro ao processar mudança de plano:', error.message);
+    console.error('[ASAAS-WEBHOOK] ❌ Erro ao processar mudança de plano:', error instanceof Error ? error.message : String(error));
     
     // Marcar solicitação como erro
     await supabase

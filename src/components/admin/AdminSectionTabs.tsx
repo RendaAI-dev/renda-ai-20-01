@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Palette, CreditCard, DollarSign, Phone, Database, Code, Package, Search, FileText } from 'lucide-react';
+import { Palette, CreditCard, DollarSign, Phone, Database, Code, Package, Search, FileText, Megaphone } from 'lucide-react';
 import BrandingConfigManager from './BrandingConfigManager';
 import AsaasConfigManager from './AsaasConfigManager';
 import PlanPricingManager from './PlanPricingManager';
@@ -11,11 +11,12 @@ import SystemConfigManager from './SystemConfigManager';
 import { PWAManifestGenerator } from './PWAManifestGenerator';
 import { PaymentDebugger } from './PaymentDebugger';
 import LegalDocumentsManager from './LegalDocumentsManager';
+import MarketingManager from './MarketingManager';
 
 const AdminSectionTabs: React.FC = () => {
   return (
     <Tabs defaultValue="system" className="w-full">
-      <TabsList className="grid w-full grid-cols-9">
+      <TabsList className="grid w-full grid-cols-10">
         <TabsTrigger value="system" className="flex items-center gap-2">
           <Database className="h-4 w-4" />
           Sistema
@@ -51,6 +52,10 @@ const AdminSectionTabs: React.FC = () => {
         <TabsTrigger value="legal" className="flex items-center gap-2">
           <FileText className="h-4 w-4" />
           Legal
+        </TabsTrigger>
+        <TabsTrigger value="marketing" className="flex items-center gap-2">
+          <Megaphone className="h-4 w-4" />
+          Marketing
         </TabsTrigger>
       </TabsList>
 
@@ -88,6 +93,10 @@ const AdminSectionTabs: React.FC = () => {
 
       <TabsContent value="legal" className="mt-6">
         <LegalDocumentsManager />
+      </TabsContent>
+
+      <TabsContent value="marketing" className="mt-6">
+        <MarketingManager />
       </TabsContent>
     </Tabs>
   );

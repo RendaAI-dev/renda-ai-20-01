@@ -14,3 +14,9 @@ verify_jwt = true
 
 [functions.verify-pending-payments]
 verify_jwt = true
+
+[functions.send-marketing-campaign]
+verify_jwt = true
+
+[functions.calculate-marketing-audience]
+verify_jwt = true

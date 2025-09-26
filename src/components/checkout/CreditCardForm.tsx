@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { logError, logSilent } from '@/utils/consoleOptimizer';
 
 interface CreditCardData {
   number: string;
@@ -39,10 +40,10 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
           .from('poupeja_users')
           .select('name, cpf')
           .eq('id', currentUser.id)
-          .single();
+          .maybeSingle();
           
         if (error) {
-          console.error('Erro ao buscar dados do usuário:', error);
+          logError('Erro ao buscar dados do usuário:', error);
           return;
         }
         
@@ -53,7 +54,7 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
           onChange('holderName', user.name.toUpperCase());
         }
       } catch (error) {
-        console.error('Erro ao buscar dados do usuário:', error);
+        logError('Erro ao buscar dados do usuário:', error);
       }
     };
 
@@ -178,13 +179,13 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
         
         if (validation.isValidTestCard && validation.expectedResult === 'approved') {
           // Cartão será aprovado automaticamente
-          console.log('✅ Cartão de teste válido - será aprovado automaticamente');
+          logSilent('✅ Cartão de teste válido - será aprovado automaticamente');
         } else if (validation.isTestCard && validation.expectedResult === 'pending') {
-          console.warn('⚠️ Cartão pode ficar pendente - considere usar um cartão aprovado automaticamente');
+          logSilent('⚠️ Cartão pode ficar pendente - considere usar um cartão aprovado automaticamente');
         }
       }
     } catch (error) {
-      console.error('Erro ao validar cartão de teste:', error);
+      logError('Erro ao validar cartão de teste:', error);
     }
   };
 

@@ -10,6 +10,7 @@ import { Save, Upload, Loader2, Image, Globe, Palette } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
 import { StaticHtmlGenerator } from './StaticHtmlGenerator';
 import { brandingPreloader } from '@/utils/brandingPreloader';
+import { logConfig, logError, logSilent } from '@/utils/consoleOptimizer';
 
 const BrandingConfigManager: React.FC = () => {
   const { toast } = useToast();
@@ -33,7 +34,7 @@ const BrandingConfigManager: React.FC = () => {
       const { data, error } = await supabase.functions.invoke('get-admin-settings');
       
       if (error) {
-        console.error('Erro ao carregar configurações de branding:', error);
+        logError('Erro ao carregar configurações de branding:', error);
         return;
       }
       
@@ -70,22 +71,22 @@ const BrandingConfigManager: React.FC = () => {
   };
 
   const uploadFile = async (file: File, folder: string = 'branding') => {
-    console.log('Iniciando upload do arquivo:', file.name);
+    logSilent('Iniciando upload do arquivo:', file.name);
     
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `${folder}/${fileName}`;
 
-    console.log('Tentando upload para:', filePath);
+    logSilent('Tentando upload para:', filePath);
 
     try {
       // Verificar se o bucket 'uploads' existe primeiro
       const { data: buckets, error: listError } = await supabase.storage.listBuckets();
       
       if (listError) {
-        console.error('Erro ao listar buckets:', listError);
+        logError('Erro ao listar buckets:', listError);
       } else {
-        console.log('Buckets disponíveis:', buckets?.map(b => b.name));
+        logSilent('Buckets disponíveis:', buckets?.map(b => b.name));
       }
 
       // Tentar upload no bucket 'uploads' primeiro
@@ -109,18 +110,18 @@ const BrandingConfigManager: React.FC = () => {
         throw new Error(`Erro no upload: ${error.message}`);
       }
 
-      console.log('Upload realizado com sucesso no bucket:', bucketName);
+      logSilent('Upload realizado com sucesso no bucket:', bucketName);
 
       // Obter URL pública
       const { data: { publicUrl } } = supabase.storage
         .from(bucketName)
         .getPublicUrl(filePath);
 
-      console.log('URL pública gerada:', publicUrl);
+      logSilent('URL pública gerada:', publicUrl);
       return publicUrl;
       
     } catch (uploadError) {
-      console.error('Erro durante upload:', uploadError);
+      logError('Erro durante upload:', uploadError);
       throw uploadError;
     }
   };
@@ -134,20 +135,20 @@ const BrandingConfigManager: React.FC = () => {
 
       // Upload logo se foi selecionado
       if (logoFile) {
-        console.log('Fazendo upload da logo...');
+        logSilent('Fazendo upload da logo...');
         logoUrl = await uploadFile(logoFile, 'logos');
-        console.log('Logo uploaded:', logoUrl);
+        logSilent('Logo uploaded:', logoUrl);
       }
 
       // Upload favicon se foi selecionado
       if (faviconFile) {
-        console.log('Fazendo upload do favicon...');
+        logSilent('Fazendo upload do favicon...');
         faviconUrl = await uploadFile(faviconFile, 'favicons');
-        console.log('Favicon uploaded:', faviconUrl);
+        logSilent('Favicon uploaded:', faviconUrl);
       }
 
       // Salvar configurações
-      console.log('Salvando configurações...');
+      logSilent('Salvando configurações...');
       const { data, error } = await supabase.functions.invoke('update-admin-settings', {
         body: {
           category: 'branding',

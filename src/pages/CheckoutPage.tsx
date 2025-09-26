@@ -11,6 +11,7 @@ import { SavedCardSelector } from '@/components/checkout/SavedCardSelector';
 import { PlanSummary } from '@/components/checkout/PlanSummary';
 import { CheckoutSteps } from '@/components/checkout/CheckoutSteps';
 import { CheckoutSummary } from '@/components/checkout/CheckoutSummary';
+import { logError, logSilent } from '@/utils/consoleOptimizer';
 
 interface CreditCardData {
   number: string;
@@ -61,11 +62,11 @@ const CheckoutPage = () => {
 
   // Estado do checkout passado via location, localStorage ou URL params
   const getCheckoutState = (): CheckoutState | null => {
-    console.log('[Checkout Page] Iniciando busca por dados de checkout...');
+    logSilent('[Checkout Page] Iniciando busca por dados de checkout...');
     
     // 1. Primeiro tenta obter do state da navegação
     if (location.state) {
-      console.log('[Checkout Page] ✅ Dados obtidos via location.state:', location.state);
+      logSilent('[Checkout Page] ✅ Dados obtidos via location.state:', location.state);
       return location.state as CheckoutState;
     }
     
@@ -74,12 +75,12 @@ const CheckoutPage = () => {
     if (storedState) {
       try {
         const parsed = JSON.parse(storedState);
-        console.log('[Checkout Page] ✅ Dados obtidos via localStorage:', parsed);
+        logSilent('[Checkout Page] ✅ Dados obtidos via localStorage:', parsed);
         // Limpar após uso
         localStorage.removeItem('checkoutState');
         return parsed;
       } catch (error) {
-        console.error('[Checkout Page] ❌ Erro ao parsear dados do localStorage:', error);
+        logError('[Checkout Page] ❌ Erro ao parsear dados do localStorage:', error);
       }
     }
     
@@ -88,10 +89,10 @@ const CheckoutPage = () => {
     const emailParam = searchParams.get('email');
     
     if (planTypeParam && (planTypeParam === 'monthly' || planTypeParam === 'annual')) {
-      console.log('[Checkout Page] 🔄 Tentando construir dados a partir da URL:', { planTypeParam, emailParam });
+      logSilent('[Checkout Page] 🔄 Tentando construir dados a partir da URL:', { planTypeParam, emailParam });
       
       if (!config || configLoading) {
-        console.log('[Checkout Page] ⏳ Aguardando configuração de planos...');
+        logSilent('[Checkout Page] ⏳ Aguardando configuração de planos...');
         return null; // Retorna null para mostrar loading
       }
       
@@ -112,14 +113,14 @@ const CheckoutPage = () => {
           isUpgrade: false
         };
         
-        console.log('[Checkout Page] ✅ Dados reconstruídos a partir da URL:', reconstructedState);
+        logSilent('[Checkout Page] ✅ Dados reconstruídos a partir da URL:', reconstructedState);
         return reconstructedState;
       } else {
-        console.log('[Checkout Page] ❌ Não foi possível encontrar plano correspondente na configuração');
+        logSilent('[Checkout Page] ❌ Não foi possível encontrar plano correspondente na configuração');
       }
     }
     
-    console.log('[Checkout Page] ❌ Nenhum dado de checkout encontrado em nenhuma fonte');
+    logSilent('[Checkout Page] ❌ Nenhum dado de checkout encontrado em nenhuma fonte');
     return null;
   };
   
@@ -128,11 +129,11 @@ const CheckoutPage = () => {
   
   useEffect(() => {
     const loadCheckoutData = () => {
-      console.log('[Checkout Page] Carregando dados de checkout...');
+      logSilent('[Checkout Page] Carregando dados de checkout...');
       const data = getCheckoutState();
       
       if (!data && !configLoading) {
-        console.log('[Checkout Page] ❌ Dados do checkout não encontrados após carregar configuração, redirecionando para /plans');
+        logSilent('[Checkout Page] ❌ Dados do checkout não encontrados após carregar configuração, redirecionando para /plans');
         toast({
           title: "Erro no checkout",
           description: "Dados do plano não encontrados. Redirecionando...",
@@ -143,7 +144,7 @@ const CheckoutPage = () => {
       }
       
       if (data) {
-        console.log('[Checkout Page] ✅ Checkout inicializado com dados:', data);
+        logSilent('[Checkout Page] ✅ Checkout inicializado com dados:', data);
         setCheckoutData(data);
       }
       
@@ -152,7 +153,7 @@ const CheckoutPage = () => {
 
     // Se a configuração ainda está carregando, aguardar
     if (configLoading) {
-      console.log('[Checkout Page] ⏳ Aguardando configuração carregar...');
+      logSilent('[Checkout Page] ⏳ Aguardando configuração carregar...');
       return;
     }
 
@@ -360,7 +361,7 @@ const CheckoutPage = () => {
         throw new Error(data.error || 'Erro no processamento do pagamento');
       }
     } catch (error) {
-      console.error('Checkout error:', error);
+      logError('Checkout error:', error);
       
       // Parse error message to provide more specific feedback
       let errorTitle = "Erro no pagamento";

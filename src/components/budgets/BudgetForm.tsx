@@ -4,21 +4,34 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Budget, BudgetPeriod } from '@/types';
 import { useAppContext } from '@/contexts/AppContext';
 import { FormField, FormItem, FormLabel, FormControl, FormMessage, Form } from '@/components/ui/form';
+import { DatePicker } from '@/components/ui/date-picker';
 
-// Validação do schema para formulário de orçamento (sem campos de data)
+// Validação do schema para formulário de orçamento
 const budgetSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório").max(100, "Nome deve ter no máximo 100 caracteres"),
   plannedAmount: z.number().min(0.01, "Valor deve ser maior que zero"),
   periodType: z.enum(['monthly', 'quarterly', 'semestral', 'yearly'] as const),
+  startDateOption: z.enum(['first_of_month', 'today', 'custom'] as const),
+  customStartDate: z.date().optional(),
   alertThreshold: z.number().min(1, "Limite deve ser entre 1% e 100%").max(100, "Limite deve ser entre 1% e 100%"),
   categoryId: z.string().optional().nullable(),
   isActive: z.boolean(),
+}).refine((data) => {
+  // Se "custom" foi selecionado, customStartDate é obrigatório
+  if (data.startDateOption === 'custom' && !data.customStartDate) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Data personalizada é obrigatória quando 'Data específica' é selecionada",
+  path: ["customStartDate"],
 });
 
 interface BudgetFormProps {
@@ -38,45 +51,41 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
 }) => {
   const { categories } = useAppContext();
   
-  // Helper function to get automatic start date (first day of current period)
-  const getAutomaticStartDate = (periodType: BudgetPeriod): string => {
+  // Helper function to get start date based on user selection
+  const getStartDate = (startDateOption: 'first_of_month' | 'today' | 'custom', customDate?: Date): Date => {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
     
-    switch (periodType) {
-      case 'monthly':
-        return new Date(year, month, 1).toISOString().split('T')[0];
-      case 'quarterly':
-        const quarterStartMonth = Math.floor(month / 3) * 3;
-        return new Date(year, quarterStartMonth, 1).toISOString().split('T')[0];
-      case 'semestral':
-        const semesterStartMonth = month < 6 ? 0 : 6;
-        return new Date(year, semesterStartMonth, 1).toISOString().split('T')[0];
-      case 'yearly':
-        return new Date(year, 0, 1).toISOString().split('T')[0];
+    switch (startDateOption) {
+      case 'first_of_month':
+        return new Date(now.getFullYear(), now.getMonth(), 1);
+      case 'today':
+        return now;
+      case 'custom':
+        return customDate || now;
+      default:
+        return new Date(now.getFullYear(), now.getMonth(), 1);
     }
   };
   
-  // Helper function to calculate automatic end date based on period type
-  const getAutomaticEndDate = (startDate: string, periodType: BudgetPeriod): string => {
+  // Helper function to calculate end date based on start date and period type
+  const calculateEndDateFromStart = (startDate: Date, periodType: BudgetPeriod): Date => {
     const start = new Date(startDate);
     
     switch (periodType) {
       case 'monthly':
-        // Último dia do mês atual
-        return new Date(start.getFullYear(), start.getMonth() + 1, 0).toISOString().split('T')[0];
+        // +1 mês da data de início
+        return new Date(start.getFullYear(), start.getMonth() + 1, start.getDate() - 1);
       case 'quarterly':
-        // Último dia do trimestre atual
-        const quarterStartMonth = Math.floor(start.getMonth() / 3) * 3;
-        return new Date(start.getFullYear(), quarterStartMonth + 3, 0).toISOString().split('T')[0];
+        // +3 meses da data de início
+        return new Date(start.getFullYear(), start.getMonth() + 3, start.getDate() - 1);
       case 'semestral':
-        // Último dia do semestre atual (30 de junho ou 31 de dezembro)
-        const semesterEndMonth = start.getMonth() < 6 ? 6 : 12;
-        return new Date(start.getFullYear(), semesterEndMonth, 0).toISOString().split('T')[0];
+        // +6 meses da data de início
+        return new Date(start.getFullYear(), start.getMonth() + 6, start.getDate() - 1);
       case 'yearly':
-        // 31 de dezembro do ano atual
-        return new Date(start.getFullYear(), 11, 31).toISOString().split('T')[0];
+        // +12 meses da data de início
+        return new Date(start.getFullYear() + 1, start.getMonth(), start.getDate() - 1);
+      default:
+        return start;
     }
   };
 
@@ -86,6 +95,8 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
       name: initialData?.name || '',
       plannedAmount: initialData?.plannedAmount || 0,
       periodType: (initialData?.periodType as BudgetPeriod) || 'monthly',
+      startDateOption: 'first_of_month' as const,
+      customStartDate: undefined,
       alertThreshold: initialData?.alertThreshold || 80,
       categoryId: initialData?.categoryId || undefined,
       isActive: initialData?.isActive ?? true,
@@ -99,6 +110,8 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
         name: initialData.name,
         plannedAmount: initialData.plannedAmount,
         periodType: initialData.periodType as BudgetPeriod,
+        startDateOption: 'first_of_month' as const,
+        customStartDate: undefined,
         alertThreshold: initialData.alertThreshold,
         categoryId: initialData.categoryId || undefined,
         isActive: initialData.isActive,
@@ -108,6 +121,8 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
         name: '',
         plannedAmount: 0,
         periodType: 'monthly',
+        startDateOption: 'first_of_month' as const,
+        customStartDate: undefined,
         alertThreshold: 80,
         categoryId: undefined,
         isActive: true,
@@ -116,17 +131,17 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
   }, [initialData, mode, form]);
 
   const handleSubmit = (values: z.infer<typeof budgetSchema>) => {
-    // Automatically calculate dates based on period type
-    const startDate = getAutomaticStartDate(values.periodType);
-    const endDate = getAutomaticEndDate(startDate, values.periodType);
+    // Calculate dates based on user selection
+    const startDate = getStartDate(values.startDateOption, values.customStartDate);
+    const endDate = calculateEndDateFromStart(startDate, values.periodType);
     
     onSubmit({
       name: values.name,
       plannedAmount: values.plannedAmount,
       spentAmount: initialData?.spentAmount || 0,
       periodType: values.periodType,
-      startDate: startDate,
-      endDate: endDate,
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
       alertThreshold: values.alertThreshold,
       categoryId: values.categoryId || undefined,
       isActive: values.isActive,
@@ -135,13 +150,12 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
 
   const expenseCategories = categories.filter(cat => cat.type === 'expense');
 
-  // Helper function to get period description
-  const getPeriodDescription = (periodType: BudgetPeriod): string => {
-    const now = new Date();
-    const startDate = getAutomaticStartDate(periodType);
-    const endDate = getAutomaticEndDate(startDate, periodType);
+  // Helper function to get period description based on current form values
+  const getPeriodDescription = (periodType: BudgetPeriod, startDateOption: 'first_of_month' | 'today' | 'custom', customDate?: Date): string => {
+    const startDate = getStartDate(startDateOption, customDate);
+    const endDate = calculateEndDateFromStart(startDate, periodType);
     
-    const formatDate = (date: string) => new Date(date).toLocaleDateString('pt-BR');
+    const formatDate = (date: Date) => date.toLocaleDateString('pt-BR');
     
     return `${formatDate(startDate)} até ${formatDate(endDate)}`;
   };
@@ -224,6 +238,63 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
 
             <FormField
               control={form.control}
+              name="startDateOption"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Quando o orçamento deve começar?</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      className="flex flex-col space-y-2"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="first_of_month" id="first_of_month" />
+                        <label htmlFor="first_of_month" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                          Primeiro dia do mês atual
+                        </label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="today" id="today" />
+                        <label htmlFor="today" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                          Hoje
+                        </label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="custom" id="custom" />
+                        <label htmlFor="custom" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                          Data específica
+                        </label>
+                      </div>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Data específica condicional */}
+            {form.watch('startDateOption') === 'custom' && (
+              <FormField
+                control={form.control}
+                name="customStartDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Data de Início</FormLabel>
+                    <FormControl>
+                      <DatePicker
+                        date={field.value}
+                        setDate={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            <FormField
+              control={form.control}
               name="periodType"
               render={({ field }) => (
                 <FormItem>
@@ -241,9 +312,13 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
                       <SelectItem value="yearly">Anual</SelectItem>
                     </SelectContent>
                   </Select>
-                  {/* Mostrar informação sobre o período automático */}
+                  {/* Mostrar preview das datas calculadas */}
                   <div className="text-sm text-muted-foreground mt-1">
-                    Período automático: {getPeriodDescription(form.watch('periodType'))}
+                    Período: {getPeriodDescription(
+                      form.watch('periodType'), 
+                      form.watch('startDateOption'), 
+                      form.watch('customStartDate')
+                    )}
                   </div>
                   <FormMessage />
                 </FormItem>

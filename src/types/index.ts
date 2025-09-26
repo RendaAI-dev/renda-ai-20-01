@@ -103,3 +103,32 @@ export interface ReportType {
 }
 
 export type ReportFormat = 'csv' | 'pdf';
+
+export type BudgetPeriod = 'monthly' | 'quarterly' | 'yearly';
+
+export type BudgetStatus = 'on_track' | 'warning' | 'exceeded';
+
+export interface Budget {
+  id: string;
+  name: string;
+  plannedAmount: number;
+  spentAmount: number;
+  periodType: BudgetPeriod;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  alertThreshold: number;
+  categoryId?: string;
+  // Database fields for compatibility
+  planned_amount?: number;
+  spent_amount?: number;
+  period_type?: string;
+  start_date?: string;
+  end_date?: string;
+  is_active?: boolean;
+  alert_threshold?: number;
+  category_id?: string;
+  user_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}

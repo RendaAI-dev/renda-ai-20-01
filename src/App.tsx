@@ -24,6 +24,7 @@ import ProfilePage from "./pages/ProfilePage";
 import TransactionsPage from "./pages/TransactionsPage";
 import ExpensesPage from "./pages/ExpensesPage";
 import GoalsPage from "./pages/GoalsPage";
+import BudgetsPage from "./pages/BudgetsPage";
 import ReportsPage from "./pages/ReportsPage";
 import SchedulePage from "./pages/SchedulePage";
 import SettingsPage from "./pages/SettingsPage";
@@ -69,6 +70,7 @@ function App() {
                         <Route path="/transactions" element={<TransactionsPage />} />
                         <Route path="/expenses" element={<ExpensesPage />} />
                         <Route path="/goals" element={<GoalsPage />} />
+                        <Route path="/budgets" element={<BudgetsPage />} />
                         <Route path="/reports" element={<ReportsPage />} />
                         <Route path="/schedule" element={<SchedulePage />} />
                         <Route path="/settings" element={<SettingsPage />} />

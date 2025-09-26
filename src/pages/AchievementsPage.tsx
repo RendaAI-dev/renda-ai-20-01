@@ -19,12 +19,6 @@ const AchievementsPage = () => {
   // Simulate upcoming achievements
   const upcomingAchievements = [
     {
-      name: "Budget Master",
-      description: "Stay within budget for 3 consecutive months",
-      progress: 66, // 66%
-      icon: 'star'
-    },
-    {
       name: "Saving Pro",
       description: "Save $5,000 in your accounts",
       progress: 45, // 45%

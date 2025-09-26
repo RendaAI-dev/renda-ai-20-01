@@ -20,7 +20,6 @@ import {
   Crown, 
   LogOut, 
   Shield,
-  PiggyBank
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -137,11 +136,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onProfileClick, onConfigClick }) => {
       icon: Target,
       label: t('nav.goals'),
       href: '/goals'
-    },
-    {
-      icon: PiggyBank,
-      label: 'Orçamentos',
-      href: '/budgets'
     },
     {
       icon: Calendar,

@@ -73,10 +73,71 @@ serve(async (req) => {
       .from('poupeja_asaas_customers')
       .select('asaas_customer_id')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (!asaasCustomer) {
-      throw new Error('Cliente Asaas não encontrado');
+    let asaasCustomerId = asaasCustomer?.asaas_customer_id;
+
+    // Se não existe cliente Asaas, criar um
+    if (!asaasCustomerId) {
+      console.log('[CHANGE-PLAN-CHECKOUT] Cliente Asaas não encontrado, criando novo...');
+      
+      // Buscar dados do usuário
+      const { data: userData } = await supabase
+        .from('poupeja_users')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const customerData = {
+        name: userData?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente',
+        email: user.email,
+        phone: userData?.phone || user.user_metadata?.phone || '11999999999',
+        cpfCnpj: userData?.cpf || user.user_metadata?.cpf || '00000000000',
+        postalCode: userData?.cep || user.user_metadata?.cep || '00000-000',
+        address: userData?.street || user.user_metadata?.address?.street || 'Endereço não informado',
+        addressNumber: userData?.number || user.user_metadata?.address?.number || '123',
+        complement: userData?.complement || user.user_metadata?.address?.complement || '',
+        province: userData?.neighborhood || user.user_metadata?.address?.neighborhood || 'Centro',
+        city: userData?.city || user.user_metadata?.address?.city || 'Cidade',
+        state: userData?.state || user.user_metadata?.address?.state || 'SP'
+      };
+
+      console.log('[CHANGE-PLAN-CHECKOUT] Criando cliente Asaas:', customerData);
+
+      // Criar cliente no Asaas
+      const createCustomerResponse = await fetch(`${asaasUrl}/customers`, {
+        method: 'POST',
+        headers: {
+          'access_token': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(customerData)
+      });
+
+      if (!createCustomerResponse.ok) {
+        const createError = await createCustomerResponse.text();
+        console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao criar cliente Asaas:', createError);
+        throw new Error(`Erro ao criar cliente Asaas: ${createError}`);
+      }
+
+      const newCustomer = await createCustomerResponse.json();
+      asaasCustomerId = newCustomer.id;
+
+      console.log('[CHANGE-PLAN-CHECKOUT] Cliente Asaas criado:', asaasCustomerId);
+
+      // Salvar cliente no banco
+      await supabase
+        .from('poupeja_asaas_customers')
+        .insert({
+          user_id: user.id,
+          asaas_customer_id: asaasCustomerId,
+          email: user.email,
+          phone: customerData.phone,
+          cpf: customerData.cpfCnpj,
+          name: customerData.name
+        });
+
+      console.log('[CHANGE-PLAN-CHECKOUT] ✅ Cliente Asaas salvo no banco');
     }
 
     // Buscar configurações do Asaas
@@ -173,7 +234,7 @@ serve(async (req) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          customer: asaasCustomer.asaas_customer_id,
+          customer: asaasCustomerId,
           creditCard: {
             holderName: creditCard.holderName,
             number: creditCard.number.replace(/\s/g, ''),
@@ -202,7 +263,10 @@ serve(async (req) => {
       
       console.log('[CHANGE-PLAN-CHECKOUT] ✅ Cartão tokenizado');
     } else {
-      // Usar cartão salvo
+      // Usar cartão salvo - validar se existe
+      if (!savedCardToken) {
+        throw new Error('Token do cartão salvo não fornecido');
+      }
       paymentData.creditCardToken = savedCardToken;
       console.log('[CHANGE-PLAN-CHECKOUT] ✅ Usando cartão salvo');
     }
@@ -217,7 +281,7 @@ serve(async (req) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        customer: asaasCustomer.asaas_customer_id,
+        customer: asaasCustomerId,
         billingType: 'CREDIT_CARD',
         value: newPlanPrice,
         nextDueDate: new Date().toISOString().split('T')[0], // Cobrança hoje

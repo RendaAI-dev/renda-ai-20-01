@@ -266,10 +266,52 @@ serve(async (req) => {
     let shouldSaveCard = false;
     
     if (savedCardToken) {
-      // Use existing saved card token
-      console.log('[TRANSPARENT-CHECKOUT] Usando cartão salvo');
-      tokenData = { creditCardToken: savedCardToken };
-    } else if (creditCard) {
+      // Validate saved card token exists in Asaas before using
+      console.log('[TRANSPARENT-CHECKOUT] Validando token de cartão salvo:', savedCardToken);
+      
+      try {
+        const validateTokenResponse = await fetch(`${asaasBaseUrl}/creditCard/tokenize/${savedCardToken}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'access_token': asaasApiKey,
+          }
+        });
+        
+        if (validateTokenResponse.ok) {
+          console.log('[TRANSPARENT-CHECKOUT] ✅ Token válido, usando cartão salvo');
+          tokenData = { creditCardToken: savedCardToken };
+        } else {
+          console.log('[TRANSPARENT-CHECKOUT] ⚠️ Token inválido, marcando cartão como inativo e forçando novo cartão');
+          
+          // Mark card as inactive in database
+          await supabase
+            .from('poupeja_tokenized_cards')
+            .update({ is_active: false })
+            .eq('credit_card_token', savedCardToken)
+            .eq('user_id', user.id);
+            
+          // Force new card usage by clearing savedCardToken
+          if (!creditCard) {
+            throw new Error('Token de cartão inválido e nenhum novo cartão fornecido. Por favor, cadastre um novo cartão.');
+          }
+          
+          // Continue to new card tokenization below
+          console.log('[TRANSPARENT-CHECKOUT] Prosseguindo com tokenização de novo cartão...');
+        }
+      } catch (tokenValidationError) {
+        console.error('[TRANSPARENT-CHECKOUT] Erro ao validar token:', tokenValidationError);
+        
+        if (!creditCard) {
+          throw new Error('Falha ao validar cartão salvo e nenhum novo cartão fornecido. Por favor, cadastre um novo cartão.');
+        }
+        
+        // Continue to new card tokenization below
+        console.log('[TRANSPARENT-CHECKOUT] Erro na validação, prosseguindo com novo cartão...');
+      }
+    }
+    
+    if (!tokenData && creditCard) {
       // Tokenize new credit card
       console.log('[TRANSPARENT-CHECKOUT] Tokenizando novo cartão de crédito...');
       shouldSaveCard = true;
@@ -510,6 +552,23 @@ serve(async (req) => {
           statusText: subscriptionResponse.statusText,
           error
         });
+        
+        // Check for specific credit card token errors
+        if (error.includes('CreditCardToken') && error.includes('não encontrado')) {
+          console.log('[TRANSPARENT-CHECKOUT] 🔄 Token de cartão não encontrado, tentando com novo cartão...');
+          
+          // Mark saved card as inactive if it was used
+          if (savedCardToken) {
+            await supabase
+              .from('poupeja_tokenized_cards')
+              .update({ is_active: false })
+              .eq('credit_card_token', savedCardToken)
+              .eq('user_id', user.id);
+          }
+          
+          throw new Error('Token de cartão inválido. Por favor, cadastre um novo cartão.');
+        }
+        
         throw new Error(`Falha ao criar assinatura (${subscriptionResponse.status}): ${error}`);
       }
 

@@ -292,7 +292,15 @@ serve(async (req) => {
               .eq('user_id', user.id);
               
             if (!creditCard) {
-              throw new Error('Não encontramos cartões salvos no Asaas para este cliente. Por favor, cadastre um novo cartão.');
+              console.log('[TRANSPARENT-CHECKOUT] ❌ Cliente sem cartões salvos e sem novo cartão fornecido');
+              return new Response(JSON.stringify({
+                error: 'INVALID_SAVED_CARD',
+                message: 'Não encontramos cartões salvos para este cliente. Por favor, selecione "Usar novo cartão" e preencha os dados.',
+                code: 'NO_SAVED_CARDS_AVAILABLE'
+              }), {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              });
             }
             
             console.log('[TRANSPARENT-CHECKOUT] Prosseguindo com tokenização de novo cartão...');
@@ -324,7 +332,16 @@ serve(async (req) => {
               
             // Force new card usage by clearing savedCardToken
             if (!creditCard) {
-              throw new Error('Este cartão não pertence a este cliente no Asaas. Por favor, cadastre um novo cartão.');
+              console.log('[TRANSPARENT-CHECKOUT] ❌ Cartão salvo inválido e sem novo cartão fornecido');
+              return new Response(JSON.stringify({
+                error: 'INVALID_SAVED_CARD',
+                message: 'O cartão selecionado não é válido. Por favor, selecione outro cartão salvo ou adicione um novo cartão.',
+                code: 'SAVED_CARD_INVALID',
+                action: 'SELECT_OTHER_OR_ADD_NEW'
+              }), {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              });
             }
             
             // Continue to new card tokenization below
@@ -338,7 +355,16 @@ serve(async (req) => {
         console.error('[TRANSPARENT-CHECKOUT] Erro ao validar token:', tokenValidationError);
         
         if (!creditCard) {
-          throw new Error('Falha ao validar cartão salvo e nenhum novo cartão fornecido. Por favor, cadastre um novo cartão.');
+          console.log('[TRANSPARENT-CHECKOUT] ❌ Erro na validação de cartão e sem novo cartão fornecido');
+          return new Response(JSON.stringify({
+            error: 'VALIDATION_FAILED',
+            message: 'Erro ao validar o cartão selecionado. Por favor, tente outro cartão salvo ou adicione um novo cartão.',
+            code: 'CARD_VALIDATION_ERROR',
+            action: 'SELECT_OTHER_OR_ADD_NEW'
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
         }
         
         // Continue to new card tokenization below

@@ -203,24 +203,50 @@ serve(async (req) => {
       precosMapeados: { monthlyPrice, annualPrice }
     });
 
-    // PASSO 1: Cancelar assinatura atual no Asaas
-    console.log('[CHANGE-PLAN-CHECKOUT] Cancelando assinatura atual:', currentSubscription.asaas_subscription_id);
+    // PASSO 1: Cancelar assinatura atual no Asaas (tolerante a erros)
+    console.log('[CHANGE-PLAN-CHECKOUT] Verificando status da assinatura atual:', currentSubscription.asaas_subscription_id);
     
-    const cancelResponse = await fetch(`${asaasUrl}/subscriptions/${currentSubscription.asaas_subscription_id}`, {
-      method: 'DELETE',
-      headers: {
-        'access_token': apiKey,
-        'Content-Type': 'application/json'
+    try {
+      // Primeiro verificar se a assinatura ainda existe
+      const statusResponse = await fetch(`${asaasUrl}/subscriptions/${currentSubscription.asaas_subscription_id}`, {
+        method: 'GET',
+        headers: {
+          'access_token': apiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (statusResponse.ok) {
+        const subscriptionData = await statusResponse.json();
+        console.log('[CHANGE-PLAN-CHECKOUT] Status atual da assinatura:', subscriptionData.status);
+        
+        // Só tentar cancelar se ainda estiver ativa
+        if (subscriptionData.status === 'ACTIVE') {
+          const cancelResponse = await fetch(`${asaasUrl}/subscriptions/${currentSubscription.asaas_subscription_id}`, {
+            method: 'DELETE',
+            headers: {
+              'access_token': apiKey,
+              'Content-Type': 'application/json'  
+            }
+          });
+
+          if (cancelResponse.ok) {
+            console.log('[CHANGE-PLAN-CHECKOUT] ✅ Assinatura atual cancelada');
+          } else {
+            const cancelError = await cancelResponse.text();
+            console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Assinatura não pôde ser cancelada (pode já estar cancelada):', cancelError);
+          }
+        } else {
+          console.log('[CHANGE-PLAN-CHECKOUT] ✅ Assinatura já estava cancelada/inativa');
+        }
+      } else if (statusResponse.status === 404 || statusResponse.status === 410) {
+        console.log('[CHANGE-PLAN-CHECKOUT] ✅ Assinatura não existe mais no Asaas (já cancelada)');
+      } else {
+        console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Não foi possível verificar status da assinatura, continuando...');
       }
-    });
-
-    if (!cancelResponse.ok) {
-      const cancelError = await cancelResponse.text();
-      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao cancelar assinatura:', cancelError);
-      throw new Error(`Erro ao cancelar assinatura atual: ${cancelError}`);
+    } catch (cancelError) {
+      console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Erro ao cancelar assinatura, continuando:', cancelError);
     }
-
-    console.log('[CHANGE-PLAN-CHECKOUT] ✅ Assinatura atual cancelada');
 
     // PASSO 2: Processar método de pagamento (tokenizar cartão se necessário)
     let paymentData: any = {};
@@ -263,39 +289,167 @@ serve(async (req) => {
       
       console.log('[CHANGE-PLAN-CHECKOUT] ✅ Cartão tokenizado');
     } else {
-      // Usar cartão salvo - validar se existe
+      // Usar cartão salvo - validar se token existe no Asaas
       if (!savedCardToken) {
-        throw new Error('Token do cartão salvo não fornecido');
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'TOKEN_REQUIRED',
+          message: 'Token do cartão salvo não fornecido'
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
       }
+
+      // Verificar se o token é válido consultando cartões do cliente
+      try {
+        const cardsResponse = await fetch(`${asaasUrl}/customers/${asaasCustomerId}/creditCard`, {
+          method: 'GET',
+          headers: {
+            'access_token': apiKey,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (cardsResponse.ok) {
+          const cardsData = await cardsResponse.json();
+          const validCard = cardsData.data?.find((card: any) => card.creditCardToken === savedCardToken);
+          
+          if (!validCard) {
+            console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Token do cartão salvo inválido, solicitando novo cartão');
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'INVALID_CARD_TOKEN',
+              message: 'Cartão salvo inválido. Por favor, cadastre um novo cartão.',
+              requiresNewCard: true
+            }), {
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+          console.log('[CHANGE-PLAN-CHECKOUT] ✅ Token do cartão salvo validado');
+        }
+      } catch (tokenValidationError) {
+        console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Não foi possível validar token, tentando continuar...');
+      }
+      
       paymentData.creditCardToken = savedCardToken;
       console.log('[CHANGE-PLAN-CHECKOUT] ✅ Usando cartão salvo');
     }
 
-    // PASSO 3: Criar nova assinatura no Asaas
+    // PASSO 3: Criar nova assinatura no Asaas (com retry se cliente não encontrado)
     console.log('[CHANGE-PLAN-CHECKOUT] Criando nova assinatura...');
     
-    const createSubscriptionResponse = await fetch(`${asaasUrl}/subscriptions`, {
-      method: 'POST',
-      headers: {
-        'access_token': apiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        customer: asaasCustomerId,
-        billingType: 'CREDIT_CARD',
-        value: newPlanPrice,
-        nextDueDate: new Date().toISOString().split('T')[0], // Cobrança hoje
-        cycle: newPlanCycle,
-        description: `Nova Assinatura ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'} - Mudança de Plano`,
-        creditCardToken: paymentData.creditCardToken,
-        externalReference: `${user.id}_change_${newPlanType}_${Date.now()}`
-      })
-    });
+    let createSubscriptionResponse: Response | undefined;
+    let retryCount = 0;
+    const maxRetries = 2;
 
-    if (!createSubscriptionResponse.ok) {
+    while (retryCount <= maxRetries) {
+      createSubscriptionResponse = await fetch(`${asaasUrl}/subscriptions`, {
+        method: 'POST',
+        headers: {
+          'access_token': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          customer: asaasCustomerId,
+          billingType: 'CREDIT_CARD',
+          value: newPlanPrice,
+          nextDueDate: new Date().toISOString().split('T')[0], // Cobrança hoje
+          cycle: newPlanCycle,
+          description: `Nova Assinatura ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'} - Mudança de Plano`,
+          creditCardToken: paymentData.creditCardToken,
+          externalReference: `${user.id}_change_${newPlanType}_${Date.now()}`
+        })
+      });
+
+      if (createSubscriptionResponse.ok) {
+        break; // Sucesso, sair do loop
+      }
+
       const createError = await createSubscriptionResponse.text();
-      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao criar nova assinatura:', createError);
-      throw new Error(`Erro ao criar nova assinatura: ${createError}`);
+      console.log(`[CHANGE-PLAN-CHECKOUT] Tentativa ${retryCount + 1} falhou:`, createError);
+
+      // Se erro é de cliente não encontrado e ainda temos retries
+      if (createError.includes('customer') && createError.includes('not found') && retryCount < maxRetries) {
+        console.log('[CHANGE-PLAN-CHECKOUT] Cliente não encontrado, forçando recriação...');
+        
+        // Remover cliente do cache local e recriar
+        await supabase
+          .from('poupeja_asaas_customers')
+          .delete()
+          .eq('user_id', user.id);
+        
+        // Recriar cliente
+        const { data: userData } = await supabase
+          .from('poupeja_users')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        const customerData = {
+          name: userData?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente',
+          email: user.email,
+          phone: userData?.phone || user.user_metadata?.phone || '11999999999',
+          cpfCnpj: userData?.cpf || user.user_metadata?.cpf || '00000000000',
+          postalCode: userData?.cep || user.user_metadata?.cep || '00000-000',
+          address: userData?.street || user.user_metadata?.address?.street || 'Endereço não informado',
+          addressNumber: userData?.number || user.user_metadata?.address?.number || '123',
+          complement: userData?.complement || user.user_metadata?.address?.complement || '',
+          province: userData?.neighborhood || user.user_metadata?.address?.neighborhood || 'Centro',
+          city: userData?.city || user.user_metadata?.address?.city || 'Cidade',
+          state: userData?.state || user.user_metadata?.address?.state || 'SP'
+        };
+
+        const recreateResponse = await fetch(`${asaasUrl}/customers`, {
+          method: 'POST',
+          headers: {
+            'access_token': apiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(customerData)
+        });
+
+        if (recreateResponse.ok) {
+          const newCustomer = await recreateResponse.json();
+          asaasCustomerId = newCustomer.id;
+          
+          await supabase
+            .from('poupeja_asaas_customers')
+            .insert({
+              user_id: user.id,
+              asaas_customer_id: asaasCustomerId,
+              email: user.email,
+              phone: customerData.phone,
+              cpf: customerData.cpfCnpj,
+              name: customerData.name
+            });
+          
+          console.log('[CHANGE-PLAN-CHECKOUT] Cliente recriado:', asaasCustomerId);
+        }
+      }
+
+      retryCount++;
+      
+      if (retryCount > maxRetries) {
+        console.error('[CHANGE-PLAN-CHECKOUT] ❌ Todas as tentativas falharam:', createError);
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'SUBSCRIPTION_CREATION_FAILED',
+          message: 'Não foi possível criar a nova assinatura. Tente novamente.',
+          details: createError
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+    }
+
+    if (!createSubscriptionResponse?.ok) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'SUBSCRIPTION_CREATION_FAILED',
+        message: 'Falha na criação da assinatura'
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
     }
 
     const newSubscription = await createSubscriptionResponse.json();
@@ -368,22 +522,15 @@ serve(async (req) => {
         hint: updateError.hint
       });
       
-      // Tentar rollback - cancelar a nova assinatura criada
-      try {
-        console.log('[CHANGE-PLAN-CHECKOUT] 🔄 Tentando rollback - cancelando nova assinatura...');
-        await fetch(`${asaasUrl}/subscriptions/${newSubscription.id}`, {
-          method: 'DELETE',
-          headers: {
-            'access_token': apiKey,
-            'Content-Type': 'application/json'
-          }
-        });
-        console.log('[CHANGE-PLAN-CHECKOUT] ✅ Rollback concluído');
-      } catch (rollbackError) {
-        console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro no rollback:', rollbackError);
-      }
-      
-      throw new Error(`Erro ao atualizar assinatura: ${updateError.message}`);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'DATABASE_UPDATE_FAILED',
+        message: 'Assinatura criada no Asaas mas não foi possível atualizar no banco. Entre em contato com o suporte.',
+        details: updateError.message,
+        newSubscriptionId: newSubscription.id
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
     }
 
     console.log('[CHANGE-PLAN-CHECKOUT] ✅ Assinatura atualizada no banco de dados');
@@ -402,12 +549,15 @@ serve(async (req) => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro:', errorMessage);
+    console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro geral:', errorMessage);
+    
+    // Retornar erro estruturado com status 200 para evitar problemas no frontend
     return new Response(JSON.stringify({
       success: false,
-      error: errorMessage
+      error: 'INTERNAL_ERROR',
+      message: 'Erro interno do servidor. Tente novamente em alguns minutos.',
+      details: errorMessage
     }), {
-      status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
   }

@@ -448,8 +448,55 @@ const PlanChangeCheckoutPage = () => {
           navigate('/plans?success=plan_change');
         }, 1500);
       } else {
-        const errorMessage = data?.error || 'Erro desconhecido na alteração do plano';
-        console.error('[PLAN-CHANGE-CHECKOUT] Erro retornado pela função:', errorMessage);
+        // Handle structured error responses
+        const errorCode = data?.error;
+        const errorMessage = data?.message || 'Erro desconhecido na alteração do plano';
+        
+        console.error('[PLAN-CHANGE-CHECKOUT] Erro estruturado:', { errorCode, errorMessage, data });
+        
+        // Handle specific error codes
+        if (errorCode === 'INVALID_CARD_TOKEN' && data?.requiresNewCard) {
+          toast({
+            title: "Cartão salvo inválido",
+            description: "Por favor, cadastre um novo cartão de crédito.",
+            variant: "destructive"
+          });
+          setUseNewCard(true);
+          setStep(1); // Back to card input
+          return;
+        }
+        
+        if (errorCode === 'TOKEN_REQUIRED') {
+          toast({
+            title: "Método de pagamento necessário",
+            description: "Por favor, selecione um cartão ou cadastre um novo.",
+            variant: "destructive"
+          });
+          setStep(1); // Back to card input
+          return;
+        }
+        
+        if (errorCode === 'SUBSCRIPTION_CREATION_FAILED') {
+          toast({
+            title: "Falha na criação da assinatura",
+            description: "Não foi possível criar a nova assinatura. Verifique os dados do cartão e tente novamente.",
+            variant: "destructive"
+          });
+          setStep(1); // Back to card input
+          return;
+        }
+        
+        if (errorCode === 'DATABASE_UPDATE_FAILED') {
+          toast({
+            title: "Assinatura criada com problemas",
+            description: "A assinatura foi criada no processador, mas houve um problema interno. Entre em contato com o suporte.",
+            variant: "destructive"
+          });
+          setStep(2); // Stay on confirmation but show error
+          return;
+        }
+        
+        // Generic error handling
         throw new Error(errorMessage);
       }
     } catch (error) {

@@ -100,6 +100,9 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
 
   const expenseCategories = categories.filter(cat => cat.type === 'expense');
 
+  // Debug logging
+  console.debug('[BudgetForm] categorias despesas:', expenseCategories.length);
+
   // Watch for changes in start date and period type to auto-calculate end date
   React.useEffect(() => {
     const subscription = form.watch((value, { name }) => {
@@ -167,15 +170,20 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
               control={form.control}
               name="categoryId"
               render={({ field }) => (
-                <FormItem>
+                 <FormItem>
                    <FormLabel>Categoria (Opcional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                  <Select
+                    onValueChange={(value) => field.onChange(value === "__ALL__" ? undefined : value)}
+                    value={field.value ?? undefined}
+                    disabled={expenseCategories.length === 0}
+                  >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Todas as categorias" />
+                        <SelectValue placeholder={expenseCategories.length === 0 ? "Carregando categorias..." : "Todas as categorias"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value="__ALL__">Todas as categorias</SelectItem>
                       {expenseCategories.map((category) => (
                         <SelectItem key={category.id} value={category.id}>
                           {category.name}

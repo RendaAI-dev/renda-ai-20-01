@@ -7,13 +7,16 @@ import TransactionList from '@/components/common/TransactionList';
 import UpcomingExpensesAlert from '@/components/dashboard/UpcomingExpensesAlert';
 import GoalNavigation from '@/components/common/GoalNavigation';
 import DashboardCharts from '@/components/dashboard/DashboardCharts';
+import DashboardBudgets from '@/components/dashboard/DashboardBudgets';
 import { usePreferences } from '@/contexts/PreferencesContext';
-import { Goal, ScheduledTransaction } from '@/types';
+import { Goal, ScheduledTransaction, Budget } from '@/types';
 
 interface DashboardContentProps {
   filteredTransactions: any[];
   goals: Goal[];
   scheduledTransactions: ScheduledTransaction[];
+  budgets: Budget[];
+  budgetsLoading: boolean;
   currentGoalIndex: number;
   currentMonth: Date;
   hideValues: boolean;
@@ -27,6 +30,8 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   filteredTransactions,
   goals,
   scheduledTransactions,
+  budgets,
+  budgetsLoading,
   currentGoalIndex,
   currentMonth,
   hideValues,
@@ -61,6 +66,15 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
       {/* Progresso das metas */}
       <div className="animate-fade-in">
         <GoalNavigation goals={goals} currentGoalIndex={currentGoalIndex} onGoalChange={onGoalChange} />
+      </div>
+
+      {/* Seção de orçamentos */}
+      <div className="animate-fade-in">
+        <DashboardBudgets 
+          budgets={budgets}
+          loading={budgetsLoading}
+          currentMonth={currentMonth}
+        />
       </div>
 
       {/* Seção de gráficos */}

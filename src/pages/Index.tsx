@@ -10,6 +10,7 @@ import { useAppContext } from '@/contexts/AppContext';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { calculateTotalIncome, calculateTotalExpenses, calculateMonthlyFinancialData, getGoalsForMonth } from '@/utils/transactionUtils';
 import { useToast } from '@/components/ui/use-toast';
+import { useBudgets } from '@/hooks/useBudgets';
 import { markAsPaid } from '@/services/scheduledTransactionService';
 import { ScheduledTransaction } from '@/types';
 import { logInfo } from '@/utils/consoleOptimizer';
@@ -30,6 +31,7 @@ const Index = memo(() => {
     deleteTransaction,
     scheduledTransactions
   } = useAppContext();
+  const { budgets, loading: budgetsLoading } = useBudgets();
   const { t } = usePreferences();
   
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
@@ -204,6 +206,8 @@ const Index = memo(() => {
             filteredTransactions={monthlyData.monthTransactions}
             goals={monthlyGoals}
             scheduledTransactions={scheduledTransactions}
+            budgets={budgets}
+            budgetsLoading={budgetsLoading}
             currentGoalIndex={currentGoalIndex}
             currentMonth={currentMonth}
             hideValues={hideValues}

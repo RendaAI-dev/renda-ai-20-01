@@ -466,7 +466,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           `)
           .eq('user_id', user.id)
           .order('date', { ascending: false }),
-        supabase.from('poupeja_categories').select('*').or(`user_id.eq.${user.id},user_id.is.null`),
+        supabase.from('poupeja_categories').select('*').eq('user_id', user.id),
         supabase.from('poupeja_goals').select('*').eq('user_id', user.id),
         supabase.from('poupeja_scheduled_transactions')
           .select(`

@@ -27,7 +27,7 @@ const UltraFastHero: React.FC<UltraFastHeroProps> = ({ companyName = "Renda AI" 
           </h1>
           
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-            A ferramenta mais completa para controlar seus gastos, organizar suas finanças e 
+            A ferramenta mais completa para controlar seus gastos, organizar seu orçamento e 
             conquistar sua liberdade financeira de forma simples e intuitiva.
           </p>
           

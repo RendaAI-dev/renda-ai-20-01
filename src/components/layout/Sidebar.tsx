@@ -19,7 +19,7 @@ import {
   Calendar, 
   Crown, 
   LogOut, 
-  Shield,
+  Shield
 } from 'lucide-react';
 
 interface SidebarProps {

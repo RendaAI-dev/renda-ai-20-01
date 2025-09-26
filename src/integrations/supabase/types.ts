@@ -123,54 +123,6 @@ export type Database = {
           },
         ]
       }
-      poupeja_budgets: {
-        Row: {
-          alert_threshold: number | null
-          category_id: string | null
-          created_at: string
-          end_date: string
-          id: string
-          is_active: boolean
-          name: string
-          period_type: string
-          planned_amount: number
-          spent_amount: number
-          start_date: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          alert_threshold?: number | null
-          category_id?: string | null
-          created_at?: string
-          end_date: string
-          id?: string
-          is_active?: boolean
-          name: string
-          period_type?: string
-          planned_amount: number
-          spent_amount?: number
-          start_date: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          alert_threshold?: number | null
-          category_id?: string | null
-          created_at?: string
-          end_date?: string
-          id?: string
-          is_active?: boolean
-          name?: string
-          period_type?: string
-          planned_amount?: number
-          spent_amount?: number
-          start_date?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       poupeja_categories: {
         Row: {
           color: string
@@ -1058,10 +1010,6 @@ export type Database = {
           subscription_status: string
           user_id: string
         }[]
-      }
-      calculate_budget_spent_amount: {
-        Args: { p_budget_id: string }
-        Returns: number
       }
       calculate_discount_percentage: {
         Args: { discounted_price: number; original_price: number }

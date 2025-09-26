@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Budget } from '@/types';
-import { getBudgets, addBudget, updateBudget, deleteBudget } from '@/services/budgetService';
+import { getBudgets, addBudget, updateBudget, deleteBudget, fixBudgetPeriods } from '@/services/budgetService';
 import { useToast } from '@/hooks/use-toast';
 
 export const useBudgets = () => {
@@ -11,6 +11,10 @@ export const useBudgets = () => {
   const loadBudgets = async () => {
     try {
       setLoading(true);
+      
+      // Fix existing budget periods first
+      await fixBudgetPeriods();
+      
       const data = await getBudgets();
       setBudgets(data);
     } catch (error) {

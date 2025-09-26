@@ -177,3 +177,53 @@ export const refreshBudgetAmounts = async (): Promise<void> => {
   // For now, it's a placeholder since the trigger handles updates automatically
   console.log('Budget amounts are updated automatically via database triggers');
 };
+
+// Function to fix existing budget periods
+export const fixBudgetPeriods = async (): Promise<void> => {
+  const budgets = await getBudgets();
+  
+  for (const budget of budgets) {
+    // Recalculate correct end date based on start date and period type
+    const startDate = new Date(budget.startDate);
+    const monthStartDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    
+    let correctEndDate: Date;
+    
+    switch (budget.periodType) {
+      case 'monthly':
+        correctEndDate = new Date(monthStartDate.getFullYear(), monthStartDate.getMonth() + 1, 0);
+        break;
+      case 'quarterly':
+        correctEndDate = new Date(monthStartDate.getFullYear(), monthStartDate.getMonth() + 3, 0);
+        break;
+      case 'semestral':
+        correctEndDate = new Date(monthStartDate.getFullYear(), monthStartDate.getMonth() + 6, 0);
+        break;
+      case 'yearly':
+        correctEndDate = new Date(monthStartDate.getFullYear(), monthStartDate.getMonth() + 12, 0);
+        break;
+      default:
+        correctEndDate = new Date(budget.endDate);
+    }
+    
+    // Update budget with correct dates if they're different
+    const correctStartDateStr = monthStartDate.toISOString().split('T')[0];
+    const correctEndDateStr = correctEndDate.toISOString().split('T')[0];
+    
+    if (budget.startDate !== correctStartDateStr || budget.endDate !== correctEndDateStr) {
+      console.log(`Fixing budget ${budget.name}: ${budget.startDate} - ${budget.endDate} -> ${correctStartDateStr} - ${correctEndDateStr}`);
+      
+      const { error } = await supabase
+        .from('poupeja_budgets')
+        .update({
+          start_date: correctStartDateStr,
+          end_date: correctEndDateStr,
+        })
+        .eq('id', budget.id);
+        
+      if (error) {
+        console.error(`Error fixing budget ${budget.id}:`, error);
+      }
+    }
+  }
+};

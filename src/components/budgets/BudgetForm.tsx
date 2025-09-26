@@ -58,13 +58,13 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
     
     switch (startDateOption) {
       case 'first_of_month':
-        return new Date(now.getFullYear(), now.getMonth(), 1);
+        return startOfMonth(now);
       case 'today':
-        return now;
+        return startOfMonth(now); // Always start from first of current month
       case 'custom':
-        return customDate || now;
+        return startOfMonth(customDate || now); // Always start from first of selected month 
       default:
-        return new Date(now.getFullYear(), now.getMonth(), 1);
+        return startOfMonth(now);
     }
   };
   

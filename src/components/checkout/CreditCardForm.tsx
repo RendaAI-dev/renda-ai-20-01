@@ -28,7 +28,6 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
   currentUser
 }) => {
   const { toast } = useToast();
-  const [userData, setUserData] = useState<any>(null);
 
   // Buscar dados do usuário logado para pré-preenchimento
   useEffect(() => {
@@ -47,11 +46,13 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
           return;
         }
         
-        setUserData(user);
-        
-        // Pré-preencher apenas o nome se estiver vazio
-        if (user.name && !data.holderName) {
+        // Pré-preencher apenas se user existe e campos estão vazios
+        if (user && user.name && !data.holderName) {
           onChange('holderName', user.name.toUpperCase());
+        }
+        
+        if (user && user.cpf && !data.holderCpf) {
+          onChange('holderCpf', user.cpf.replace(/\D/g, ''));
         }
       } catch (error) {
         logError('Erro ao buscar dados do usuário:', error);
@@ -59,7 +60,7 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
     };
 
     fetchUserData();
-  }, [currentUser, data.holderName, data.holderCpf]);
+  }, [currentUser?.id, data.holderName, data.holderCpf]);
   
   const formatCardNumber = (value: string) => {
     // Remove all non-digits

@@ -173,7 +173,7 @@ export default defineConfig(({ mode }) => ({
         navigateFallbackDenylist: [/^\/api\//, /^\/functions\//]
       },
       devOptions: {
-        enabled: true,
+        enabled: mode === 'development',
       }
     })
   ].filter(Boolean),

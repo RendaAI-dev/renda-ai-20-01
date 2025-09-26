@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import PlanChangeDialog from '@/components/subscription/PlanChangeDialog';
 import UpdateCardOnlyModal from '@/components/subscription/UpdateCardOnlyModal';
+import { logSilent, logError } from '@/utils/consoleOptimizer';
 
 interface PlanCardProps {
   name: string;
@@ -57,23 +58,23 @@ const PlanCard: React.FC<PlanCardProps> = ({
   
   const waitForValidSession = async (maxAttempts = 3, delayMs = 1000) => {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      console.log(`[Checkout Debug] Tentativa ${attempt} de verificar sessão`);
+      logSilent(`[Checkout Debug] Tentativa ${attempt} de verificar sessão`);
       
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
-        console.error(`[Checkout Debug] Erro na tentativa ${attempt}:`, sessionError);
+        logError(`[Checkout Debug] Erro na tentativa ${attempt}:`, sessionError);
         if (attempt === maxAttempts) throw sessionError;
         await new Promise(resolve => setTimeout(resolve, delayMs));
         continue;
       }
 
       if (session?.user) {
-        console.log(`[Checkout Debug] Sessão válida encontrada na tentativa ${attempt}:`, session.user.email);
+        logSilent(`[Checkout Debug] Sessão válida encontrada na tentativa ${attempt}:`, session.user.email);
         return session;
       }
 
-      console.log(`[Checkout Debug] Sessão não encontrada na tentativa ${attempt}, aguardando...`);
+      logSilent(`[Checkout Debug] Sessão não encontrada na tentativa ${attempt}, aguardando...`);
       if (attempt < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, delayMs));
       }
@@ -91,7 +92,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
         .replace(',', '.'); // Substitui vírgula decimal por ponto
       
       const parsedPrice = parseFloat(cleanPrice);
-      console.log(`[Checkout Debug] Preço original: "${priceString}", parseado: ${parsedPrice}`);
+      logSilent(`[Checkout Debug] Preço original: "${priceString}", parseado: ${parsedPrice}`);
       
       if (isNaN(parsedPrice)) {
         throw new Error(`Preço inválido: ${priceString}`);
@@ -99,27 +100,27 @@ const PlanCard: React.FC<PlanCardProps> = ({
       
       return parsedPrice;
     } catch (error) {
-      console.error(`[Checkout Debug] Erro ao parsear preço "${priceString}":`, error);
+      logError(`[Checkout Debug] Erro ao parsear preço "${priceString}":`, error);
       throw error;
     }
   };
 
   const handleReactivateSubscription = async () => {
     try {
-      console.log('[REACTIVATE] Iniciando reativação da assinatura');
+      logSilent('[REACTIVATE] Iniciando reativação da assinatura');
       
       const { data, error } = await supabase.functions.invoke('reactivate-subscription', {
         body: { planType }
       });
 
       if (error) {
-        console.error('[REACTIVATE] Erro na função:', error);
+        logError('[REACTIVATE] Erro na função:', error);
         throw new Error(error.message || 'Erro desconhecido ao reativar assinatura');
       }
       
       if (!data || !data.success) {
         const errorMsg = data?.error || 'Erro desconhecido ao reativar assinatura';
-        console.error('[REACTIVATE] Erro retornado:', errorMsg);
+        logError('[REACTIVATE] Erro retornado:', errorMsg);
         
         // Check if it's a card error that requires updating
         if (data?.action === 'update_card') {
@@ -135,7 +136,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
         throw new Error(errorMsg);
       }
       
-      console.log('[REACTIVATE] Reativação bem-sucedida:', data);
+      logSilent('[REACTIVATE] Reativação bem-sucedida:', data);
       toast({
         title: "Assinatura reativada!",
         description: "O pagamento foi processado no seu cartão cadastrado.",
@@ -145,7 +146,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
       await checkSubscription();
       
     } catch (error: any) {
-      console.error('[REACTIVATE] Erro completo ao reativar assinatura:', error);
+      logError('[REACTIVATE] Erro completo ao reativar assinatura:', error);
       toast({
         title: "Erro na reativação",
         description: error.message || "Algo deu errado. Tente novamente.",
@@ -157,11 +158,11 @@ const PlanCard: React.FC<PlanCardProps> = ({
   const handleCheckout = async () => {
     try {
       setIsLoading(true);
-      console.log(`[Checkout Debug] Iniciando checkout para plano: ${planType}, ${name}`);
+      logSilent(`[Checkout Debug] Iniciando checkout para plano: ${planType}, ${name}`);
       
       // Se é assinatura expirada, chamar reativação direta
       if (isExpiredCurrentPlan) {
-        console.log('[Checkout Debug] Assinatura expirada, chamando reativação');
+        logSilent('[Checkout Debug] Assinatura expirada, chamando reativação');
         await handleReactivateSubscription();
         setIsLoading(false);
         return;
@@ -169,7 +170,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
       
       // Se é um upgrade ou downgrade para usuários com assinatura ativa, abrir dialog
       if (hasActiveSubscription && (canUpgrade || canDowngrade)) {
-        console.log('[Checkout Debug] Abrindo dialog de mudança de plano');
+        logSilent('[Checkout Debug] Abrindo dialog de mudança de plano');
         setShowPlanChangeDialog(true);
         setIsLoading(false);
         return;
@@ -179,7 +180,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
       const session = await waitForValidSession();
       
       if (!session?.user) {
-        console.log('[Checkout Debug] Nenhuma sessão válida encontrada, redirecionando para registro');
+        logSilent('[Checkout Debug] Nenhuma sessão válida encontrada, redirecionando para registro');
         
         // Armazenar dados do plano no localStorage para recuperação posterior
         const checkoutData = {
@@ -201,7 +202,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
       }
 
       // Verificar dados do plano
-      console.log(`[Checkout Debug] Dados do plano:`, {
+      logSilent(`[Checkout Debug] Dados do plano:`, {
         planType,
         name,
         price,
@@ -221,23 +222,23 @@ const PlanCard: React.FC<PlanCardProps> = ({
         isUpgrade
       };
       
-      console.log(`[Checkout Debug] Navegando para checkout com dados:`, checkoutState);
+      logSilent(`[Checkout Debug] Navegando para checkout com dados:`, checkoutState);
       
       // SEMPRE salvar no localStorage antes da navegação
       localStorage.setItem('checkoutState', JSON.stringify(checkoutState));
-      console.log(`[Checkout Debug] Dados salvos no localStorage`);
+      logSilent(`[Checkout Debug] Dados salvos no localStorage`);
       
       // Tentar navegação normal primeiro
       try {
         navigate('/checkout', { state: checkoutState });
-        console.log('[Checkout Debug] Navegação realizada com sucesso');
+        logSilent('[Checkout Debug] Navegação realizada com sucesso');
       } catch (navError) {
-        console.error('[Checkout Debug] Erro na navegação, usando fallback:', navError);
+        logError('[Checkout Debug] Erro na navegação, usando fallback:', navError);
         navigate('/checkout');
       }
       
     } catch (error) {
-      console.error('[Checkout Debug] Erro no checkout:', error);
+      logError('[Checkout Debug] Erro no checkout:', error);
       toast({
         title: "Erro no checkout",
         description: error instanceof Error ? error.message : "Algo deu errado. Tente novamente.",

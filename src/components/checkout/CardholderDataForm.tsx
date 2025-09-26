@@ -21,12 +21,16 @@ interface CardholderDataFormProps {
   data: CardholderData;
   onChange: (field: keyof CardholderData, value: string) => void;
   disabled?: boolean;
+  creditCardHolderName?: string;
+  creditCardHolderCpf?: string;
 }
 
 export const CardholderDataForm: React.FC<CardholderDataFormProps> = ({
   data,
   onChange,
-  disabled = false
+  disabled = false,
+  creditCardHolderName = '',
+  creditCardHolderCpf = ''
 }) => {
   
   const formatPhone = (value: string) => {
@@ -54,22 +58,28 @@ export const CardholderDataForm: React.FC<CardholderDataFormProps> = ({
       <CardHeader>
         <CardTitle>Dados do Portador do Cartão</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Estes dados serão usados para validação do cartão e devem corresponder ao titular.
+          Nome e CPF são preenchidos automaticamente do cartão. Outros dados vêm do seu cadastro.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
+          <p className="text-sm text-blue-800">
+            ℹ️ <strong>Dados preenchidos automaticamente:</strong> Telefone e endereço foram preenchidos do seu cadastro. Nome e CPF vêm dos dados do cartão de crédito.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="cardholderName">Nome Completo</Label>
             <Input
               id="cardholderName"
               type="text"
-              placeholder="Nome como no cartão"
-              value={data.name}
-              onChange={(e) => onChange('name', e.target.value.toUpperCase())}
-              disabled={disabled}
-              required
+              value={creditCardHolderName}
+              disabled={true}
+              className="bg-muted"
+              placeholder="Nome será preenchido do cartão"
             />
+            <p className="text-xs text-muted-foreground">Preenchido automaticamente do cartão de crédito</p>
           </div>
 
           <div className="space-y-2">
@@ -77,25 +87,39 @@ export const CardholderDataForm: React.FC<CardholderDataFormProps> = ({
             <Input
               id="cardholderPhone"
               type="text"
-              placeholder="(11) 99999-9999"
               value={formatPhone(data.phone)}
-              onChange={handlePhoneChange}
-              disabled={disabled}
-              maxLength={15}
-              required
+              disabled={true}
+              className="bg-muted"
+              placeholder="Telefone do seu cadastro"
             />
+            <p className="text-xs text-muted-foreground">Preenchido do seu cadastro</p>
           </div>
         </div>
 
         <div className="space-y-2">
-          <CEPInput
-            value={data.cep}
-            onChange={(value) => onChange('cep', value)}
-            onAddressFound={handleAddressFound}
-            label="CEP"
-            placeholder="00000-000"
-            required
+          <Label htmlFor="cardholderCpf">CPF do Portador</Label>
+          <Input
+            id="cardholderCpf"
+            type="text"
+            value={creditCardHolderCpf}
+            disabled={true}
+            className="bg-muted"
+            placeholder="CPF será preenchido do cartão"
           />
+          <p className="text-xs text-muted-foreground">Preenchido automaticamente do cartão de crédito</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="cardholderCep">CEP</Label>
+          <Input
+            id="cardholderCep"
+            type="text"
+            value={data.cep}
+            disabled={true}
+            className="bg-muted"
+            placeholder="CEP do seu cadastro"
+          />
+          <p className="text-xs text-muted-foreground">Preenchido do seu cadastro</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -104,12 +128,12 @@ export const CardholderDataForm: React.FC<CardholderDataFormProps> = ({
             <Input
               id="cardholderStreet"
               type="text"
-              placeholder="Rua, Avenida, etc."
               value={data.street}
-              onChange={(e) => onChange('street', e.target.value)}
-              disabled={disabled}
-              required
+              disabled={true}
+              className="bg-muted"
+              placeholder="Endereço do seu cadastro"
             />
+            <p className="text-xs text-muted-foreground">Preenchido do seu cadastro</p>
           </div>
 
           <div className="space-y-2">
@@ -117,25 +141,26 @@ export const CardholderDataForm: React.FC<CardholderDataFormProps> = ({
             <Input
               id="cardholderNumber"
               type="text"
-              placeholder="123"
               value={data.number}
-              onChange={(e) => onChange('number', e.target.value)}
-              disabled={disabled}
-              required
+              disabled={true}
+              className="bg-muted"
+              placeholder="Número do seu cadastro"
             />
+            <p className="text-xs text-muted-foreground">Preenchido do seu cadastro</p>
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="cardholderComplement">Complemento (opcional)</Label>
+          <Label htmlFor="cardholderComplement">Complemento</Label>
           <Input
             id="cardholderComplement"
             type="text"
-            placeholder="Apt, Bloco, etc."
             value={data.complement}
-            onChange={(e) => onChange('complement', e.target.value)}
-            disabled={disabled}
+            disabled={true}
+            className="bg-muted"
+            placeholder="Complemento do seu cadastro"
           />
+          <p className="text-xs text-muted-foreground">Preenchido do seu cadastro</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -144,12 +169,12 @@ export const CardholderDataForm: React.FC<CardholderDataFormProps> = ({
             <Input
               id="cardholderNeighborhood"
               type="text"
-              placeholder="Bairro"
               value={data.neighborhood}
-              onChange={(e) => onChange('neighborhood', e.target.value)}
-              disabled={disabled}
-              required
+              disabled={true}
+              className="bg-muted"
+              placeholder="Bairro do seu cadastro"
             />
+            <p className="text-xs text-muted-foreground">Preenchido do seu cadastro</p>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -158,12 +183,12 @@ export const CardholderDataForm: React.FC<CardholderDataFormProps> = ({
               <Input
                 id="cardholderCity"
                 type="text"
-                placeholder="Cidade"
                 value={data.city}
-                onChange={(e) => onChange('city', e.target.value)}
-                disabled={disabled}
-                required
+                disabled={true}
+                className="bg-muted"
+                placeholder="Cidade do seu cadastro"
               />
+              <p className="text-xs text-muted-foreground">Preenchido do seu cadastro</p>
             </div>
 
             <div className="space-y-2">
@@ -171,22 +196,21 @@ export const CardholderDataForm: React.FC<CardholderDataFormProps> = ({
               <Input
                 id="cardholderState"
                 type="text"
-                placeholder="SP"
                 value={data.state}
-                onChange={(e) => onChange('state', e.target.value.toUpperCase())}
-                disabled={disabled}
-                maxLength={2}
-                required
+                disabled={true}
+                className="bg-muted"
+                placeholder="UF do seu cadastro"
               />
+              <p className="text-xs text-muted-foreground">Preenchido do seu cadastro</p>
             </div>
           </div>
         </div>
 
-        <div className="text-xs text-muted-foreground p-3 bg-muted rounded-lg">
-          <p className="font-medium mb-1">⚠️ Importante:</p>
-          <p>• Os dados devem ser exatamente iguais aos do portador do cartão</p>
-          <p>• O CPF deve ser do titular do cartão (preenchido acima)</p>
-          <p>• Endereço deve corresponder ao cadastro do banco</p>
+        <div className="text-xs text-muted-foreground p-3 bg-green-50 border border-green-200 rounded-lg">
+          <p className="font-medium mb-1 text-green-800">✅ Dados Automáticos:</p>
+          <p className="text-green-700">• Nome e CPF: Preenchidos automaticamente do cartão de crédito</p>
+          <p className="text-green-700">• Telefone e Endereço: Preenchidos do seu cadastro de usuário</p>
+          <p className="text-green-700">• Não é necessário preencher manualmente estes campos</p>
         </div>
       </CardContent>
     </Card>

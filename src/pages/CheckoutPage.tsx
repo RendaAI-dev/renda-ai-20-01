@@ -96,7 +96,7 @@ const CheckoutPage = () => {
           if (!error && userData) {
             setCardholderData(prev => ({
               ...prev,
-              name: userData.name || '',
+              // NOTE: name and cpf are NOT pre-filled - they come from credit card form
               phone: userData.phone || '',
               cep: userData.cep || '',
               street: userData.street || '',
@@ -105,7 +105,6 @@ const CheckoutPage = () => {
               neighborhood: userData.neighborhood || '',
               city: userData.city || '',
               state: userData.state || ''
-              // Note: CPF is NOT pre-filled from user data as each card has its own CPF
             }));
           }
         } catch (error) {
@@ -233,6 +232,20 @@ const CheckoutPage = () => {
       ...prev,
       [field]: value
     }));
+
+    // Auto-sync name and CPF from credit card to cardholder data
+    if (field === 'holderName') {
+      setCardholderData(prev => ({
+        ...prev,
+        name: value
+      }));
+    }
+    if (field === 'holderCpf') {
+      setCardholderData(prev => ({
+        ...prev,
+        cpf: value
+      }));
+    }
   };
 
   const handleCardholderDataChange = (field: keyof CardholderData, value: string) => {
@@ -323,20 +336,30 @@ const CheckoutPage = () => {
   const validateCardholderData = (): boolean => {
     const { name, cpf, cep, street, number, neighborhood, city, state, phone } = cardholderData;
     
-    if (!name || !cpf || !cep || !street || !number || !neighborhood || !city || !state || !phone) {
+    // Name and CPF come from credit card data, so check those first
+    if (!creditCardData.holderName || !creditCardData.holderCpf) {
       toast({
-        title: "Dados do portador incompletos",
-        description: "Por favor, preencha todos os dados do portador do cartão",
+        title: "Dados do cartão incompletos",
+        description: "Por favor, preencha o nome e CPF do titular do cartão",
         variant: "destructive"
       });
       return false;
     }
 
-    // Validate CPF
-    if (!validateCPF(cpf)) {
+    if (!cep || !street || !number || !neighborhood || !city || !state || !phone) {
+      toast({
+        title: "Dados de endereço incompletos",
+        description: "Alguns dados do seu cadastro estão faltando. Atualize seu perfil primeiro.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Validate CPF from credit card
+    if (!validateCPF(creditCardData.holderCpf)) {
       toast({
         title: "CPF inválido",
-        description: "Por favor, digite um CPF válido para o portador do cartão",
+        description: "Por favor, digite um CPF válido no cartão de crédito",
         variant: "destructive"
       });
       return false;
@@ -347,7 +370,7 @@ const CheckoutPage = () => {
     if (cleanCep.length !== 8 || /^0{8}$/.test(cleanCep)) {
       toast({
         title: "CEP inválido",
-        description: "Por favor, digite um CEP válido",
+        description: "CEP do seu cadastro é inválido. Atualize seu perfil.",
         variant: "destructive"
       });
       return false;
@@ -358,7 +381,7 @@ const CheckoutPage = () => {
     if (cleanPhone.length < 10 || cleanPhone.length > 11) {
       toast({
         title: "Telefone inválido",
-        description: "Por favor, digite um telefone válido",
+        description: "Telefone do seu cadastro é inválido. Atualize seu perfil.",
         variant: "destructive"
       });
       return false;
@@ -551,6 +574,8 @@ const CheckoutPage = () => {
                       data={cardholderData}
                       onChange={handleCardholderDataChange}
                       disabled={loading}
+                      creditCardHolderName={creditCardData.holderName}
+                      creditCardHolderCpf={creditCardData.holderCpf}
                     />
                   </div>
                 )}

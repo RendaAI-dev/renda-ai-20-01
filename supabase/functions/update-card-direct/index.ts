@@ -217,6 +217,7 @@ serve(async (req) => {
     // Se não foi fornecido um token, tokenizar novo cartão
     if (!cardToken && cardData) {
       console.log('[UPDATE-CARD-DIRECT] Tokenizando novo cartão...');
+      console.log('[UPDATE-CARD-DIRECT] postalCodeUsed:', userData.cep);
       
       const tokenizeResponse = await fetch(`${asaasUrl}/creditCard/tokenize`, {
         method: 'POST',

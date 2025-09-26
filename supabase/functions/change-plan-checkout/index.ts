@@ -378,7 +378,7 @@ serve(async (req) => {
         });
       }
 
-      console.log('[CHANGE-PLAN-CHECKOUT] CEP usado para tokenização:', sanitizeCEP(rawTokenData.cep));
+      console.log('[CHANGE-PLAN-CHECKOUT] postalCodeUsed para tokenização:', sanitizeCEP(rawTokenData.cep));
 
       // Tokenizar novo cartão
       const tokenizeResponse = await fetch(`${asaasUrl}/creditCard/tokenize`, {
@@ -398,7 +398,7 @@ serve(async (req) => {
           },
           creditCardHolderInfo: {
             name: rawTokenData.name,
-            cpfCnpj: sanitizeCPF(creditCard.holderCpf),
+            cpfCnpj: sanitizeCPF(creditCard.holderCpf) || sanitizeCPF(userProfile?.cpf || user.user_metadata?.cpf || ''),
             postalCode: sanitizeCEP(rawTokenData.cep),
             addressNumber: rawTokenData.number,
             phone: sanitizePhone(rawTokenData.phone) || '11999999999'
@@ -539,25 +539,52 @@ serve(async (req) => {
             .delete()
             .eq('user_id', user.id);
           
-          // Recriar cliente
+          // Recriar cliente com dados sanitizados
           const { data: userData } = await supabase
             .from('poupeja_users')
             .select('*')
             .eq('id', user.id)
             .maybeSingle();
 
-          const customerData = {
+          // Merge inteligente para recriação do cliente
+          const rawRecreateData = {
             name: userData?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente',
-            email: user.email,
-            phone: userData?.phone || user.user_metadata?.phone || '11999999999',
-            cpfCnpj: userData?.cpf || user.user_metadata?.cpf || '00000000000',
-            postalCode: userData?.cep || user.user_metadata?.cep || '00000-000',
-            address: userData?.street || user.user_metadata?.address?.street || 'Endereço não informado',
-            addressNumber: userData?.number || user.user_metadata?.address?.number || '123',
+            phone: userData?.phone || user.user_metadata?.phone || '',
+            cpf: userData?.cpf || user.user_metadata?.cpf || '',
+            cep: userData?.cep || user.user_metadata?.cep || user.user_metadata?.address?.cep || '',
+            street: userData?.street || user.user_metadata?.address?.street || 'Endereço não informado',
+            number: userData?.number || user.user_metadata?.address?.number || '123',
             complement: userData?.complement || user.user_metadata?.address?.complement || '',
-            province: userData?.neighborhood || user.user_metadata?.address?.neighborhood || 'Centro',
+            neighborhood: userData?.neighborhood || user.user_metadata?.address?.neighborhood || 'Centro',
             city: userData?.city || user.user_metadata?.address?.city || 'Cidade',
             state: userData?.state || user.user_metadata?.address?.state || 'SP'
+          };
+
+          // Validar CEP antes de recriar cliente
+          if (!isValidCEP(rawRecreateData.cep)) {
+            console.log('[CHANGE-PLAN-CHECKOUT] CEP inválido para recriação de cliente:', rawRecreateData.cep);
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'INVALID_POSTAL_CODE',
+              message: 'CEP inválido. Por favor, atualize seus dados no perfil com um CEP válido.',
+              requiresNewCard: true
+            }), {
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          const customerData = {
+            name: rawRecreateData.name,
+            email: user.email,
+            phone: sanitizePhone(rawRecreateData.phone) || '11999999999',
+            cpfCnpj: sanitizeCPF(rawRecreateData.cpf) || '00000000000',
+            postalCode: sanitizeCEP(rawRecreateData.cep),
+            address: rawRecreateData.street,
+            addressNumber: rawRecreateData.number,
+            complement: rawRecreateData.complement,
+            province: rawRecreateData.neighborhood,
+            city: rawRecreateData.city,
+            state: rawRecreateData.state
           };
 
           const recreateResponse = await fetch(`${asaasUrl}/customers`, {

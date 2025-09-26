@@ -4,14 +4,7 @@ import { Budget, BudgetStatus } from "@/types";
 export const getBudgets = async (): Promise<Budget[]> => {
   const { data, error } = await supabase
     .from('poupeja_budgets')
-    .select(`
-      *,
-      poupeja_categories (
-        name,
-        color,
-        icon
-      )
-    `)
+    .select('*')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -22,22 +15,22 @@ export const getBudgets = async (): Promise<Budget[]> => {
   return data?.map((budget) => ({
     id: budget.id,
     name: budget.name,
-    plannedAmount: budget.planned_amount,
-    spentAmount: budget.spent_amount,
+    plannedAmount: budget.planned_amount || 0,
+    spentAmount: budget.spent_amount || 0,
     periodType: budget.period_type as Budget['periodType'],
     startDate: budget.start_date,
     endDate: budget.end_date,
-    isActive: budget.is_active,
-    alertThreshold: budget.alert_threshold,
+    isActive: budget.is_active ?? true,
+    alertThreshold: budget.alert_threshold || 80,
     categoryId: budget.category_id,
     // Keep database fields for compatibility
-    planned_amount: budget.planned_amount,
-    spent_amount: budget.spent_amount,
+    planned_amount: budget.planned_amount || 0,
+    spent_amount: budget.spent_amount || 0,
     period_type: budget.period_type,
     start_date: budget.start_date,
     end_date: budget.end_date,
-    is_active: budget.is_active,
-    alert_threshold: budget.alert_threshold,
+    is_active: budget.is_active ?? true,
+    alert_threshold: budget.alert_threshold || 80,
     category_id: budget.category_id,
     user_id: budget.user_id,
     created_at: budget.created_at,
@@ -57,12 +50,13 @@ export const addBudget = async (budget: Omit<Budget, "id">): Promise<Budget | nu
     .insert([{
       user_id: user.data.user.id,
       name: budget.name,
-      planned_amount: budget.plannedAmount,
-      period_type: budget.periodType,
+      planned_amount: budget.plannedAmount || 0,
+      spent_amount: 0,
+      period_type: budget.periodType || 'monthly',
       start_date: budget.startDate,
       end_date: budget.endDate,
-      is_active: budget.isActive,
-      alert_threshold: budget.alertThreshold,
+      is_active: budget.isActive ?? true,
+      alert_threshold: budget.alertThreshold || 80,
       category_id: budget.categoryId,
     }])
     .select()

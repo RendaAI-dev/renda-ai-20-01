@@ -15,9 +15,10 @@ export const useBudgets = () => {
       setBudgets(data);
     } catch (error) {
       console.error('Error loading budgets:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       toast({
-        title: "Erro",
-        description: "Não foi possível carregar os orçamentos.",
+        title: "Erro ao carregar orçamentos",
+        description: `${errorMessage}. Verifique se você está logado.`,
         variant: "destructive",
       });
     } finally {

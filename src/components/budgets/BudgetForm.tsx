@@ -47,36 +47,6 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
 }) => {
   const { categories } = useAppContext();
   
-  const form = useForm<z.infer<typeof budgetSchema>>({
-    resolver: zodResolver(budgetSchema),
-    defaultValues: {
-      name: initialData?.name || '',
-      plannedAmount: initialData?.plannedAmount || 0,
-      periodType: (initialData?.periodType as BudgetPeriod) || 'monthly',
-      startDate: initialData?.startDate || new Date().toISOString().split('T')[0],
-      endDate: initialData?.endDate || '',
-      alertThreshold: initialData?.alertThreshold || 80,
-      categoryId: initialData?.categoryId || '',
-      isActive: initialData?.isActive ?? true,
-    },
-  });
-
-  const handleSubmit = (values: z.infer<typeof budgetSchema>) => {
-    onSubmit({
-      name: values.name,
-      plannedAmount: values.plannedAmount,
-      spentAmount: initialData?.spentAmount || 0,
-      periodType: values.periodType,
-      startDate: values.startDate,
-      endDate: values.endDate,
-      alertThreshold: values.alertThreshold,
-      categoryId: values.categoryId || undefined,
-      isActive: values.isActive,
-    });
-  };
-
-  const expenseCategories = categories.filter(cat => cat.type === 'expense');
-
   // Helper function to calculate end date based on period type
   const calculateEndDate = (startDate: string, periodType: BudgetPeriod): string => {
     const start = new Date(startDate);
@@ -99,6 +69,36 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
     
     return end.toISOString().split('T')[0];
   };
+
+  const form = useForm<z.infer<typeof budgetSchema>>({
+    resolver: zodResolver(budgetSchema),
+    defaultValues: {
+      name: initialData?.name || '',
+      plannedAmount: initialData?.plannedAmount || 0,
+      periodType: (initialData?.periodType as BudgetPeriod) || 'monthly',
+      startDate: initialData?.startDate || new Date().toISOString().split('T')[0],
+      endDate: initialData?.endDate || calculateEndDate(new Date().toISOString().split('T')[0], 'monthly'),
+      alertThreshold: initialData?.alertThreshold || 80,
+      categoryId: initialData?.categoryId || '',
+      isActive: initialData?.isActive ?? true,
+    },
+  });
+
+  const handleSubmit = (values: z.infer<typeof budgetSchema>) => {
+    onSubmit({
+      name: values.name,
+      plannedAmount: values.plannedAmount,
+      spentAmount: initialData?.spentAmount || 0,
+      periodType: values.periodType,
+      startDate: values.startDate,
+      endDate: values.endDate,
+      alertThreshold: values.alertThreshold,
+      categoryId: values.categoryId || undefined,
+      isActive: values.isActive,
+    });
+  };
+
+  const expenseCategories = categories.filter(cat => cat.type === 'expense');
 
   // Watch for changes in start date and period type to auto-calculate end date
   React.useEffect(() => {

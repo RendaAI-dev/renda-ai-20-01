@@ -104,7 +104,7 @@ export interface ReportType {
 
 export type ReportFormat = 'csv' | 'pdf';
 
-export type BudgetPeriod = 'monthly' | 'quarterly' | 'yearly';
+export type BudgetPeriod = 'monthly' | 'quarterly' | 'semestral' | 'yearly';
 
 export type BudgetStatus = 'on_track' | 'warning' | 'exceeded';
 

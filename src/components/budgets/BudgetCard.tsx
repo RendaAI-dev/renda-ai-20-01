@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Budget } from '@/types';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { calculateBudgetProgress, getBudgetStatus } from '@/services/budgetService';
+import { addMonths, startOfMonth, endOfMonth } from 'date-fns';
 
 interface BudgetCardProps {
   budget: Budget;
@@ -29,6 +30,34 @@ export const BudgetCard: React.FC<BudgetCardProps> = ({
       currency: currency || 'BRL',
     }).format(amount);
   };
+
+  // Recalculate period dates based on period type and start date
+  const recalculatedDates = useMemo(() => {
+    const currentStartDate = new Date(budget.startDate);
+    let calculatedEndDate: Date;
+
+    switch (budget.periodType) {
+      case 'monthly':
+        calculatedEndDate = endOfMonth(currentStartDate);
+        break;
+      case 'quarterly':
+        calculatedEndDate = endOfMonth(addMonths(currentStartDate, 2));
+        break;
+      case 'semestral':
+        calculatedEndDate = endOfMonth(addMonths(currentStartDate, 5));
+        break;
+      case 'yearly':
+        calculatedEndDate = endOfMonth(addMonths(currentStartDate, 11));
+        break;
+      default:
+        calculatedEndDate = new Date(budget.endDate);
+    }
+
+    return {
+      startDate: currentStartDate,
+      endDate: calculatedEndDate
+    };
+  }, [budget.startDate, budget.endDate, budget.periodType]);
   
   const progress = calculateBudgetProgress(budget);
   const status = getBudgetStatus(budget);
@@ -153,11 +182,11 @@ export const BudgetCard: React.FC<BudgetCardProps> = ({
           </div>
           <div className="flex justify-between">
             <span>De:</span>
-            <span>{new Date(budget.startDate).toLocaleDateString('pt-BR')}</span>
+            <span>{recalculatedDates.startDate.toLocaleDateString('pt-BR')}</span>
           </div>
           <div className="flex justify-between">
             <span>Até:</span>
-            <span>{new Date(budget.endDate).toLocaleDateString('pt-BR')}</span>
+            <span>{recalculatedDates.endDate.toLocaleDateString('pt-BR')}</span>
           </div>
         </div>
 

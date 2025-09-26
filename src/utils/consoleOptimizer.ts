@@ -60,3 +60,29 @@ export const logPWA = (message: string, ...args: any[]) => {
     console.log(`[PWA] ${message}`, ...args);
   }
 };
+
+// Config/Settings logging
+export const logConfig = (message: string, ...args: any[]) => {
+  // Only log config info in dev mode
+  if (isDev) {
+    console.log(`[Config] ${message}`, ...args);
+  }
+};
+
+// Role verification logging
+export const logRole = (message: string, ...args: any[]) => {
+  // Silent by default, only critical role errors in production
+  if (isDev) {
+    console.log(`[Role] ${message}`, ...args);
+  } else if (message.includes('security') || message.includes('critical')) {
+    console.warn(`[Role] ${message}`);
+  }
+};
+
+// Silent logging for frequently called functions
+export const logSilent = (message: string, ...args: any[]) => {
+  // Completely silent in production, minimal in dev
+  if (isDev && !message.includes('cache') && !message.includes('checking')) {
+    console.log(message, ...args);
+  }
+};

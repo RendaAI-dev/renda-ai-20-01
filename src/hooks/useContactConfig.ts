@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { logConfig, logError } from '@/utils/consoleOptimizer';
 
 interface ContactConfig {
   contactPhone: string;
@@ -10,7 +11,7 @@ interface ContactConfig {
 
 export const useContactConfig = () => {
   const [config, setConfig] = useState<ContactConfig>({
-    contactPhone: '', // será carregado do banco
+    contactPhone: '',
     whatsappMessage: 'Olá! Acabei de assinar o plano {planType} do PoupeJá! 🎉\n\nMeu email é: {email}\n\nPor favor, ative minha conta. Obrigado!',
     supportEmail: 'suporte@poupeja.com'
   });
@@ -25,17 +26,15 @@ export const useContactConfig = () => {
         });
         
         if (error) {
-          console.error('Erro ao buscar configurações:', error);
+          logError('Erro ao buscar configurações de contato', error);
           setError('Erro ao carregar configurações');
           return;
         }
         
         if (data?.success && data?.settings) {
-          // Extrair configurações de contato
           const contactSettings = data.settings.contact || {};
           
-          // Usar configurações carregadas do banco de dados
-          console.log('Configurações carregadas:', contactSettings);
+          logConfig('Configurações de contato carregadas');
           setConfig(prev => ({
             contactPhone: contactSettings.contact_phone?.value || '',
             whatsappMessage: contactSettings.whatsapp_message?.value || prev.whatsappMessage,
@@ -43,7 +42,7 @@ export const useContactConfig = () => {
           }));
         }
       } catch (err) {
-        console.error('Erro ao buscar configurações:', err);
+        logError('Exceção ao buscar configurações de contato', err);
         setError('Erro ao carregar configurações');
       } finally {
         setIsLoading(false);

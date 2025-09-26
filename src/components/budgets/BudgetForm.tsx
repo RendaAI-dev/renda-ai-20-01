@@ -12,6 +12,7 @@ import { Budget, BudgetPeriod } from '@/types';
 import { useAppContext } from '@/contexts/AppContext';
 import { FormField, FormItem, FormLabel, FormControl, FormMessage, Form } from '@/components/ui/form';
 import { DatePicker } from '@/components/ui/date-picker';
+import { addMonths, startOfMonth, endOfMonth } from 'date-fns';
 
 // Validação do schema para formulário de orçamento
 const budgetSchema = z.object({
@@ -69,23 +70,24 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
   
   // Helper function to calculate end date based on start date and period type
   const calculateEndDateFromStart = (startDate: Date, periodType: BudgetPeriod): Date => {
-    const start = new Date(startDate);
+    // Sempre começar no primeiro dia do mês
+    const monthStartDate = startOfMonth(startDate);
     
     switch (periodType) {
       case 'monthly':
-        // +1 mês da data de início
-        return new Date(start.getFullYear(), start.getMonth() + 1, start.getDate() - 1);
+        // Do primeiro ao último dia do mesmo mês
+        return endOfMonth(monthStartDate);
       case 'quarterly':
-        // +3 meses da data de início
-        return new Date(start.getFullYear(), start.getMonth() + 3, start.getDate() - 1);
+        // Do primeiro dia do mês até o último dia do 3º mês
+        return endOfMonth(addMonths(monthStartDate, 2));
       case 'semestral':
-        // +6 meses da data de início
-        return new Date(start.getFullYear(), start.getMonth() + 6, start.getDate() - 1);
+        // Do primeiro dia do mês até o último dia do 6º mês
+        return endOfMonth(addMonths(monthStartDate, 5));
       case 'yearly':
-        // +12 meses da data de início
-        return new Date(start.getFullYear() + 1, start.getMonth(), start.getDate() - 1);
+        // Do primeiro dia do mês até o último dia do 12º mês
+        return endOfMonth(addMonths(monthStartDate, 11));
       default:
-        return start;
+        return monthStartDate;
     }
   };
 

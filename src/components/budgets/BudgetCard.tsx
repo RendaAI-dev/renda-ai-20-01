@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Budget } from '@/types';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { calculateBudgetProgress, getBudgetStatus } from '@/services/budgetService';
+import { addMonths, startOfMonth, endOfMonth } from 'date-fns';
 
 interface BudgetCardProps {
   budget: Budget;
@@ -35,29 +36,32 @@ export const BudgetCard: React.FC<BudgetCardProps> = ({
     const currentStartDate = new Date(budget.startDate);
     let calculatedEndDate: Date;
 
+    // Sempre começar no primeiro dia do mês
+    const monthStartDate = startOfMonth(currentStartDate);
+    
     switch (budget.periodType) {
       case 'monthly':
-        // +1 mês da data de início
-        calculatedEndDate = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth() + 1, currentStartDate.getDate() - 1);
+        // Do primeiro ao último dia do mesmo mês
+        calculatedEndDate = endOfMonth(monthStartDate);
         break;
       case 'quarterly':
-        // +3 meses da data de início
-        calculatedEndDate = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth() + 3, currentStartDate.getDate() - 1);
+        // Do primeiro dia do mês até o último dia do 3º mês
+        calculatedEndDate = endOfMonth(addMonths(monthStartDate, 2));
         break;
       case 'semestral':
-        // +6 meses da data de início
-        calculatedEndDate = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth() + 6, currentStartDate.getDate() - 1);
+        // Do primeiro dia do mês até o último dia do 6º mês
+        calculatedEndDate = endOfMonth(addMonths(monthStartDate, 5));
         break;
       case 'yearly':
-        // +12 meses da data de início
-        calculatedEndDate = new Date(currentStartDate.getFullYear() + 1, currentStartDate.getMonth(), currentStartDate.getDate() - 1);
+        // Do primeiro dia do mês até o último dia do 12º mês
+        calculatedEndDate = endOfMonth(addMonths(monthStartDate, 11));
         break;
       default:
         calculatedEndDate = new Date(budget.endDate);
     }
 
     return {
-      startDate: currentStartDate,
+      startDate: monthStartDate,
       endDate: calculatedEndDate
     };
   }, [budget.startDate, budget.endDate, budget.periodType]);

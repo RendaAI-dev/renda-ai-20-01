@@ -14,6 +14,19 @@ interface CreditCardData {
   holderCpf: string;
 }
 
+interface CardholderData {
+  name: string;
+  cpf: string;
+  cep: string;
+  street: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  phone: string;
+}
+
 interface CreditCardFormProps {
   data: CreditCardData;
   onChange: (field: keyof CreditCardData, value: string) => void;

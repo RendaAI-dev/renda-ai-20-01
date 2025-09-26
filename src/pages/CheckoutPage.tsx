@@ -11,6 +11,7 @@ import { SavedCardSelector } from '@/components/checkout/SavedCardSelector';
 import { PlanSummary } from '@/components/checkout/PlanSummary';
 import { CheckoutSteps } from '@/components/checkout/CheckoutSteps';
 import { CheckoutSummary } from '@/components/checkout/CheckoutSummary';
+import { CardholderDataForm } from '@/components/checkout/CardholderDataForm';
 import { logError, logSilent } from '@/utils/consoleOptimizer';
 
 interface CreditCardData {
@@ -20,6 +21,19 @@ interface CreditCardData {
   ccv: string;
   holderName: string;
   holderCpf: string;
+}
+
+interface CardholderData {
+  name: string;
+  cpf: string;
+  cep: string;
+  street: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  phone: string;
 }
 
 interface CheckoutState {
@@ -50,12 +64,54 @@ const CheckoutPage = () => {
     holderName: '',
     holderCpf: ''
   });
+  
+  const [cardholderData, setCardholderData] = useState<CardholderData>({
+    name: '',
+    cpf: '',
+    cep: '',
+    street: '',
+    number: '',
+    complement: '',
+    neighborhood: '',
+    city: '',
+    state: '',
+    phone: ''
+  });
 
-  // Get current user on mount
+  // Get current user on mount and populate cardholder data
   useEffect(() => {
     const getCurrentUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUser(user);
+      
+      if (user?.id) {
+        // Get user data from poupeja_users to pre-fill cardholder information
+        try {
+          const { data: userData, error } = await supabase
+            .from('poupeja_users')
+            .select('name, phone, cep, street, number, complement, neighborhood, city, state')
+            .eq('id', user.id)
+            .maybeSingle();
+            
+          if (!error && userData) {
+            setCardholderData(prev => ({
+              ...prev,
+              name: userData.name || '',
+              phone: userData.phone || '',
+              cep: userData.cep || '',
+              street: userData.street || '',
+              number: userData.number || '',
+              complement: userData.complement || '',
+              neighborhood: userData.neighborhood || '',
+              city: userData.city || '',
+              state: userData.state || ''
+              // Note: CPF is NOT pre-filled from user data as each card has its own CPF
+            }));
+          }
+        } catch (error) {
+          logError('Error fetching user data for cardholder info:', error);
+        }
+      }
     };
     getCurrentUser();
   }, []);
@@ -179,6 +235,13 @@ const CheckoutPage = () => {
     }));
   };
 
+  const handleCardholderDataChange = (field: keyof CardholderData, value: string) => {
+    setCardholderData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
   // Função de validação de CPF usando algoritmo correto
   const validateCPF = (cpf: string): boolean => {
     const cleanCPF = cpf.replace(/\D/g, '');
@@ -257,12 +320,59 @@ const CheckoutPage = () => {
     return true;
   };
 
+  const validateCardholderData = (): boolean => {
+    const { name, cpf, cep, street, number, neighborhood, city, state, phone } = cardholderData;
+    
+    if (!name || !cpf || !cep || !street || !number || !neighborhood || !city || !state || !phone) {
+      toast({
+        title: "Dados do portador incompletos",
+        description: "Por favor, preencha todos os dados do portador do cartão",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Validate CPF
+    if (!validateCPF(cpf)) {
+      toast({
+        title: "CPF inválido",
+        description: "Por favor, digite um CPF válido para o portador do cartão",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Validate CEP format
+    const cleanCep = cep.replace(/\D/g, '');
+    if (cleanCep.length !== 8 || /^0{8}$/.test(cleanCep)) {
+      toast({
+        title: "CEP inválido",
+        description: "Por favor, digite um CEP válido",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Validate phone
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+      toast({
+        title: "Telefone inválido",
+        description: "Por favor, digite um telefone válido",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    return true;
+  };
+
   const handleNext = () => {
     if (step === 1) {
       // If using saved card, skip validation
       if (selectedCardToken && !useNewCard) {
         setStep(2);
-      } else if (validateCreditCard()) {
+      } else if (validateCreditCard() && validateCardholderData()) {
         setStep(2);
       }
     }
@@ -288,7 +398,7 @@ const CheckoutPage = () => {
 
   const handleProcessPayment = async () => {
     // Validate based on payment method
-    if (useNewCard && !validateCreditCard()) return;
+    if (useNewCard && (!validateCreditCard() || !validateCardholderData())) return;
     if (!useNewCard && !selectedCardToken) {
       toast({
         title: "Erro de validação",
@@ -311,6 +421,7 @@ const CheckoutPage = () => {
       // Add payment method data
       if (useNewCard) {
         body.creditCard = creditCardData;
+        body.cardholderData = cardholderData; // Include complete cardholder information
       } else {
         body.savedCardToken = selectedCardToken;
       }
@@ -421,19 +532,27 @@ const CheckoutPage = () => {
                 />
                 
                 {useNewCard && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Dados do Novo Cartão</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <CreditCardForm
-                        data={creditCardData}
-                        onChange={handleCreditCardChange}
-                        disabled={loading}
-                        currentUser={currentUser}
-                      />
-                    </CardContent>
-                  </Card>
+                  <div className="space-y-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Dados do Novo Cartão</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <CreditCardForm
+                          data={creditCardData}
+                          onChange={handleCreditCardChange}
+                          disabled={loading}
+                          currentUser={currentUser}
+                        />
+                      </CardContent>
+                    </Card>
+                    
+                    <CardholderDataForm
+                      data={cardholderData}
+                      onChange={handleCardholderDataChange}
+                      disabled={loading}
+                    />
+                  </div>
                 )}
                 
                 <div className="flex gap-4">

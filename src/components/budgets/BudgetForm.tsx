@@ -64,23 +64,19 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
     
     switch (periodType) {
       case 'monthly':
-        // Último dia do mês
-        const endOfMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-        return endOfMonth.toISOString().split('T')[0];
+        // Último dia do mês atual
+        return new Date(start.getFullYear(), start.getMonth() + 1, 0).toISOString().split('T')[0];
       case 'quarterly':
-        // Último dia do trimestre
-        const quarterEnd = new Date(start.getFullYear(), start.getMonth() + 3, 0);
-        return quarterEnd.toISOString().split('T')[0];
+        // Último dia do trimestre atual
+        const quarterStartMonth = Math.floor(start.getMonth() / 3) * 3;
+        return new Date(start.getFullYear(), quarterStartMonth + 3, 0).toISOString().split('T')[0];
       case 'semestral':
-        // Último dia do semestre (junho ou dezembro)
-        const semesterEnd = start.getMonth() < 6 
-          ? new Date(start.getFullYear(), 5, 30) // 30 de junho
-          : new Date(start.getFullYear(), 11, 31); // 31 de dezembro
-        return semesterEnd.toISOString().split('T')[0];
+        // Último dia do semestre atual (30 de junho ou 31 de dezembro)
+        const semesterEndMonth = start.getMonth() < 6 ? 6 : 12;
+        return new Date(start.getFullYear(), semesterEndMonth, 0).toISOString().split('T')[0];
       case 'yearly':
-        // 31 de dezembro do mesmo ano
-        const yearEnd = new Date(start.getFullYear(), 11, 31);
-        return yearEnd.toISOString().split('T')[0];
+        // 31 de dezembro do ano atual
+        return new Date(start.getFullYear(), 11, 31).toISOString().split('T')[0];
     }
   };
 

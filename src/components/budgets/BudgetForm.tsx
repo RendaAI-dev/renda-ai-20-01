@@ -47,27 +47,41 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
 }) => {
   const { categories } = useAppContext();
   
-  // Helper function to calculate end date based on period type
-  const calculateEndDate = (startDate: string, periodType: BudgetPeriod): string => {
-    const start = new Date(startDate);
-    const end = new Date(start);
+  // Helper function to get default start date (first day of current period)
+  const getDefaultStartDate = (periodType: BudgetPeriod = 'monthly'): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
     
     switch (periodType) {
       case 'monthly':
-        end.setMonth(end.getMonth() + 1);
-        end.setDate(end.getDate() - 1);
-        break;
+        return new Date(year, month, 1).toISOString().split('T')[0];
       case 'quarterly':
-        end.setMonth(end.getMonth() + 3);
-        end.setDate(end.getDate() - 1);
-        break;
+        const quarterStartMonth = Math.floor(month / 3) * 3;
+        return new Date(year, quarterStartMonth, 1).toISOString().split('T')[0];
       case 'yearly':
-        end.setFullYear(end.getFullYear() + 1);
-        end.setDate(end.getDate() - 1);
-        break;
+        return new Date(year, 0, 1).toISOString().split('T')[0];
     }
+  };
+  
+  // Helper function to calculate end date based on period type
+  const calculateEndDate = (startDate: string, periodType: BudgetPeriod): string => {
+    const start = new Date(startDate);
     
-    return end.toISOString().split('T')[0];
+    switch (periodType) {
+      case 'monthly':
+        // Último dia do mês
+        const endOfMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+        return endOfMonth.toISOString().split('T')[0];
+      case 'quarterly':
+        // Último dia do trimestre
+        const quarterEnd = new Date(start.getFullYear(), start.getMonth() + 3, 0);
+        return quarterEnd.toISOString().split('T')[0];
+      case 'yearly':
+        // 31 de dezembro do mesmo ano
+        const yearEnd = new Date(start.getFullYear(), 11, 31);
+        return yearEnd.toISOString().split('T')[0];
+    }
   };
 
   const form = useForm<z.infer<typeof budgetSchema>>({
@@ -76,13 +90,43 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
       name: initialData?.name || '',
       plannedAmount: initialData?.plannedAmount || 0,
       periodType: (initialData?.periodType as BudgetPeriod) || 'monthly',
-      startDate: initialData?.startDate || new Date().toISOString().split('T')[0],
-      endDate: initialData?.endDate || calculateEndDate(new Date().toISOString().split('T')[0], 'monthly'),
+      startDate: initialData?.startDate || getDefaultStartDate('monthly'),
+      endDate: initialData?.endDate || calculateEndDate(getDefaultStartDate('monthly'), 'monthly'),
       alertThreshold: initialData?.alertThreshold || 80,
       categoryId: initialData?.categoryId || undefined,
       isActive: initialData?.isActive ?? true,
     },
   });
+
+  // Reset form when initialData changes (for edit mode)
+  React.useEffect(() => {
+    if (initialData && mode === 'edit') {
+      form.reset({
+        name: initialData.name,
+        plannedAmount: initialData.plannedAmount,
+        periodType: initialData.periodType as BudgetPeriod,
+        startDate: initialData.startDate,
+        endDate: initialData.endDate,
+        alertThreshold: initialData.alertThreshold,
+        categoryId: initialData.categoryId || undefined,
+        isActive: initialData.isActive,
+      });
+    } else if (mode === 'create') {
+      // Para novos orçamentos, sempre usar primeira data do período
+      const defaultPeriod = 'monthly';
+      const defaultStart = getDefaultStartDate(defaultPeriod);
+      form.reset({
+        name: '',
+        plannedAmount: 0,
+        periodType: defaultPeriod,
+        startDate: defaultStart,
+        endDate: calculateEndDate(defaultStart, defaultPeriod),
+        alertThreshold: 80,
+        categoryId: undefined,
+        isActive: true,
+      });
+    }
+  }, [initialData, mode, form]);
 
   const handleSubmit = (values: z.infer<typeof budgetSchema>) => {
     onSubmit({

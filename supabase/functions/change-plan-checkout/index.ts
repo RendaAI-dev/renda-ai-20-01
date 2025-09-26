@@ -68,6 +68,42 @@ serve(async (req) => {
       throw new Error('Nenhuma assinatura ativa encontrada');
     }
 
+    // Buscar configurações do Asaas PRIMEIRO
+    console.log('[CHANGE-PLAN-CHECKOUT] Buscando configurações do Asaas...');
+    const { data: settings, error: settingsError } = await supabase
+      .from('poupeja_settings')
+      .select('key, value')
+      .eq('category', 'asaas');
+
+    if (settingsError) {
+      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao buscar configurações:', settingsError);
+      throw new Error(`Erro ao buscar configurações: ${settingsError.message}`);
+    }
+
+    console.log('[CHANGE-PLAN-CHECKOUT] Configurações encontradas:', settings?.length || 0);
+
+    const asaasConfig = settings?.reduce((acc, setting) => {
+      acc[setting.key] = setting.value;
+      return acc;
+    }, {} as Record<string, string>) ?? {};
+
+    const apiKey = asaasConfig.api_key;
+    const environment = asaasConfig.environment || 'sandbox';
+    
+    console.log('[CHANGE-PLAN-CHECKOUT] Configuração Asaas:', {
+      hasApiKey: !!apiKey,
+      environment,
+      configKeys: Object.keys(asaasConfig)
+    });
+    
+    if (!apiKey) {
+      throw new Error('Chave API do Asaas não configurada');
+    }
+
+    const asaasUrl = environment === 'production' 
+      ? 'https://www.asaas.com/api/v3' 
+      : 'https://sandbox.asaas.com/api/v3';
+
     // Buscar cliente Asaas
     const { data: asaasCustomer } = await supabase
       .from('poupeja_asaas_customers')
@@ -139,42 +175,6 @@ serve(async (req) => {
 
       console.log('[CHANGE-PLAN-CHECKOUT] ✅ Cliente Asaas salvo no banco');
     }
-
-    // Buscar configurações do Asaas
-    console.log('[CHANGE-PLAN-CHECKOUT] Buscando configurações do Asaas...');
-    const { data: settings, error: settingsError } = await supabase
-      .from('poupeja_settings')
-      .select('key, value')
-      .eq('category', 'asaas');
-
-    if (settingsError) {
-      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao buscar configurações:', settingsError);
-      throw new Error(`Erro ao buscar configurações: ${settingsError.message}`);
-    }
-
-    console.log('[CHANGE-PLAN-CHECKOUT] Configurações encontradas:', settings?.length || 0);
-
-    const asaasConfig = settings?.reduce((acc, setting) => {
-      acc[setting.key] = setting.value;
-      return acc;
-    }, {} as Record<string, string>) ?? {};
-
-    const apiKey = asaasConfig.api_key;
-    const environment = asaasConfig.environment || 'sandbox';
-    
-    console.log('[CHANGE-PLAN-CHECKOUT] Configuração Asaas:', {
-      hasApiKey: !!apiKey,
-      environment,
-      configKeys: Object.keys(asaasConfig)
-    });
-    
-    if (!apiKey) {
-      throw new Error('Chave API do Asaas não configurada');
-    }
-
-    const asaasUrl = environment === 'production' 
-      ? 'https://www.asaas.com/api/v3' 
-      : 'https://sandbox.asaas.com/api/v3';
 
     // Buscar preços das configurações públicas
     console.log('[CHANGE-PLAN-CHECKOUT] Buscando configurações de preço...');

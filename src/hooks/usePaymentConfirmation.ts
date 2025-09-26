@@ -7,10 +7,36 @@ interface PaymentConfirmationState {
   error?: string;
 }
 
-export const usePaymentConfirmation = (subscriptionId?: string, paymentId?: string) => {
+export const usePaymentConfirmation = (subscriptionId?: string, paymentId?: string, email?: string) => {
   const [state, setState] = useState<PaymentConfirmationState>({
     status: 'checking'
   });
+
+  const syncPaymentManually = useCallback(async () => {
+    if (!subscriptionId || !email) return false;
+
+    try {
+      console.log('[PAYMENT_CONFIRMATION] Executando sincronização manual...');
+      
+      const { data, error } = await supabase.functions.invoke('sync-asaas-payment', {
+        body: { 
+          subscriptionId,
+          email
+        }
+      });
+
+      if (error) {
+        console.error('[PAYMENT_CONFIRMATION] Erro na sincronização:', error);
+        return false;
+      }
+
+      console.log('[PAYMENT_CONFIRMATION] Sincronização bem-sucedida:', data);
+      return true;
+    } catch (error) {
+      console.error('[PAYMENT_CONFIRMATION] Erro na sincronização manual:', error);
+      return false;
+    }
+  }, [subscriptionId, email]);
 
   const checkPaymentStatus = useCallback(async () => {
     if (!subscriptionId) return;
@@ -102,6 +128,21 @@ export const usePaymentConfirmation = (subscriptionId?: string, paymentId?: stri
     const interval = setInterval(async () => {
       attempts++;
       
+      // Após 10 segundos sem confirmação, tentar sincronização manual
+      if (attempts === 2) {
+        console.log('⏰ 10 segundos sem confirmação. Tentando sincronização manual...');
+        const synced = await syncPaymentManually();
+        if (synced) {
+          // Aguardar 2 segundos e verificar novamente
+          setTimeout(async () => {
+            const confirmed = await checkPaymentStatus();
+            if (confirmed) {
+              clearInterval(interval);
+            }
+          }, 2000);
+        }
+      }
+      
       // Após 30 segundos sem confirmação, tentar verificar no Asaas
       if (attempts === 6) {
         console.log('⏰ 30 segundos sem confirmação. Verificando no Asaas...');
@@ -140,11 +181,12 @@ export const usePaymentConfirmation = (subscriptionId?: string, paymentId?: stri
     }, 5000); // Check every 5 seconds
 
     return () => clearInterval(interval);
-  }, [subscriptionId, paymentId, checkPaymentStatus, verifyPaymentOnAsaas]);
+  }, [subscriptionId, paymentId, checkPaymentStatus, verifyPaymentOnAsaas, syncPaymentManually]);
 
   return {
     ...state,
     checkPaymentStatus,
-    verifyPaymentOnAsaas
+    verifyPaymentOnAsaas,
+    syncPaymentManually
   };
 };

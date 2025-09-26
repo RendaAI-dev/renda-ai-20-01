@@ -287,7 +287,7 @@ serve(async (req) => {
     if (cardToken) {
       console.log('[UPDATE-CARD-DIRECT] Validando token do cartão salvo no Asaas...');
       
-      const validateResponse = await fetch(`${asaasUrl}/customers/${asaasCustomerId}/creditCard`, {
+      const validateResponse = await fetch(`${asaasUrl}/customers/${asaasCustomerId}/creditCards`, {
         headers: {
           'access_token': apiKey,
           'Content-Type': 'application/json'
@@ -296,30 +296,51 @@ serve(async (req) => {
 
       if (!validateResponse.ok) {
         console.error('[UPDATE-CARD-DIRECT] Erro ao validar cartão:', validateResponse.status);
+        
+        // 404 significa que o cliente não tem cartões salvos no Asaas
+        if (validateResponse.status === 404) {
+          console.log('[UPDATE-CARD-DIRECT] Cliente não possui cartões salvos no Asaas');
+          return new Response(JSON.stringify({
+            success: false,
+            code: 'CUSTOMER_HAS_NO_SAVED_CARDS',
+            message: 'Não encontramos cartões salvos no Asaas para este cliente. Por favor, adicione um novo cartão.',
+            requiresNewCard: true
+          }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+        
+        // Outros erros
         return new Response(JSON.stringify({
           success: false,
-          code: 'INVALID_CARD_TOKEN',
-          message: 'Cartão salvo não é válido. Por favor, adicione um novo cartão.',
-          requiresNewCard: true
+          code: 'ASAAS_API_ERROR',
+          message: 'Erro ao consultar cartões no Asaas. Tente novamente.',
+          requiresNewCard: false
         }), {
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
       const cardsData = await validateResponse.json();
+      console.log('[UPDATE-CARD-DIRECT] Cartões encontrados no Asaas:', cardsData.data?.length || 0);
+      
       const validTokens = cardsData.data?.map((card: any) => card.creditCardToken) || [];
+      console.log('[UPDATE-CARD-DIRECT] Tokens válidos:', validTokens.map((t: string) => t.substring(0, 8) + '...'));
+      console.log('[UPDATE-CARD-DIRECT] Token sendo validado:', cardToken.substring(0, 8) + '...');
       
       if (!validTokens.includes(cardToken)) {
         console.error('[UPDATE-CARD-DIRECT] Token não encontrado na lista de cartões válidos');
         return new Response(JSON.stringify({
           success: false,
           code: 'INVALID_CARD_TOKEN',
-          message: 'Cartão salvo não é válido. Por favor, adicione um novo cartão.',
+          message: 'Este cartão não pertence a este cliente no Asaas. Por favor, adicione um novo cartão.',
           requiresNewCard: true
         }), {
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
+      
+      console.log('[UPDATE-CARD-DIRECT] ✅ Token válido encontrado na lista do Asaas');
     }
 
     let result;

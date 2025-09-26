@@ -270,34 +270,69 @@ serve(async (req) => {
       console.log('[TRANSPARENT-CHECKOUT] Validando token de cartão salvo:', savedCardToken);
       
       try {
-        const validateTokenResponse = await fetch(`${asaasBaseUrl}/creditCard/tokenize/${savedCardToken}`, {
-          method: 'GET',
+        const validateResponse = await fetch(`${asaasBaseUrl}/customers/${asaasCustomerId}/creditCards`, {
           headers: {
-            'Content-Type': 'application/json',
             'access_token': asaasApiKey,
+            'Content-Type': 'application/json'
           }
         });
-        
-        if (validateTokenResponse.ok) {
-          console.log('[TRANSPARENT-CHECKOUT] ✅ Token válido, usando cartão salvo');
-          tokenData = { creditCardToken: savedCardToken };
-        } else {
-          console.log('[TRANSPARENT-CHECKOUT] ⚠️ Token inválido, marcando cartão como inativo e forçando novo cartão');
+
+        if (!validateResponse.ok) {
+          console.error('[TRANSPARENT-CHECKOUT] Erro ao validar cartão:', validateResponse.status);
           
-          // Mark card as inactive in database
-          await supabase
-            .from('poupeja_tokenized_cards')
-            .update({ is_active: false })
-            .eq('credit_card_token', savedCardToken)
-            .eq('user_id', user.id);
+          // 404 significa que o cliente não tem cartões salvos no Asaas
+          if (validateResponse.status === 404) {
+            console.log('[TRANSPARENT-CHECKOUT] Cliente não possui cartões salvos no Asaas');
             
-          // Force new card usage by clearing savedCardToken
-          if (!creditCard) {
-            throw new Error('Token de cartão inválido e nenhum novo cartão fornecido. Por favor, cadastre um novo cartão.');
+            // Mark card as inactive in database
+            await supabase
+              .from('poupeja_tokenized_cards')
+              .update({ is_active: false })
+              .eq('credit_card_token', savedCardToken)
+              .eq('user_id', user.id);
+              
+            if (!creditCard) {
+              throw new Error('Não encontramos cartões salvos no Asaas para este cliente. Por favor, cadastre um novo cartão.');
+            }
+            
+            console.log('[TRANSPARENT-CHECKOUT] Prosseguindo com tokenização de novo cartão...');
+          } else {
+            // Outros erros do Asaas
+            if (!creditCard) {
+              throw new Error('Erro ao consultar cartões no Asaas. Tente novamente.');
+            }
+            console.log('[TRANSPARENT-CHECKOUT] Erro na consulta, prosseguindo com novo cartão...');
           }
+        } else {
+          const cardsData = await validateResponse.json();
+          console.log('[TRANSPARENT-CHECKOUT] Cartões encontrados no Asaas:', cardsData.data?.length || 0);
           
-          // Continue to new card tokenization below
-          console.log('[TRANSPARENT-CHECKOUT] Prosseguindo com tokenização de novo cartão...');
+          const validTokens = cardsData.data?.map((card: any) => card.creditCardToken) || [];
+          console.log('[TRANSPARENT-CHECKOUT] Tokens válidos:', validTokens.map((t: string) => t.substring(0, 8) + '...'));
+          console.log('[TRANSPARENT-CHECKOUT] Token sendo validado:', savedCardToken.substring(0, 8) + '...');
+          
+          if (!validTokens.includes(savedCardToken)) {
+            console.error('[TRANSPARENT-CHECKOUT] Token não encontrado na lista de cartões válidos');
+            console.log('[TRANSPARENT-CHECKOUT] ⚠️ Token inválido, marcando cartão como inativo e forçando novo cartão');
+            
+            // Mark card as inactive in database
+            await supabase
+              .from('poupeja_tokenized_cards')
+              .update({ is_active: false })
+              .eq('credit_card_token', savedCardToken)
+              .eq('user_id', user.id);
+              
+            // Force new card usage by clearing savedCardToken
+            if (!creditCard) {
+              throw new Error('Este cartão não pertence a este cliente no Asaas. Por favor, cadastre um novo cartão.');
+            }
+            
+            // Continue to new card tokenization below
+            console.log('[TRANSPARENT-CHECKOUT] Prosseguindo com tokenização de novo cartão...');
+          } else {
+            console.log('[TRANSPARENT-CHECKOUT] ✅ Token válido encontrado na lista do Asaas');
+            tokenData = { creditCardToken: savedCardToken };
+          }
         }
       } catch (tokenValidationError) {
         console.error('[TRANSPARENT-CHECKOUT] Erro ao validar token:', tokenValidationError);

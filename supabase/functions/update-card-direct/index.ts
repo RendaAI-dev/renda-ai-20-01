@@ -94,19 +94,80 @@ serve(async (req) => {
       .single();
 
     if (!subscription) {
-      throw new Error('Nenhuma assinatura ativa encontrada');
+      return new Response(JSON.stringify({
+        success: false,
+        code: 'NO_ACTIVE_SUBSCRIPTION',
+        message: 'Nenhuma assinatura ativa encontrada',
+        requiresNewCard: false
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
     }
 
-    // Buscar cliente Asaas
-    const { data: asaasCustomer } = await supabase
-      .from('poupeja_asaas_customers')
-      .select('asaas_customer_id')
-      .eq('user_id', user.id)
-      .single();
+    // Determinar asaas_customer_id - priorizar subscription, depois saved cards, depois mapping
+    let asaasCustomerId: string | null = null;
+    let customerIdSource = '';
 
-    if (!asaasCustomer) {
-      throw new Error('Cliente Asaas não encontrado');
+    console.log('[UPDATE-CARD-DIRECT] Determinando asaas_customer_id...');
+    
+    // Se usando cartão salvo, buscar o customer_id do token específico
+    if (cardToken) {
+      console.log('[UPDATE-CARD-DIRECT] Buscando customer_id do cartão salvo...');
+      const { data: tokenData } = await supabase
+        .from('poupeja_tokenized_cards')
+        .select('asaas_customer_id')
+        .eq('user_id', user.id)
+        .eq('credit_card_token', cardToken)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (tokenData) {
+        asaasCustomerId = tokenData.asaas_customer_id;
+        customerIdSource = 'saved_card';
+        console.log('[UPDATE-CARD-DIRECT] Customer ID encontrado via cartão salvo:', asaasCustomerId);
+      } else {
+        console.log('[UPDATE-CARD-DIRECT] Cartão salvo não encontrado ou inativo');
+        return new Response(JSON.stringify({
+          success: false,
+          code: 'INVALID_CARD_TOKEN',
+          message: 'Cartão salvo não encontrado ou expirado. Por favor, adicione um novo cartão.',
+          requiresNewCard: true
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+    } else {
+      // Prioridade 1: assinatura ativa
+      if (subscription.asaas_customer_id) {
+        asaasCustomerId = subscription.asaas_customer_id;
+        customerIdSource = 'subscription';
+      } else {
+        // Prioridade 2: fallback para mapping table
+        const { data: customerMapping } = await supabase
+          .from('poupeja_asaas_customers')
+          .select('asaas_customer_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (customerMapping) {
+          asaasCustomerId = customerMapping.asaas_customer_id;
+          customerIdSource = 'mapping';
+        }
+      }
     }
+
+    if (!asaasCustomerId) {
+      return new Response(JSON.stringify({
+        success: false,
+        code: 'NO_ASAAS_CUSTOMER',
+        message: 'Cliente Asaas não encontrado. Por favor, entre em contato com o suporte.',
+        requiresNewCard: false
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    console.log('[UPDATE-CARD-DIRECT] asaas_customer_id:', asaasCustomerId, 'source:', customerIdSource);
 
     // Buscar configurações do Asaas
     const { data: settings } = await supabase
@@ -143,7 +204,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          customer: asaasCustomer.asaas_customer_id,
+          customer: asaasCustomerId,
           creditCard: {
             holderName: cardData.holderName,
             number: cardData.number,
@@ -164,8 +225,18 @@ serve(async (req) => {
       });
 
       if (!tokenizeResponse.ok) {
-        const error = await tokenizeResponse.text();
-        throw new Error(`Erro ao tokenizar cartão: ${error}`);
+        const errorText = await tokenizeResponse.text();
+        console.error('[UPDATE-CARD-DIRECT] Erro ao tokenizar:', errorText);
+        
+        return new Response(JSON.stringify({
+          success: false,
+          code: 'TOKENIZATION_ERROR',
+          message: 'Erro ao processar os dados do cartão. Verifique as informações e tente novamente.',
+          requiresNewCard: true,
+          details: errorText
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
       }
 
       const tokenData = await tokenizeResponse.json();
@@ -179,7 +250,7 @@ serve(async (req) => {
           .from('poupeja_tokenized_cards')
           .insert({
             user_id: user.id,
-            asaas_customer_id: asaasCustomer.asaas_customer_id,
+            asaas_customer_id: asaasCustomerId,
             credit_card_token: finalCardToken,
             credit_card_number: cardData.number.replace(/(\d{4})(\d{4})(\d{4})(\d{4})/, '$1 $2 $3 $4'),
             credit_card_last_four: cardData.number.slice(-4),
@@ -187,6 +258,45 @@ serve(async (req) => {
             holder_name: cardData.holderName,
             expires_at: `${cardData.expiryMonth}/${cardData.expiryYear}`
           });
+      }
+    }
+
+    // Validar token do cartão salvo no Asaas se estiver usando saved card
+    if (cardToken) {
+      console.log('[UPDATE-CARD-DIRECT] Validando token do cartão salvo no Asaas...');
+      
+      const validateResponse = await fetch(`${asaasUrl}/customers/${asaasCustomerId}/creditCard`, {
+        headers: {
+          'access_token': apiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!validateResponse.ok) {
+        console.error('[UPDATE-CARD-DIRECT] Erro ao validar cartão:', validateResponse.status);
+        return new Response(JSON.stringify({
+          success: false,
+          code: 'INVALID_CARD_TOKEN',
+          message: 'Cartão salvo não é válido. Por favor, adicione um novo cartão.',
+          requiresNewCard: true
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const cardsData = await validateResponse.json();
+      const validTokens = cardsData.data?.map((card: any) => card.creditCardToken) || [];
+      
+      if (!validTokens.includes(cardToken)) {
+        console.error('[UPDATE-CARD-DIRECT] Token não encontrado na lista de cartões válidos');
+        return new Response(JSON.stringify({
+          success: false,
+          code: 'INVALID_CARD_TOKEN',
+          message: 'Cartão salvo não é válido. Por favor, adicione um novo cartão.',
+          requiresNewCard: true
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
       }
     }
 
@@ -198,11 +308,17 @@ serve(async (req) => {
         break;
       
       case 'update_card_cancel_overdue':
-        result = await updateCardCancelOverdue(asaasUrl, apiKey, asaasCustomer.asaas_customer_id, subscription.asaas_subscription_id, finalCardToken || '');
+        result = await updateCardCancelOverdue(asaasUrl, apiKey, asaasCustomerId, subscription.asaas_subscription_id, finalCardToken || '');
         break;
       
       default:
-        throw new Error('Cenário não especificado ou inválido');
+        return new Response(JSON.stringify({
+          success: false,
+          code: 'INVALID_SCENARIO',
+          message: 'Cenário não especificado ou inválido'
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
     }
 
     console.log('[UPDATE-CARD-DIRECT] ✅ Operação concluída com sucesso');
@@ -217,11 +333,23 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('[UPDATE-CARD-DIRECT] ❌ Erro:', errorMessage);
+    
+    // Determinar código de erro baseado na mensagem
+    let errorCode = 'GENERAL_ERROR';
+    if (errorMessage.includes('cartão')) {
+      errorCode = 'CARD_ERROR';
+    } else if (errorMessage.includes('assinatura')) {
+      errorCode = 'SUBSCRIPTION_ERROR';
+    } else if (errorMessage.includes('cliente')) {
+      errorCode = 'CUSTOMER_ERROR';
+    }
+    
     return new Response(JSON.stringify({
       success: false,
-      error: errorMessage
+      code: errorCode,
+      message: errorMessage,
+      requiresNewCard: errorCode === 'CARD_ERROR'
     }), {
-      status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
   }
@@ -256,8 +384,20 @@ async function updateCardOnly(asaasUrl: string, apiKey: string, subscriptionId: 
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Erro ao atualizar cartão: ${error}`);
+    const errorText = await response.text();
+    console.error('[UPDATE-CARD-DIRECT] Erro Asaas na atualização:', errorText);
+    
+    // Tentar parsear erro do Asaas
+    try {
+      const errorData = JSON.parse(errorText);
+      if (errorData.errors && errorData.errors[0]?.code === 'invalid_creditCard') {
+        throw new Error('INVALID_CARD_TOKEN');
+      }
+    } catch (parseError) {
+      // Se não conseguir parsear, manter erro original
+    }
+    
+    throw new Error(`Erro ao atualizar cartão: ${errorText}`);
   }
 
   const subscription = await response.json();
@@ -315,8 +455,20 @@ async function updateCardCancelOverdue(asaasUrl: string, apiKey: string, custome
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Erro ao atualizar assinatura: ${error}`);
+    const errorText = await response.text();
+    console.error('[UPDATE-CARD-DIRECT] Erro Asaas na atualização da assinatura:', errorText);
+    
+    // Tentar parsear erro do Asaas
+    try {
+      const errorData = JSON.parse(errorText);
+      if (errorData.errors && errorData.errors[0]?.code === 'invalid_creditCard') {
+        throw new Error('INVALID_CARD_TOKEN');
+      }
+    } catch (parseError) {
+      // Se não conseguir parsear, manter erro original
+    }
+    
+    throw new Error(`Erro ao atualizar assinatura: ${errorText}`);
   }
 
   const subscription = await response.json();

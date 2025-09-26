@@ -96,7 +96,14 @@ const UpdateCardCancelOverdueModal: React.FC<UpdateCardCancelOverdueModalProps> 
       }
 
       if (!data.success) {
-        throw new Error(data.error || 'Erro ao atualizar cartão');
+        // Se é erro de cartão inválido, trocar para novo cartão
+        if (data.code === 'INVALID_CARD_TOKEN') {
+          setUseNewCard(true);
+          setSelectedCardToken(null);
+          toast.error(data.message || 'Cartão inválido. Por favor, adicione um novo cartão.');
+          return;
+        }
+        throw new Error(data.error || data.message || 'Erro ao atualizar cartão');
       }
 
       toast.success(data.message || 'Cartão atualizado e dívidas canceladas!');

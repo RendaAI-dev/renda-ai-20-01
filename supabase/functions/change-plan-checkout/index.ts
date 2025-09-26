@@ -104,38 +104,83 @@ serve(async (req) => {
       ? 'https://www.asaas.com/api/v3' 
       : 'https://sandbox.asaas.com/api/v3';
 
-    // Determinar o asaasCustomerId com prioridade: assinatura -> cartão -> mapeamento -> criação
-    let asaasCustomerId = currentSubscription.asaas_customer_id || undefined;
-    console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id inicial (assinatura):', asaasCustomerId);
+    // Determinar o asaasCustomerId com prioridade adequada
+    let asaasCustomerId: string | undefined = undefined;
+    let asaasCustomerIdSource: 'token' | 'subscription' | 'card' | 'mapping' | 'created' | 'unknown' = 'unknown';
 
-    if (!asaasCustomerId) {
-      // Tentar via cartão tokenizado ativo (priorizando default)
-      const { data: cardCustomer } = await supabase
+    // Se estiver usando cartão salvo, forçar o cliente vinculado ao token
+    if (savedCardToken) {
+      const { data: tokenRow, error: tokenLookupError } = await supabase
         .from('poupeja_tokenized_cards')
-        .select('asaas_customer_id')
+        .select('asaas_customer_id, is_active')
         .eq('user_id', user.id)
-        .eq('is_active', true)
-        .order('is_default', { ascending: false })
-        .limit(1)
+        .eq('credit_card_token', savedCardToken)
         .maybeSingle();
 
-      asaasCustomerId = cardCustomer?.asaas_customer_id || asaasCustomerId;
-      console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id após cartão tokenizado:', asaasCustomerId);
+      if (tokenLookupError) {
+        console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Erro ao buscar cartão tokenizado por token:', tokenLookupError);
+      }
+
+      if (tokenRow?.asaas_customer_id) {
+        asaasCustomerId = tokenRow.asaas_customer_id;
+        asaasCustomerIdSource = 'token';
+        console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id definido a partir do token do cartão:', asaasCustomerId);
+      } else {
+        console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Token salvo não localizado no banco para este usuário');
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'INVALID_CARD_TOKEN',
+          message: 'Cartão salvo inválido. Por favor, cadastre um novo cartão.',
+          requiresNewCard: true
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
     }
 
+    // Se ainda não houver ID (sem token salvo), usar prioridade: assinatura -> cartão padrão -> mapeamento
     if (!asaasCustomerId) {
-      // Buscar cliente Asaas do mapeamento
-      const { data: asaasCustomer } = await supabase
-        .from('poupeja_asaas_customers')
-        .select('asaas_customer_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      asaasCustomerId = currentSubscription.asaas_customer_id || undefined;
+      if (asaasCustomerId) {
+        asaasCustomerIdSource = 'subscription';
+      }
+      console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id inicial (assinatura):', asaasCustomerId);
 
-      asaasCustomerId = asaasCustomer?.asaas_customer_id || asaasCustomerId;
-      console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id após mapeamento local:', asaasCustomerId);
+      if (!asaasCustomerId) {
+        // Tentar via cartão tokenizado ativo (priorizando default)
+        const { data: cardCustomer } = await supabase
+          .from('poupeja_tokenized_cards')
+          .select('asaas_customer_id')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .order('is_default', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (cardCustomer?.asaas_customer_id) {
+          asaasCustomerId = cardCustomer.asaas_customer_id;
+          asaasCustomerIdSource = 'card';
+        }
+        console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id após cartão tokenizado:', asaasCustomerId);
+      }
+
+      if (!asaasCustomerId) {
+        // Buscar cliente Asaas do mapeamento
+        const { data: asaasCustomer } = await supabase
+          .from('poupeja_asaas_customers')
+          .select('asaas_customer_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (asaasCustomer?.asaas_customer_id) {
+          asaasCustomerId = asaasCustomer.asaas_customer_id;
+          asaasCustomerIdSource = 'mapping';
+        }
+        console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id após mapeamento local:', asaasCustomerId);
+      }
     }
 
-    // Se ainda não existe cliente Asaas, criar um
+    // Se ainda não existe cliente Asaas, criar um (apenas quando não for cartão salvo)
     if (!asaasCustomerId) {
       console.log('[CHANGE-PLAN-CHECKOUT] Cliente Asaas não encontrado em nenhuma fonte, criando novo...');
       
@@ -180,6 +225,7 @@ serve(async (req) => {
 
       const newCustomer = await createCustomerResponse.json();
       asaasCustomerId = newCustomer.id;
+      asaasCustomerIdSource = 'created';
 
       console.log('[CHANGE-PLAN-CHECKOUT] Cliente Asaas criado:', asaasCustomerId);
 
@@ -197,6 +243,8 @@ serve(async (req) => {
 
       console.log('[CHANGE-PLAN-CHECKOUT] ✅ Cliente Asaas salvo no banco');
     }
+
+    console.log('[CHANGE-PLAN-CHECKOUT] asaasCustomerIdSource:', asaasCustomerIdSource);
 
     // Buscar preços das configurações públicas
     console.log('[CHANGE-PLAN-CHECKOUT] Buscando configurações de preço...');

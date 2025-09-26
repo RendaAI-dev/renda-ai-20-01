@@ -477,6 +477,20 @@ const PlanChangeCheckoutPage = () => {
         }
         
         if (errorCode === 'SUBSCRIPTION_CREATION_FAILED') {
+          const detailsStr = String(data?.details || '');
+          if (
+            detailsStr.includes('invalid_creditCard') ||
+            (detailsStr.includes('creditCardToken') && (detailsStr.includes('não encontrado') || detailsStr.includes('not found')))
+          ) {
+            toast({
+              title: "Cartão salvo inválido",
+              description: "Por favor, cadastre um novo cartão de crédito.",
+              variant: "destructive"
+            });
+            setUseNewCard(true);
+            setStep(1);
+            return;
+          }
           toast({
             title: "Falha na criação da assinatura",
             description: "Não foi possível criar a nova assinatura. Verifique os dados do cartão e tente novamente.",

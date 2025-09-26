@@ -104,18 +104,40 @@ serve(async (req) => {
       ? 'https://www.asaas.com/api/v3' 
       : 'https://sandbox.asaas.com/api/v3';
 
-    // Buscar cliente Asaas
-    const { data: asaasCustomer } = await supabase
-      .from('poupeja_asaas_customers')
-      .select('asaas_customer_id')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    // Determinar o asaasCustomerId com prioridade: assinatura -> cartão -> mapeamento -> criação
+    let asaasCustomerId = currentSubscription.asaas_customer_id || undefined;
+    console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id inicial (assinatura):', asaasCustomerId);
 
-    let asaasCustomerId = asaasCustomer?.asaas_customer_id;
-
-    // Se não existe cliente Asaas, criar um
     if (!asaasCustomerId) {
-      console.log('[CHANGE-PLAN-CHECKOUT] Cliente Asaas não encontrado, criando novo...');
+      // Tentar via cartão tokenizado ativo (priorizando default)
+      const { data: cardCustomer } = await supabase
+        .from('poupeja_tokenized_cards')
+        .select('asaas_customer_id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('is_default', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      asaasCustomerId = cardCustomer?.asaas_customer_id || asaasCustomerId;
+      console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id após cartão tokenizado:', asaasCustomerId);
+    }
+
+    if (!asaasCustomerId) {
+      // Buscar cliente Asaas do mapeamento
+      const { data: asaasCustomer } = await supabase
+        .from('poupeja_asaas_customers')
+        .select('asaas_customer_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      asaasCustomerId = asaasCustomer?.asaas_customer_id || asaasCustomerId;
+      console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id após mapeamento local:', asaasCustomerId);
+    }
+
+    // Se ainda não existe cliente Asaas, criar um
+    if (!asaasCustomerId) {
+      console.log('[CHANGE-PLAN-CHECKOUT] Cliente Asaas não encontrado em nenhuma fonte, criando novo...');
       
       // Buscar dados do usuário
       const { data: userData } = await supabase
@@ -368,62 +390,96 @@ serve(async (req) => {
       const createError = await createSubscriptionResponse.text();
       console.log(`[CHANGE-PLAN-CHECKOUT] Tentativa ${retryCount + 1} falhou:`, createError);
 
-      // Se erro é de cliente não encontrado e ainda temos retries
-      if (createError.includes('customer') && createError.includes('not found') && retryCount < maxRetries) {
-        console.log('[CHANGE-PLAN-CHECKOUT] Cliente não encontrado, forçando recriação...');
-        
-        // Remover cliente do cache local e recriar
-        await supabase
-          .from('poupeja_asaas_customers')
-          .delete()
-          .eq('user_id', user.id);
-        
-        // Recriar cliente
-        const { data: userData } = await supabase
-          .from('poupeja_users')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        const customerData = {
-          name: userData?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente',
-          email: user.email,
-          phone: userData?.phone || user.user_metadata?.phone || '11999999999',
-          cpfCnpj: userData?.cpf || user.user_metadata?.cpf || '00000000000',
-          postalCode: userData?.cep || user.user_metadata?.cep || '00000-000',
-          address: userData?.street || user.user_metadata?.address?.street || 'Endereço não informado',
-          addressNumber: userData?.number || user.user_metadata?.address?.number || '123',
-          complement: userData?.complement || user.user_metadata?.address?.complement || '',
-          province: userData?.neighborhood || user.user_metadata?.address?.neighborhood || 'Centro',
-          city: userData?.city || user.user_metadata?.address?.city || 'Cidade',
-          state: userData?.state || user.user_metadata?.address?.state || 'SP'
-        };
-
-        const recreateResponse = await fetch(`${asaasUrl}/customers`, {
-          method: 'POST',
-          headers: {
-            'access_token': apiKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(customerData)
+      // Se erro é de token de cartão inválido, retornar instrução para novo cartão
+      if (
+        createError.includes('invalid_creditCard') ||
+        (createError.includes('creditCardToken') && (createError.includes('não encontrado') || createError.includes('not found')))
+      ) {
+        console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Token de cartão inválido/inexistente para este cliente');
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'INVALID_CARD_TOKEN',
+          message: 'Cartão salvo inválido. Por favor, cadastre um novo cartão.',
+          requiresNewCard: true,
+          details: createError
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
+      }
 
-        if (recreateResponse.ok) {
-          const newCustomer = await recreateResponse.json();
-          asaasCustomerId = newCustomer.id;
+      // Se erro é de cliente não encontrado
+      if (createError.includes('customer') && createError.includes('not found')) {
+        // Se estiver usando cartão salvo, não adianta recriar cliente (token pertence a outro cliente)
+        if (!creditCard && savedCardToken) {
+          console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Cliente não encontrado e uso de cartão salvo detectado — solicitando novo cartão');
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'INVALID_CARD_TOKEN',
+            message: 'Não foi possível localizar o cliente do Asaas vinculado ao cartão salvo. Por favor, cadastre um novo cartão.',
+            requiresNewCard: true,
+            details: createError
+          }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // Caso esteja tokenizando um novo cartão, podemos recriar o cliente e tentar novamente
+        if (retryCount < maxRetries) {
+          console.log('[CHANGE-PLAN-CHECKOUT] Cliente não encontrado, forçando recriação...');
           
+          // Remover cliente do cache local e recriar
           await supabase
             .from('poupeja_asaas_customers')
-            .insert({
-              user_id: user.id,
-              asaas_customer_id: asaasCustomerId,
-              email: user.email,
-              phone: customerData.phone,
-              cpf: customerData.cpfCnpj,
-              name: customerData.name
-            });
+            .delete()
+            .eq('user_id', user.id);
           
-          console.log('[CHANGE-PLAN-CHECKOUT] Cliente recriado:', asaasCustomerId);
+          // Recriar cliente
+          const { data: userData } = await supabase
+            .from('poupeja_users')
+            .select('*')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          const customerData = {
+            name: userData?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente',
+            email: user.email,
+            phone: userData?.phone || user.user_metadata?.phone || '11999999999',
+            cpfCnpj: userData?.cpf || user.user_metadata?.cpf || '00000000000',
+            postalCode: userData?.cep || user.user_metadata?.cep || '00000-000',
+            address: userData?.street || user.user_metadata?.address?.street || 'Endereço não informado',
+            addressNumber: userData?.number || user.user_metadata?.address?.number || '123',
+            complement: userData?.complement || user.user_metadata?.address?.complement || '',
+            province: userData?.neighborhood || user.user_metadata?.address?.neighborhood || 'Centro',
+            city: userData?.city || user.user_metadata?.address?.city || 'Cidade',
+            state: userData?.state || user.user_metadata?.address?.state || 'SP'
+          };
+
+          const recreateResponse = await fetch(`${asaasUrl}/customers`, {
+            method: 'POST',
+            headers: {
+              'access_token': apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(customerData)
+          });
+
+          if (recreateResponse.ok) {
+            const newCustomer = await recreateResponse.json();
+            asaasCustomerId = newCustomer.id;
+            
+            await supabase
+              .from('poupeja_asaas_customers')
+              .insert({
+                user_id: user.id,
+                asaas_customer_id: asaasCustomerId,
+                email: user.email,
+                phone: customerData.phone,
+                cpf: customerData.cpfCnpj,
+                name: customerData.name
+              });
+            
+            console.log('[CHANGE-PLAN-CHECKOUT] Cliente recriado:', asaasCustomerId);
+          }
         }
       }
 

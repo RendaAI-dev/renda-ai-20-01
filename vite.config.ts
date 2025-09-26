@@ -173,7 +173,7 @@ export default defineConfig(({ mode }) => ({
         navigateFallbackDenylist: [/^\/api\//, /^\/functions\//]
       },
       devOptions: {
-        enabled: mode === 'development',
+        enabled: false, // Disable PWA in development to avoid conflicts
       }
     })
   ].filter(Boolean),

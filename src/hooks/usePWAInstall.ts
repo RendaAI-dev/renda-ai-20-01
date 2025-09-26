@@ -24,9 +24,9 @@ export const usePWAInstall = () => {
   });
 
   const debug = useCallback((message: string, data?: any) => {
-    // Enhanced debug logging for PWA troubleshooting
-    if (state.debugMode) {
-      console.log(`[PWA] ${message}`, data || '');
+    // Reduced logging to prevent console spam
+    if (state.debugMode && import.meta.env.DEV) {
+      console.log(`[PWA] ${message}`);
     }
   }, [state.debugMode]);
 
@@ -93,10 +93,10 @@ export const usePWAInstall = () => {
       return;
     }
 
-    // Allow PWA testing in development
+    // Skip PWA in development to avoid service worker conflicts
     if (import.meta.env.DEV) {
-      debug('Development mode - PWA popup enabled for testing');
-      // Still allow PWA functionality in development for testing
+      debug('Development mode - PWA disabled to prevent conflicts');
+      return;
     }
 
     const handler = (e: Event) => {

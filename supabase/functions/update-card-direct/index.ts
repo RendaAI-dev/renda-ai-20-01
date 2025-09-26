@@ -62,13 +62,13 @@ serve(async (req) => {
       .maybeSingle();
 
     // Merge inteligente: priorizar poupeja_users, mas fazer fallback para user_metadata em campos vazios
-    const userData = {
+    const rawUserData = {
       id: user.id,
       email: user.email,
       name: userProfile?.name || user.user_metadata?.full_name || user.user_metadata?.name || 'Cliente',
       phone: userProfile?.phone || user.user_metadata?.phone || '',
       cpf: userProfile?.cpf || user.user_metadata?.cpf || '',
-      cep: userProfile?.cep || user.user_metadata?.cep || '',
+      cep: userProfile?.cep || user.user_metadata?.cep || user.user_metadata?.address?.cep || '',
       street: userProfile?.street || user.user_metadata?.address?.street || '',
       number: userProfile?.number || user.user_metadata?.address?.number || '',
       complement: userProfile?.complement || user.user_metadata?.address?.complement || '',
@@ -77,9 +77,18 @@ serve(async (req) => {
       state: userProfile?.state || user.user_metadata?.address?.state || ''
     };
 
+    // Sanitizar dados para envio ao Asaas
+    const userData = {
+      ...rawUserData,
+      phone: sanitizePhone(rawUserData.phone),
+      cpf: sanitizeCPF(rawUserData.cpf),
+      cep: sanitizeCEP(rawUserData.cep)
+    };
+
     console.log('[UPDATE-CARD-DIRECT] Dados do usuário processados:', {
       fonte_dados: userProfile ? 'poupeja_users + metadata' : 'metadata_only',
       cep: userData.cep,
+      cep_original: rawUserData.cep,
       cpf: userData.cpf ? '***' : 'vazio'
     });
 
@@ -227,11 +236,11 @@ serve(async (req) => {
           creditCardHolderInfo: {
             name: userData.name || cardData.holderName,
             email: userData.email,
-            cpfCnpj: cardData.holderCpf || userData.cpf || '',
-            postalCode: userData.cep || '00000-000',
+            cpfCnpj: sanitizeCPF(cardData.holderCpf || userData.cpf),
+            postalCode: userData.cep,
             addressNumber: userData.number || 'S/N',
             addressComplement: userData.complement || '',
-            phone: userData.phone || ''
+            phone: userData.phone
           }
         })
       });
@@ -378,11 +387,26 @@ function detectCardBrand(cardNumber: string): string {
   return 'OTHER';
 }
 
+function sanitizeCEP(cep: string): string {
+  if (!cep) return '';
+  return cep.replace(/\D/g, ''); // Remove tudo que não for dígito
+}
+
+function sanitizePhone(phone: string): string {
+  if (!phone) return '';
+  return phone.replace(/\D/g, ''); // Remove tudo que não for dígito
+}
+
+function sanitizeCPF(cpf: string): string {
+  if (!cpf) return '';
+  return cpf.replace(/\D/g, ''); // Remove tudo que não for dígito
+}
+
 function isValidCEP(cep: string): boolean {
   if (!cep) return false;
   
-  // Remove espaços e hífens
-  const cleanCep = cep.replace(/[-\s]/g, '');
+  // Sanitizar primeiro
+  const cleanCep = sanitizeCEP(cep);
   
   // Verificar se tem 8 dígitos
   if (!/^\d{8}$/.test(cleanCep)) return false;

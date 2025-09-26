@@ -191,18 +191,46 @@ serve(async (req) => {
         .eq('id', user.id)
         .maybeSingle();
 
-      const customerData = {
+      // Merge inteligente dos dados do usuário
+      const rawUserData = {
         name: userData?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente',
         email: user.email,
-        phone: userData?.phone || user.user_metadata?.phone || '11999999999',
-        cpfCnpj: userData?.cpf || user.user_metadata?.cpf || '00000000000',
-        postalCode: userData?.cep || user.user_metadata?.cep || '00000-000',
-        address: userData?.street || user.user_metadata?.address?.street || 'Endereço não informado',
-        addressNumber: userData?.number || user.user_metadata?.address?.number || '123',
+        phone: userData?.phone || user.user_metadata?.phone || '',
+        cpf: userData?.cpf || user.user_metadata?.cpf || '',
+        cep: userData?.cep || user.user_metadata?.cep || user.user_metadata?.address?.cep || '',
+        street: userData?.street || user.user_metadata?.address?.street || 'Endereço não informado',
+        number: userData?.number || user.user_metadata?.address?.number || '123',
         complement: userData?.complement || user.user_metadata?.address?.complement || '',
-        province: userData?.neighborhood || user.user_metadata?.address?.neighborhood || 'Centro',
+        neighborhood: userData?.neighborhood || user.user_metadata?.address?.neighborhood || 'Centro',
         city: userData?.city || user.user_metadata?.address?.city || 'Cidade',
         state: userData?.state || user.user_metadata?.address?.state || 'SP'
+      };
+
+      // Validar CEP antes de criar cliente
+      if (!isValidCEP(rawUserData.cep)) {
+        console.log('[CHANGE-PLAN-CHECKOUT] CEP inválido para criação de cliente:', rawUserData.cep);
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'INVALID_POSTAL_CODE',
+          message: 'CEP inválido. Por favor, atualize seus dados no perfil com um CEP válido.',
+          requiresNewCard: true
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const customerData = {
+        name: rawUserData.name,
+        email: rawUserData.email,
+        phone: sanitizePhone(rawUserData.phone) || '11999999999',
+        cpfCnpj: sanitizeCPF(rawUserData.cpf) || '00000000000',
+        postalCode: sanitizeCEP(rawUserData.cep),
+        address: rawUserData.street,
+        addressNumber: rawUserData.number,
+        complement: rawUserData.complement,
+        province: rawUserData.neighborhood,
+        city: rawUserData.city,
+        state: rawUserData.state
       };
 
       console.log('[CHANGE-PLAN-CHECKOUT] Criando cliente Asaas:', customerData);
@@ -322,6 +350,36 @@ serve(async (req) => {
     let paymentData: any = {};
     
     if (creditCard) {
+      // Buscar dados do usuário para tokenização
+      const { data: userProfile } = await supabase
+        .from('poupeja_users')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      // Merge inteligente para tokenização
+      const rawTokenData = {
+        name: userProfile?.name || user.user_metadata?.full_name || creditCard.holderName,
+        phone: userProfile?.phone || user.user_metadata?.phone || '',
+        cep: userProfile?.cep || user.user_metadata?.cep || user.user_metadata?.address?.cep || '',
+        number: userProfile?.number || user.user_metadata?.address?.number || '123'
+      };
+
+      // Validar CEP para tokenização
+      if (!isValidCEP(rawTokenData.cep)) {
+        console.log('[CHANGE-PLAN-CHECKOUT] CEP inválido para tokenização:', rawTokenData.cep);
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'INVALID_POSTAL_CODE',
+          message: 'CEP inválido. Por favor, atualize seus dados no perfil com um CEP válido.',
+          requiresNewCard: true
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      console.log('[CHANGE-PLAN-CHECKOUT] CEP usado para tokenização:', sanitizeCEP(rawTokenData.cep));
+
       // Tokenizar novo cartão
       const tokenizeResponse = await fetch(`${asaasUrl}/creditCard/tokenize`, {
         method: 'POST',
@@ -339,11 +397,11 @@ serve(async (req) => {
             ccv: creditCard.ccv
           },
           creditCardHolderInfo: {
-            name: creditCard.holderName,
-            cpfCnpj: creditCard.holderCpf.replace(/\D/g, ''),
-            postalCode: '00000000',
-            addressNumber: '123',
-            phone: '11999999999'
+            name: rawTokenData.name,
+            cpfCnpj: sanitizeCPF(creditCard.holderCpf),
+            postalCode: sanitizeCEP(rawTokenData.cep),
+            addressNumber: rawTokenData.number,
+            phone: sanitizePhone(rawTokenData.phone) || '11999999999'
           }
         })
       });
@@ -666,3 +724,35 @@ serve(async (req) => {
     });
   }
 });
+
+// Utility functions for data sanitization
+function sanitizeCEP(cep: string): string {
+  if (!cep) return '';
+  return cep.replace(/\D/g, ''); // Remove tudo que não for dígito
+}
+
+function sanitizePhone(phone: string): string {
+  if (!phone) return '';
+  return phone.replace(/\D/g, ''); // Remove tudo que não for dígito
+}
+
+function sanitizeCPF(cpf: string): string {
+  if (!cpf) return '';
+  return cpf.replace(/\D/g, ''); // Remove tudo que não for dígito
+}
+
+function isValidCEP(cep: string): boolean {
+  if (!cep) return false;
+  
+  // Sanitizar primeiro
+  const cleanCep = sanitizeCEP(cep);
+  
+  // Verificar se tem 8 dígitos
+  if (!/^\d{8}$/.test(cleanCep)) return false;
+  
+  // Verificar se não é CEP genérico/inválido
+  const invalidCeps = ['00000000', '11111111', '22222222', '33333333', '44444444', '55555555', '66666666', '77777777', '88888888', '99999999'];
+  if (invalidCeps.includes(cleanCep)) return false;
+  
+  return true;
+}

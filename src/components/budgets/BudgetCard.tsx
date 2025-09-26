@@ -8,7 +8,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Budget } from '@/types';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { calculateBudgetProgress, getBudgetStatus } from '@/services/budgetService';
-import { addMonths, startOfMonth, endOfMonth } from 'date-fns';
 
 interface BudgetCardProps {
   budget: Budget;
@@ -38,16 +37,20 @@ export const BudgetCard: React.FC<BudgetCardProps> = ({
 
     switch (budget.periodType) {
       case 'monthly':
-        calculatedEndDate = endOfMonth(currentStartDate);
+        // +1 mês da data de início
+        calculatedEndDate = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth() + 1, currentStartDate.getDate() - 1);
         break;
       case 'quarterly':
-        calculatedEndDate = endOfMonth(addMonths(currentStartDate, 2));
+        // +3 meses da data de início
+        calculatedEndDate = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth() + 3, currentStartDate.getDate() - 1);
         break;
       case 'semestral':
-        calculatedEndDate = endOfMonth(addMonths(currentStartDate, 5));
+        // +6 meses da data de início
+        calculatedEndDate = new Date(currentStartDate.getFullYear(), currentStartDate.getMonth() + 6, currentStartDate.getDate() - 1);
         break;
       case 'yearly':
-        calculatedEndDate = endOfMonth(addMonths(currentStartDate, 11));
+        // +12 meses da data de início
+        calculatedEndDate = new Date(currentStartDate.getFullYear() + 1, currentStartDate.getMonth(), currentStartDate.getDate() - 1);
         break;
       default:
         calculatedEndDate = new Date(budget.endDate);

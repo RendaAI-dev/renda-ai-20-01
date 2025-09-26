@@ -422,6 +422,16 @@ function isValidCEP(cep: string): boolean {
 // Cenário 1: Trocar cartão sem cobrança adicional
 async function updateCardOnly(asaasUrl: string, apiKey: string, subscriptionId: string, cardToken: string) {
   console.log('[UPDATE-CARD-DIRECT] Cenário 1: Atualizando apenas cartão');
+  console.log('[UPDATE-CARD-DIRECT] Subscription ID:', subscriptionId);
+  console.log('[UPDATE-CARD-DIRECT] Novo token:', cardToken.substring(0, 8) + '...');
+  
+  const updatePayload = {
+    billingType: 'CREDIT_CARD',
+    creditCardToken: cardToken,
+    updatePendingPayments: false // Não alterar pagamentos pendentes
+  };
+  
+  console.log('[UPDATE-CARD-DIRECT] Enviando atualização para Asaas:', JSON.stringify(updatePayload, null, 2));
   
   const response = await fetch(`${asaasUrl}/subscriptions/${subscriptionId}`, {
     method: 'PUT',
@@ -429,11 +439,7 @@ async function updateCardOnly(asaasUrl: string, apiKey: string, subscriptionId: 
       'access_token': apiKey,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      billingType: 'CREDIT_CARD',
-      creditCardToken: cardToken,
-      updatePendingPayments: false // Não alterar pagamentos pendentes
-    })
+    body: JSON.stringify(updatePayload)
   });
 
   if (!response.ok) {
@@ -454,10 +460,35 @@ async function updateCardOnly(asaasUrl: string, apiKey: string, subscriptionId: 
   }
 
   const subscription = await response.json();
+  console.log('[UPDATE-CARD-DIRECT] ✅ Subscription atualizada no Asaas');
+  console.log('[UPDATE-CARD-DIRECT] Dados da subscription:', {
+    id: subscription.id,
+    status: subscription.status,
+    creditCard: subscription.creditCard ? {
+      number: subscription.creditCard.creditCardNumber,
+      brand: subscription.creditCard.creditCardBrand,
+      token: subscription.creditCard.creditCardToken
+    } : null
+  });
+  
+  // Verificar se o token foi realmente aplicado
+  if (subscription.creditCard?.creditCardToken !== cardToken) {
+    console.error('[UPDATE-CARD-DIRECT] ⚠️ Token não foi aplicado corretamente!');
+    console.error('[UPDATE-CARD-DIRECT] Esperado:', cardToken);
+    console.error('[UPDATE-CARD-DIRECT] Recebido:', subscription.creditCard?.creditCardToken);
+  } else {
+    console.log('[UPDATE-CARD-DIRECT] ✅ Token aplicado corretamente na subscription');
+  }
   
   return {
     message: 'Cartão atualizado com sucesso! O novo cartão será usado nas próximas cobranças.',
-    invoiceUrl: null
+    invoiceUrl: null,
+    updatedSubscription: {
+      id: subscription.id,
+      status: subscription.status,
+      creditCardToken: subscription.creditCard?.creditCardToken,
+      creditCardNumber: subscription.creditCard?.creditCardNumber
+    }
   };
 }
 

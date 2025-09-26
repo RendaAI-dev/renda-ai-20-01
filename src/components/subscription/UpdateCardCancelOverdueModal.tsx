@@ -103,6 +103,12 @@ const UpdateCardCancelOverdueModal: React.FC<UpdateCardCancelOverdueModalProps> 
           toast.error(data.message || 'Cartão inválido. Por favor, adicione um novo cartão.');
           return;
         }
+        // Se é erro de CEP inválido, orientar usuário
+        if (data.code === 'INVALID_POSTAL_CODE') {
+          toast.error('CEP inválido. Por favor, atualize seus dados no perfil primeiro.');
+          onOpenChange(false);
+          return;
+        }
         throw new Error(data.error || data.message || 'Erro ao atualizar cartão');
       }
 

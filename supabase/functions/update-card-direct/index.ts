@@ -55,34 +55,46 @@ serve(async (req) => {
     // Buscar dados do usuário
     console.log('[UPDATE-CARD-DIRECT] Buscando dados do usuário...');
     
-    let userData: any = null;
-    
     const { data: userProfile } = await supabase
       .from('poupeja_users')
       .select('*')
       .eq('id', user.id)
       .maybeSingle();
 
-    if (userProfile) {
-      userData = userProfile;
-      console.log('[UPDATE-CARD-DIRECT] Dados encontrados na tabela poupeja_users');
-    } else {
-      // Fallback to user metadata if poupeja_users doesn't exist or has no data
-      console.log('[UPDATE-CARD-DIRECT] Usando dados do metadata do usuário');
-      userData = {
-        id: user.id,
-        email: user.email,
-        name: user.user_metadata?.full_name || user.user_metadata?.name || 'Cliente',
-        phone: user.user_metadata?.phone || '',
-        cpf: user.user_metadata?.cpf || '',
-        cep: user.user_metadata?.cep || '',
-        street: user.user_metadata?.address?.street || '',
-        number: user.user_metadata?.address?.number || '',
-        complement: user.user_metadata?.address?.complement || '',
-        neighborhood: user.user_metadata?.address?.neighborhood || '',
-        city: user.user_metadata?.address?.city || '',
-        state: user.user_metadata?.address?.state || ''
-      };
+    // Merge inteligente: priorizar poupeja_users, mas fazer fallback para user_metadata em campos vazios
+    const userData = {
+      id: user.id,
+      email: user.email,
+      name: userProfile?.name || user.user_metadata?.full_name || user.user_metadata?.name || 'Cliente',
+      phone: userProfile?.phone || user.user_metadata?.phone || '',
+      cpf: userProfile?.cpf || user.user_metadata?.cpf || '',
+      cep: userProfile?.cep || user.user_metadata?.cep || '',
+      street: userProfile?.street || user.user_metadata?.address?.street || '',
+      number: userProfile?.number || user.user_metadata?.address?.number || '',
+      complement: userProfile?.complement || user.user_metadata?.address?.complement || '',
+      neighborhood: userProfile?.neighborhood || user.user_metadata?.address?.neighborhood || '',
+      city: userProfile?.city || user.user_metadata?.address?.city || '',
+      state: userProfile?.state || user.user_metadata?.address?.state || ''
+    };
+
+    console.log('[UPDATE-CARD-DIRECT] Dados do usuário processados:', {
+      fonte_dados: userProfile ? 'poupeja_users + metadata' : 'metadata_only',
+      cep: userData.cep,
+      cpf: userData.cpf ? '***' : 'vazio'
+    });
+
+    // Validar CEP
+    if (!isValidCEP(userData.cep)) {
+      console.log('[UPDATE-CARD-DIRECT] CEP inválido:', userData.cep);
+      return new Response(JSON.stringify({
+        success: false,
+        code: 'INVALID_POSTAL_CODE',
+        message: 'CEP inválido. Por favor, atualize seus dados no perfil com um CEP válido.',
+        requiresNewCard: true,
+        details: { current_cep: userData.cep }
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
     }
 
     // Buscar assinatura ativa
@@ -364,6 +376,22 @@ function detectCardBrand(cardNumber: string): string {
   if (/^6/.test(cleanNumber)) return 'DISCOVER';
   
   return 'OTHER';
+}
+
+function isValidCEP(cep: string): boolean {
+  if (!cep) return false;
+  
+  // Remove espaços e hífens
+  const cleanCep = cep.replace(/[-\s]/g, '');
+  
+  // Verificar se tem 8 dígitos
+  if (!/^\d{8}$/.test(cleanCep)) return false;
+  
+  // Verificar se não é CEP genérico/inválido
+  const invalidCeps = ['00000000', '11111111', '22222222', '33333333', '44444444', '55555555', '66666666', '77777777', '88888888', '99999999'];
+  if (invalidCeps.includes(cleanCep)) return false;
+  
+  return true;
 }
 
 // Cenário 1: Trocar cartão sem cobrança adicional

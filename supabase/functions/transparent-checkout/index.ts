@@ -73,6 +73,19 @@ serve(async (req) => {
     const requestBody: CheckoutRequest = await req.json();
     const { planType, creditCard, savedCardToken, isUpgrade, currentSubscriptionId } = requestBody;
     
+    // Validate input data
+    if (!planType || !['monthly', 'annual'].includes(planType)) {
+      throw new Error('Plan type must be either "monthly" or "annual"');
+    }
+    
+    if (!creditCard && !savedCardToken) {
+      throw new Error('Either credit card data or saved card token must be provided');
+    }
+    
+    if (isUpgrade && !currentSubscriptionId) {
+      throw new Error('Current subscription ID is required for upgrades');
+    }
+    
     console.log('[TRANSPARENT-CHECKOUT] Dados recebidos:', { 
       planType, 
       hasNewCard: !!creditCard,
@@ -185,13 +198,19 @@ serve(async (req) => {
     // Get or create Asaas customer
     let asaasCustomerId: string;
     
-    const { data: existingCustomer } = await supabase
+    console.log('[TRANSPARENT-CHECKOUT] Verificando cliente Asaas existente...');
+    const { data: existingCustomer, error: customerLookupError } = await supabase
       .from('poupeja_asaas_customers')
       .select('asaas_customer_id')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (existingCustomer) {
+    if (customerLookupError) {
+      console.error('[TRANSPARENT-CHECKOUT] Erro ao buscar cliente Asaas:', customerLookupError);
+      throw new Error('Failed to lookup Asaas customer');
+    }
+
+    if (existingCustomer?.asaas_customer_id) {
       asaasCustomerId = existingCustomer.asaas_customer_id;
       console.log('[TRANSPARENT-CHECKOUT] Cliente Asaas existente:', asaasCustomerId);
     } else {
@@ -284,8 +303,12 @@ serve(async (req) => {
 
       if (!tokenizeResponse.ok) {
         const error = await tokenizeResponse.text();
-        console.error('[TRANSPARENT-CHECKOUT] Erro na tokenização:', error);
-        throw new Error(`Failed to tokenize credit card: ${error}`);
+        console.error('[TRANSPARENT-CHECKOUT] Erro na tokenização:', {
+          status: tokenizeResponse.status,
+          statusText: tokenizeResponse.statusText,
+          error
+        });
+        throw new Error(`Falha na tokenização do cartão (${tokenizeResponse.status}): ${error}`);
       }
 
       tokenData = await tokenizeResponse.json();
@@ -357,14 +380,20 @@ serve(async (req) => {
       console.log('[TRANSPARENT-CHECKOUT] Processando mudança de plano...');
       
       // CRITICAL: Buscar o asaas_subscription_id correto do banco de dados
+      console.log('[TRANSPARENT-CHECKOUT] Buscando subscription no banco de dados...');
       const { data: subscriptionData, error: subscriptionError } = await supabase
         .from('poupeja_subscriptions')
         .select('asaas_subscription_id')
         .eq('id', currentSubscriptionId)
-        .single();
+        .maybeSingle();
 
-      if (subscriptionError || !subscriptionData?.asaas_subscription_id) {
-        console.error('[TRANSPARENT-CHECKOUT] ❌ Erro ao buscar subscription do Asaas:', subscriptionError);
+      if (subscriptionError) {
+        console.error('[TRANSPARENT-CHECKOUT] ❌ Erro ao buscar subscription:', subscriptionError);
+        throw new Error('Failed to lookup subscription in database');
+      }
+
+      if (!subscriptionData?.asaas_subscription_id) {
+        console.error('[TRANSPARENT-CHECKOUT] ❌ Subscription não encontrada ou sem asaas_subscription_id:', currentSubscriptionId);
         throw new Error(`Subscription não encontrada ou sem asaas_subscription_id: ${currentSubscriptionId}`);
       }
 
@@ -476,7 +505,12 @@ serve(async (req) => {
 
       if (!subscriptionResponse.ok) {
         const error = await subscriptionResponse.text();
-        throw new Error(`Failed to create subscription: ${error}`);
+        console.error('[TRANSPARENT-CHECKOUT] ❌ Erro ao criar subscription:', {
+          status: subscriptionResponse.status,
+          statusText: subscriptionResponse.statusText,
+          error
+        });
+        throw new Error(`Falha ao criar assinatura (${subscriptionResponse.status}): ${error}`);
       }
 
       const subscription = await subscriptionResponse.json();

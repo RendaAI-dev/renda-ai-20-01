@@ -19,7 +19,7 @@ const budgetSchema = z.object({
   startDate: z.string().min(1, "Data de início é obrigatória"),
   endDate: z.string().min(1, "Data de fim é obrigatória"),
   alertThreshold: z.number().min(1, "Limite deve ser entre 1% e 100%").max(100, "Limite deve ser entre 1% e 100%"),
-  categoryId: z.string().optional(),
+  categoryId: z.string().optional().nullable(),
   isActive: z.boolean(),
 }).refine((data) => {
   const start = new Date(data.startDate);
@@ -79,7 +79,7 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
       startDate: initialData?.startDate || new Date().toISOString().split('T')[0],
       endDate: initialData?.endDate || calculateEndDate(new Date().toISOString().split('T')[0], 'monthly'),
       alertThreshold: initialData?.alertThreshold || 80,
-      categoryId: initialData?.categoryId || '',
+      categoryId: initialData?.categoryId || undefined,
       isActive: initialData?.isActive ?? true,
     },
   });
@@ -168,15 +168,14 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
               name="categoryId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Categoria (Opcional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                   <FormLabel>Categoria (Opcional)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma categoria" />
+                        <SelectValue placeholder="Todas as categorias" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Todas as categorias</SelectItem>
                       {expenseCategories.map((category) => (
                         <SelectItem key={category.id} value={category.id}>
                           {category.name}

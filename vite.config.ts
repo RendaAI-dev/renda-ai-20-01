@@ -17,10 +17,10 @@ export default defineConfig(({ mode }) => ({
     },
   },
   preview: {
-    host: "rendaai.com.br",
+    host: "0.0.0.0",
     port: 4173,
     strictPort: true,
-    allowedHosts: ["rendaai.com.br", "localhost", "127.0.0.1"],
+    allowedHosts: ["rendaai.com.br", "www.rendaai.com.br", "localhost", "127.0.0.1", ".rendaai.com.br"],
   },
   build: {
     outDir: 'dist',

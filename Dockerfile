@@ -17,7 +17,7 @@ COPY --from=builder /app/dist ./dist
 COPY package*.json ./
 # Instale apenas dependências de produção se o preview precisar delas
 # Se o 'vite preview' não precisar de node_modules, pode pular esta instalação
-RUN npm install --omit=dev --legacy-peer-deps
+RUN npm install --legacy-peer-deps
 
 # Exponha a porta que o vite preview usa
 EXPOSE 4173

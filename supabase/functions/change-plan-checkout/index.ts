@@ -68,16 +68,33 @@ serve(async (req) => {
       throw new Error('Nenhuma assinatura ativa encontrada');
     }
 
-    // Buscar cliente Asaas
-    const { data: asaasCustomer } = await supabase
-      .from('poupeja_asaas_customers')
-      .select('asaas_customer_id')
-      .eq('user_id', user.id)
-      .single();
+    // Buscar dados do usuário e cliente Asaas
+    const [{ data: userData }, { data: asaasCustomer }] = await Promise.all([
+      supabase
+        .from('poupeja_users')
+        .select('email, phone, cep, street, number, neighborhood, city, state')
+        .eq('id', user.id)
+        .single(),
+      supabase
+        .from('poupeja_asaas_customers')
+        .select('asaas_customer_id')
+        .eq('user_id', user.id)
+        .single()
+    ]);
 
     if (!asaasCustomer) {
       throw new Error('Cliente Asaas não encontrado');
     }
+
+    if (!userData) {
+      throw new Error('Dados do usuário não encontrados');
+    }
+
+    console.log('[CHANGE-PLAN-CHECKOUT] Dados do usuário encontrados:', { 
+      hasEmail: !!userData.email, 
+      hasPhone: !!userData.phone, 
+      hasCep: !!userData.cep 
+    });
 
     // Buscar configurações do Asaas
     console.log('[CHANGE-PLAN-CHECKOUT] Buscando configurações do Asaas...');
@@ -183,10 +200,15 @@ serve(async (req) => {
           },
           creditCardHolderInfo: {
             name: creditCard.holderName,
+            email: userData.email, // ✅ Email obrigatório do usuário
             cpfCnpj: creditCard.holderCpf.replace(/\D/g, ''),
-            postalCode: '00000000',
-            addressNumber: '123',
-            phone: '11999999999'
+            postalCode: (userData.cep || '').replace(/\D/g, '') || '01310100', // CEP real ou fallback válido
+            address: userData.street || 'Rua Exemplo',
+            addressNumber: userData.number || '123',
+            complement: userData.neighborhood || '',
+            province: userData.city || 'São Paulo',
+            city: userData.city || 'São Paulo',
+            phone: (userData.phone || '11999999999').replace(/\D/g, '').substring(0, 11) // Telefone real ou fallback
           }
         })
       });

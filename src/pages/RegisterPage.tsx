@@ -10,6 +10,7 @@ import { useBrandingConfig } from '@/hooks/useBrandingConfig';
 import { useNewPlanConfig } from '@/hooks/useNewPlanConfig';
 import { usePreferences } from '@/contexts/PreferencesContext';
 import { CPFInput } from '@/components/common/CPFInput';
+import { WhatsAppInput } from '@/components/common/WhatsAppInput';
 import { CEPInput } from '@/components/common/CEPInput';
 import { AddressDisplay } from '@/components/common/AddressDisplay';
 import { EnhancedDatePicker } from '@/components/ui/enhanced-date-picker';
@@ -171,6 +172,44 @@ const RegisterPage = () => {
       setIsLoading(false);
       formElement?.classList.remove('form-loading');
       navigate('/plans');
+      return;
+    }
+
+    // Check for duplicates before submitting
+    try {
+      const { data: duplicateData, error: duplicateError } = await supabase.functions.invoke('check-duplicate-data', {
+        body: { 
+          phone: whatsapp.replace(/\D/g, ''), 
+          cpf: cpf.replace(/\D/g, '') 
+        }
+      });
+
+      if (duplicateError) {
+        console.error('Error checking duplicates:', duplicateError);
+        setError('Erro ao verificar dados. Tente novamente.');
+        setIsLoading(false);
+        formElement?.classList.remove('form-loading');
+        return;
+      }
+
+      if (duplicateData?.duplicates?.phone) {
+        setError('Este WhatsApp já está cadastrado no sistema.');
+        setIsLoading(false);
+        formElement?.classList.remove('form-loading');
+        return;
+      }
+
+      if (duplicateData?.duplicates?.cpf) {
+        setError('Este CPF já está cadastrado no sistema.');
+        setIsLoading(false);
+        formElement?.classList.remove('form-loading');
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking duplicates:', error);
+      setError('Erro ao verificar dados. Tente novamente.');
+      setIsLoading(false);
+      formElement?.classList.remove('form-loading');
       return;
     }
   
@@ -445,24 +484,11 @@ const RegisterPage = () => {
             />
           </div>
 
-          <div>
-            <Label htmlFor="whatsapp">WhatsApp</Label>
-            <Input
-              id="whatsapp"
-              name="whatsapp"
-              type="tel"
-              autoComplete="tel"
-              required
-              placeholder="(XX) XXXXX-XXXX"
-              value={whatsapp}
-              onChange={handleWhatsappChange}
-              className="mt-1"
-              maxLength={16}
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Este número será utilizado para enviar mensagens e notificações importantes via WhatsApp.
-            </p>
-          </div>
+          <WhatsAppInput
+            value={whatsapp}
+            onChange={setWhatsapp}
+            required
+          />
 
           <CPFInput
             value={cpf}

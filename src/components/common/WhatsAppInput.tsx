@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 
-interface CPFInputProps {
+interface WhatsAppInputProps {
   value: string;
   onChange: (value: string) => void;
   error?: string;
@@ -13,60 +13,35 @@ interface CPFInputProps {
   required?: boolean;
 }
 
-export function CPFInput({ 
+export function WhatsAppInput({ 
   value, 
   onChange, 
   error, 
-  label = "CPF", 
-  placeholder = "000.000.000-00",
+  label = "WhatsApp", 
+  placeholder = "(11) 99999-9999",
   required = false 
-}: CPFInputProps) {
+}: WhatsAppInputProps) {
   const [isDuplicate, setIsDuplicate] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [duplicateError, setDuplicateError] = useState('');
-  const formatCPF = (cpf: string): string => {
-    const cleanCPF = cpf.replace(/\D/g, '');
-    return cleanCPF
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})/, '$1-$2')
-      .replace(/(-\d{2})\d+?$/, '$1');
+
+  const formatWhatsApp = (phone: string): string => {
+    const cleanPhone = phone.replace(/\D/g, '');
+    return cleanPhone
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2')
+      .replace(/(-\d{4})\d+?$/, '$1');
   };
 
-  const validateCPF = (cpf: string): boolean => {
-    const cleanCPF = cpf.replace(/\D/g, '');
-    
-    if (cleanCPF.length !== 11) return false;
-    if (/^(\d)\1{10}$/.test(cleanCPF)) return false;
-
-    let sum = 0;
-    for (let i = 0; i < 9; i++) {
-      sum += parseInt(cleanCPF.charAt(i)) * (10 - i);
-    }
-    let remainder = (sum * 10) % 11;
-    if (remainder === 10 || remainder === 11) remainder = 0;
-    if (remainder !== parseInt(cleanCPF.charAt(9))) return false;
-
-    sum = 0;
-    for (let i = 0; i < 10; i++) {
-      sum += parseInt(cleanCPF.charAt(i)) * (11 - i);
-    }
-    remainder = (sum * 10) % 11;
-    if (remainder === 10 || remainder === 11) remainder = 0;
-    if (remainder !== parseInt(cleanCPF.charAt(10))) return false;
-
-    return true;
-  };
-
-  const checkDuplicate = async (cpf: string) => {
-    if (!cpf || cpf.length < 14) return; // Minimum formatted length
+  const checkDuplicate = async (phone: string) => {
+    if (!phone || phone.length < 14) return; // Minimum formatted length
 
     setIsChecking(true);
     setDuplicateError('');
     
     try {
       const { data, error } = await supabase.functions.invoke('check-duplicate-data', {
-        body: { cpf: cpf.replace(/\D/g, '') }
+        body: { phone: phone.replace(/\D/g, '') }
       });
 
       if (error) {
@@ -74,15 +49,15 @@ export function CPFInput({
         return;
       }
 
-      if (data?.duplicates?.cpf) {
+      if (data?.duplicates?.phone) {
         setIsDuplicate(true);
-        setDuplicateError('Este CPF já está cadastrado');
+        setDuplicateError('Este WhatsApp já está cadastrado');
       } else {
         setIsDuplicate(false);
         setDuplicateError('');
       }
     } catch (error) {
-      console.error('Error checking CPF duplicate:', error);
+      console.error('Error checking WhatsApp duplicate:', error);
     } finally {
       setIsChecking(false);
     }
@@ -102,33 +77,30 @@ export function CPFInput({
   }, [value]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formattedValue = formatCPF(e.target.value);
+    const formattedValue = formatWhatsApp(e.target.value);
     onChange(formattedValue);
   };
 
-  const isValid = value.length === 0 || validateCPF(value);
-  const inputClassName = !isValid 
-    ? 'border-destructive' 
-    : isDuplicate 
+  const inputClassName = isDuplicate 
     ? 'border-destructive focus:ring-destructive' 
-    : duplicateError === '' && value.length >= 14 && !isChecking && isValid
+    : duplicateError === '' && value.length >= 14 && !isChecking 
     ? 'border-green-500 focus:ring-green-500' 
     : '';
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="cpf">
+      <Label htmlFor="whatsapp">
         {label}
         {required && <span className="text-destructive ml-1">*</span>}
       </Label>
       <div className="relative">
         <Input
-          id="cpf"
+          id="whatsapp"
           type="text"
           value={value}
           onChange={handleChange}
           placeholder={placeholder}
-          maxLength={14}
+          maxLength={15}
           className={inputClassName}
           required={required}
         />
@@ -143,9 +115,6 @@ export function CPFInput({
       )}
       {duplicateError && (
         <p className="text-sm text-destructive">{duplicateError}</p>
-      )}
-      {!isValid && value.length > 0 && !duplicateError && (
-        <p className="text-sm text-destructive">CPF inválido</p>
       )}
     </div>
   );

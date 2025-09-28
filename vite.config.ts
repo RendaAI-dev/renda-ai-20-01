@@ -12,6 +12,9 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  preview: {
+    allowedHosts: ["rendaai.com.br"],
+  },
   build: {
     outDir: 'dist',
     sourcemap: mode === 'development',

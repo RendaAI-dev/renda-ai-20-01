@@ -21,5 +21,5 @@ RUN npm install --legacy-peer-deps
 
 # Exponha a porta que o vite preview usa
 EXPOSE 4173
-# Comando para rodar a aplicação (usando o script 'start' ou 'preview')
-CMD [ "npm", "run", "preview", "--", "--host", "0.0.0.0" ]
+# Comando para rodar a aplicação usando serve para arquivos estáticos
+CMD [ "npx", "serve", "-s", "dist", "-l", "4173" ]

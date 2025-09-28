@@ -10,7 +10,7 @@ import { compression } from "vite-plugin-compression2";
 export default defineConfig(({ mode }) => ({
  server: {
     host: "::",
-    port: 8080,
+    port: 4173,
   },
   preview: {
     allowedHosts: ["rendaai.com.br"],

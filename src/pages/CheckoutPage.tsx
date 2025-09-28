@@ -11,6 +11,8 @@ import { SavedCardSelector } from '@/components/checkout/SavedCardSelector';
 import { PlanSummary } from '@/components/checkout/PlanSummary';
 import { CheckoutSteps } from '@/components/checkout/CheckoutSteps';
 import { CheckoutSummary } from '@/components/checkout/CheckoutSummary';
+import { ProfileCompletionForm } from '@/components/checkout/ProfileCompletionForm';
+import { CardholderDataForm } from '@/components/checkout/CardholderDataForm';
 
 interface CreditCardData {
   number: string;
@@ -28,6 +30,18 @@ interface CheckoutState {
   isUpgrade?: boolean;
 }
 
+interface ProfileData {
+  name: string;
+  phone: string;
+  cep: string;
+  street: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+}
+
 const CheckoutPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -36,11 +50,13 @@ const CheckoutPage = () => {
   const { subscription, checkSubscription } = useSubscription();
   const { config, isLoading: configLoading } = useNewPlanConfig();
   
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0); // Start at step 0 for profile validation
   const [loading, setLoading] = useState(false);
-  const [useNewCard, setUseNewCard] = useState(true); // Default to true for better UX
+  const [useNewCard, setUseNewCard] = useState(true);
   const [selectedCardToken, setSelectedCardToken] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userData, setUserData] = useState<any>(null);
+  const [needsProfileCompletion, setNeedsProfileCompletion] = useState(false);
   const [creditCardData, setCreditCardData] = useState<CreditCardData>({
     number: '',
     expiryMonth: '',
@@ -50,13 +66,42 @@ const CheckoutPage = () => {
     holderCpf: ''
   });
 
-  // Get current user on mount
+  // Get current user and validate profile data on mount
   useEffect(() => {
-    const getCurrentUser = async () => {
+    const getCurrentUserAndValidateProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUser(user);
+      
+      if (user) {
+        // Check if user has complete profile data
+        const { data: userProfile } = await supabase
+          .from('poupeja_users')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        setUserData(userProfile);
+        
+        // Check if profile is complete for payment
+        const hasRequiredData = userProfile && 
+          userProfile.name && 
+          userProfile.phone && 
+          userProfile.cep && 
+          userProfile.street && 
+          userProfile.number && 
+          userProfile.neighborhood && 
+          userProfile.city && 
+          userProfile.state;
+        
+        setNeedsProfileCompletion(!hasRequiredData);
+        
+        // If profile is complete, start at step 1 (payment), otherwise step 0 (profile completion)
+        if (hasRequiredData) {
+          setStep(1);
+        }
+      }
     };
-    getCurrentUser();
+    getCurrentUserAndValidateProfile();
   }, []);
 
   // Estado do checkout passado via location, localStorage ou URL params
@@ -267,6 +312,16 @@ const CheckoutPage = () => {
     }
   };
 
+  const handleProfileCompletion = (profileData: ProfileData) => {
+    setUserData(profileData);
+    setNeedsProfileCompletion(false);
+    setStep(1); // Move to payment step
+  };
+
+  const handleCancelProfileCompletion = () => {
+    navigate('/plans');
+  };
+
   const handleCardSelect = (cardToken: string | null) => {
     setSelectedCardToken(cardToken);
     setUseNewCard(cardToken === null);
@@ -280,6 +335,8 @@ const CheckoutPage = () => {
   const handleBack = () => {
     if (step > 1) {
       setStep(step - 1);
+    } else if (step === 1 && needsProfileCompletion) {
+      setStep(0); // Go back to profile completion
     } else {
       navigate('/plans');
     }
@@ -411,6 +468,14 @@ const CheckoutPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
           {/* Main Content */}
           <div className="space-y-6">
+            {step === 0 && needsProfileCompletion && (
+              <ProfileCompletionForm
+                currentUser={currentUser}
+                onComplete={handleProfileCompletion}
+                onCancel={handleCancelProfileCompletion}
+              />
+            )}
+
             {step === 1 && (
               <div className="space-y-6">
                 <SavedCardSelector
@@ -420,19 +485,36 @@ const CheckoutPage = () => {
                 />
                 
                 {useNewCard && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Dados do Novo Cartão</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <CreditCardForm
-                        data={creditCardData}
-                        onChange={handleCreditCardChange}
-                        disabled={loading}
-                        currentUser={currentUser}
-                      />
-                    </CardContent>
-                  </Card>
+                  <>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Dados do Novo Cartão</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <CreditCardForm
+                          data={creditCardData}
+                          onChange={handleCreditCardChange}
+                          disabled={loading}
+                          currentUser={currentUser}
+                        />
+                      </CardContent>
+                    </Card>
+
+                    <CardholderDataForm
+                      data={{
+                        holderName: creditCardData.holderName,
+                        holderCpf: creditCardData.holderCpf
+                      }}
+                      onChange={(field, value) => {
+                        setCreditCardData(prev => ({
+                          ...prev,
+                          [field]: value
+                        }));
+                      }}
+                      disabled={loading}
+                      userData={userData}
+                    />
+                  </>
                 )}
                 
                 <div className="flex gap-4">
@@ -514,17 +596,21 @@ const CheckoutPage = () => {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            <PlanSummary 
-              planName={checkoutData.planName}
-              planType={checkoutData.planType}
-              planPrice={checkoutData.planPrice}
-              isUpgrade={checkoutData.isUpgrade}
-            />
-            
-            <CheckoutSummary 
-              planPrice={checkoutData.planPrice}
-              planType={checkoutData.planType}
-            />
+            {step > 0 && (
+              <>
+                <PlanSummary 
+                  planName={checkoutData.planName}
+                  planType={checkoutData.planType}
+                  planPrice={checkoutData.planPrice}
+                  isUpgrade={checkoutData.isUpgrade}
+                />
+                
+                <CheckoutSummary 
+                  planPrice={checkoutData.planPrice}
+                  planType={checkoutData.planType}
+                />
+              </>
+            )}
           </div>
         </div>
       </div>

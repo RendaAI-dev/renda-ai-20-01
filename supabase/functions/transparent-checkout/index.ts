@@ -128,6 +128,15 @@ serve(async (req) => {
     if (userProfile) {
       userData = userProfile;
       console.log('[TRANSPARENT-CHECKOUT] Dados encontrados na tabela poupeja_users');
+      
+      // Validate required user data
+      const requiredFields = ['name', 'phone', 'cep', 'street', 'number', 'neighborhood', 'city', 'state'];
+      const missingFields = requiredFields.filter(field => !userData[field]);
+      
+      if (missingFields.length > 0) {
+        console.error('[TRANSPARENT-CHECKOUT] Dados de endereço incompletos:', { missingFields, userId: user.id });
+        throw new Error(`Dados de endereço incompletos. Complete seu perfil antes de continuar com o pagamento. Campos faltando: ${missingFields.join(', ')}`);
+      }
     } else {
       // Fallback to user metadata if poupeja_users doesn't exist or has no data
       console.log('[TRANSPARENT-CHECKOUT] Usando dados do metadata do usuário');
@@ -145,6 +154,15 @@ serve(async (req) => {
         city: user.user_metadata?.address?.city || '',
         state: user.user_metadata?.address?.state || ''
       };
+
+      // Validate metadata fallback data too
+      const requiredFields = ['name', 'phone', 'cep', 'street', 'number', 'neighborhood', 'city', 'state'];
+      const missingFields = requiredFields.filter(field => !userData[field]);
+      
+      if (missingFields.length > 0) {
+        console.error('[TRANSPARENT-CHECKOUT] Dados de usuário incompletos no metadata:', { missingFields, userId: user.id });
+        throw new Error(`Perfil incompleto. Complete seus dados de endereço e telefone antes de continuar com o pagamento.`);
+      }
     }
 
     // Get plan data from database with proper asaas_price_id

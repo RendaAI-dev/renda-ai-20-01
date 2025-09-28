@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -546,27 +547,33 @@ const CheckoutPage = () => {
                 />
                 
                 {useNewCard && (
-                  <>
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Dados do Novo Cartão</CardTitle>
-                      </CardHeader>
-                      <CardContent>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Dados do Cartão e Titular</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div>
+                        <h4 className="text-sm font-medium mb-3">Dados do Cartão</h4>
                         <CreditCardForm
                           data={creditCardData}
                           onChange={handleCreditCardChange}
                           disabled={loading}
                         />
-                      </CardContent>
-                    </Card>
-
-                    <CardholderDataForm
-                      data={cardholderData}
-                      onChange={handleCardholderDataChange}
-                      disabled={loading}
-                      userData={userData}
-                    />
-                  </>
+                      </div>
+                      
+                      <Separator />
+                      
+                      <div>
+                        <h4 className="text-sm font-medium mb-3">Dados do Titular</h4>
+                        <CardholderDataForm
+                          data={cardholderData}
+                          onChange={handleCardholderDataChange}
+                          disabled={loading}
+                          userData={userData}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
                 
                 <div className="flex gap-4">

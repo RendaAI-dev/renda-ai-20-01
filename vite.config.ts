@@ -45,9 +45,6 @@ server: {
     cssCodeSplit: true,
     assetsInlineLimit: 4096
   },
-  define: {
-    __WS_TOKEN__: JSON.stringify(''),
-  },
   plugins: [
     react(),
     mode === 'development' && componentTagger(),

@@ -59,24 +59,17 @@ export function CPFInput({
   };
 
   const checkDuplicate = async (cpf: string) => {
-    if (!cpf || cpf.length < 14) {
-      console.log('CPF too short or empty, skipping check:', cpf);
-      return;
-    }
+    if (!cpf || cpf.length < 14) return; // Minimum formatted length
 
-    console.log('Starting CPF duplicate check for:', cpf);
     setIsChecking(true);
     setDuplicateError('');
     
     try {
       const cleanCPF = cpf.replace(/\D/g, '');
-      console.log('Sending CPF to check-duplicate-data:', cleanCPF);
       
       const { data, error } = await supabase.functions.invoke('check-duplicate-data', {
         body: { cpf: cleanCPF }
       });
-
-      console.log('Duplicate check response:', { data, error });
 
       if (error) {
         console.error('Error checking duplicate:', error);
@@ -84,11 +77,9 @@ export function CPFInput({
       }
 
       if (data?.duplicates?.cpf) {
-        console.log('CPF is duplicate');
         setIsDuplicate(true);
         setDuplicateError('Este CPF já está cadastrado');
       } else {
-        console.log('CPF is available');
         setIsDuplicate(false);
         setDuplicateError('');
       }
@@ -96,7 +87,6 @@ export function CPFInput({
       console.error('Error checking CPF duplicate:', error);
     } finally {
       setIsChecking(false);
-      console.log('CPF check completed');
     }
   };
 
@@ -119,28 +109,13 @@ export function CPFInput({
   };
 
   const isValid = value.length === 0 || validateCPF(value);
-  
-  // Debug logging for state tracking
-  console.log('CPF Input State:', {
-    value,
-    isValid,
-    isDuplicate,
-    isChecking,
-    duplicateError,
-    valueLength: value.length
-  });
-  
-  // Simplified CSS class logic
-  let inputClassName = '';
-  if (!isValid && value.length > 0) {
-    inputClassName = 'border-destructive';
-  } else if (isDuplicate || duplicateError) {
-    inputClassName = 'border-destructive focus:ring-destructive';
-  } else if (isValid && value.length >= 14 && !isChecking && !duplicateError) {
-    inputClassName = 'border-green-500 focus:ring-green-500';
-  }
-  
-  console.log('Applied CSS class:', inputClassName);
+  const inputClassName = !isValid && value.length > 0 
+    ? 'border-destructive' 
+    : isDuplicate 
+    ? 'border-destructive focus:ring-destructive' 
+    : duplicateError === '' && value.length >= 14 && !isChecking 
+    ? 'border-green-500 focus:ring-green-500' 
+    : '';
 
   return (
     <div className="space-y-2">

@@ -32,7 +32,7 @@ export function EmailInput({
   };
 
   const checkDuplicate = async (email: string) => {
-    if (!email || !validateEmail(email)) return;
+    if (!email || email.length < 5) return; // Minimum email length
 
     setIsChecking(true);
     setDuplicateError('');
@@ -66,12 +66,10 @@ export function EmailInput({
       if (value && value.trim()) {
         if (!validateEmail(value)) {
           setFormatError('Formato de email inválido');
-          setIsDuplicate(false);
-          setDuplicateError('');
         } else {
           setFormatError('');
-          checkDuplicate(value);
         }
+        checkDuplicate(value);
       } else {
         setIsDuplicate(false);
         setDuplicateError('');
@@ -86,12 +84,9 @@ export function EmailInput({
     onChange(e.target.value);
   };
 
-  const isValid = value.length === 0 || validateEmail(value);
-  const inputClassName = !isValid || formatError
-    ? 'border-destructive' 
-    : isDuplicate 
+  const inputClassName = formatError || isDuplicate 
     ? 'border-destructive focus:ring-destructive' 
-    : duplicateError === '' && value.length > 0 && !isChecking && isValid
+    : duplicateError === '' && value.length >= 5 && !isChecking && !formatError
     ? 'border-green-500 focus:ring-green-500' 
     : '';
 

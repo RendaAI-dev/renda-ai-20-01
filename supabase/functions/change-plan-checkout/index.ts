@@ -56,17 +56,41 @@ serve(async (req) => {
     }
 
     // Buscar assinatura ativa atual
-    const { data: currentSubscription } = await supabase
+    console.log('[CHANGE-PLAN-CHECKOUT] Buscando assinatura ativa para usuário:', user.id);
+    
+    const { data: subscriptions, error: subscriptionError } = await supabase
       .from('poupeja_subscriptions')
       .select('*')
       .eq('user_id', user.id)
       .eq('payment_processor', 'asaas')
       .eq('status', 'active')
-      .single();
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-    if (!currentSubscription) {
+    console.log('[CHANGE-PLAN-CHECKOUT] Resultado da busca de assinatura:', { 
+      subscriptionsFound: subscriptions?.length || 0,
+      subscriptionError 
+    });
+
+    // Se não encontrou assinaturas ativas, tentar buscar qualquer assinatura do usuário para debug
+    if (!subscriptions || subscriptions.length === 0) {
+      const { data: allSubscriptions } = await supabase
+        .from('poupeja_subscriptions')
+        .select('id, status, plan_type, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      console.log('[CHANGE-PLAN-CHECKOUT] Debug - Todas as assinaturas do usuário:', allSubscriptions);
       throw new Error('Nenhuma assinatura ativa encontrada');
     }
+
+    const currentSubscription = subscriptions[0];
+    console.log('[CHANGE-PLAN-CHECKOUT] Assinatura ativa encontrada:', {
+      id: currentSubscription.id,
+      status: currentSubscription.status,
+      plan_type: currentSubscription.plan_type,
+      asaas_subscription_id: currentSubscription.asaas_subscription_id
+    });
 
     // Buscar dados do usuário e cliente Asaas
     const [{ data: userData }, { data: asaasCustomer }] = await Promise.all([

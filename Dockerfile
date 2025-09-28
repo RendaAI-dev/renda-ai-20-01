@@ -3,7 +3,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 # Use npm ci para instalações mais rápidas e consistentes em CI/CD
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 COPY . .
 RUN npm run build
 
@@ -17,7 +17,7 @@ COPY --from=builder /app/dist ./dist
 COPY package*.json ./
 # Instale apenas dependências de produção se o preview precisar delas
 # Se o 'vite preview' não precisar de node_modules, pode pular esta instalação
-RUN npm install --omit=dev
+RUN npm install --omit=dev --legacy-peer-deps
 
 # Exponha a porta que o vite preview usa
 EXPOSE 4173

@@ -8,19 +8,12 @@ import { compression } from "vite-plugin-compression2";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  server: {
-    host: "0.0.0.0",
-    port: 4173,
-    strictPort: true,
-    hmr: {
-      host: "rendaai.com.br",
-    },
+ server: {
+    host: "::",
+    port: 8080,
   },
   preview: {
-    host: "0.0.0.0",
-    port: 4173,
-    strictPort: true,
-    allowedHosts: ["rendaai.com.br", "www.rendaai.com.br", "localhost", "127.0.0.1", ".rendaai.com.br"],
+    allowedHosts: ["rendaai.com.br"],
   },
   build: {
     outDir: 'dist',

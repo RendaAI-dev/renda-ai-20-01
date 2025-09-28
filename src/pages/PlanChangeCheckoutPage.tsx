@@ -267,8 +267,8 @@ const PlanChangeCheckoutPage = () => {
       return false;
     }
 
-    // Validate CPF length
-    if (holderCpf.length !== 11) {
+    // Validate CPF length (remove formatting before checking)
+    if (holderCpf.replace(/\D/g, '').length !== 11) {
       toast({
         title: "CPF inválido",
         description: "O CPF do titular deve ter 11 dígitos",

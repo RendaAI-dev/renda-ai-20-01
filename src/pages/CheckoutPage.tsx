@@ -19,6 +19,9 @@ interface CreditCardData {
   expiryMonth: string;
   expiryYear: string;
   ccv: string;
+}
+
+interface CardholderData {
   holderName: string;
   holderCpf: string;
 }
@@ -61,7 +64,9 @@ const CheckoutPage = () => {
     number: '',
     expiryMonth: '',
     expiryYear: '',
-    ccv: '',
+    ccv: ''
+  });
+  const [cardholderData, setCardholderData] = useState<CardholderData>({
     holderName: '',
     holderCpf: ''
   });
@@ -268,6 +273,13 @@ const CheckoutPage = () => {
     }));
   };
 
+  const handleCardholderDataChange = (field: keyof CardholderData, value: string) => {
+    setCardholderData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
   // Função de validação de CPF usando algoritmo correto
   const validateCPF = (cpf: string): boolean => {
     const cleanCPF = cpf.replace(/\D/g, '');
@@ -295,7 +307,8 @@ const CheckoutPage = () => {
   };
 
   const validateCreditCard = (): boolean => {
-    const { number, expiryMonth, expiryYear, ccv, holderName, holderCpf } = creditCardData;
+    const { number, expiryMonth, expiryYear, ccv } = creditCardData;
+    const { holderName, holderCpf } = cardholderData;
     
     if (!number || !expiryMonth || !expiryYear || !ccv || !holderName || !holderCpf) {
       toast({
@@ -411,7 +424,10 @@ const CheckoutPage = () => {
 
       // Add payment method data
       if (useNewCard) {
-        body.creditCard = creditCardData;
+        body.creditCard = {
+          ...creditCardData,
+          ...cardholderData
+        };
       } else {
         body.savedCardToken = selectedCardToken;
       }
@@ -540,22 +556,13 @@ const CheckoutPage = () => {
                           data={creditCardData}
                           onChange={handleCreditCardChange}
                           disabled={loading}
-                          currentUser={currentUser}
                         />
                       </CardContent>
                     </Card>
 
                     <CardholderDataForm
-                      data={{
-                        holderName: creditCardData.holderName,
-                        holderCpf: creditCardData.holderCpf
-                      }}
-                      onChange={(field, value) => {
-                        setCreditCardData(prev => ({
-                          ...prev,
-                          [field]: value
-                        }));
-                      }}
+                      data={cardholderData}
+                      onChange={handleCardholderDataChange}
                       disabled={loading}
                       userData={userData}
                     />
@@ -586,7 +593,7 @@ const CheckoutPage = () => {
                         •••• •••• •••• {creditCardData.number.slice(-4)}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {creditCardData.holderName}
+                        {cardholderData.holderName}
                       </p>
                     </div>
                     

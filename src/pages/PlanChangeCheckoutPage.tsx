@@ -19,6 +19,9 @@ interface CreditCardData {
   expiryMonth: string;
   expiryYear: string;
   ccv: string;
+}
+
+interface CardholderData {
   holderName: string;
   holderCpf: string;
 }
@@ -61,7 +64,10 @@ const PlanChangeCheckoutPage = () => {
     number: '',
     expiryMonth: '',
     expiryYear: '',
-    ccv: '',
+    ccv: ''
+  });
+
+  const [cardholderData, setCardholderData] = useState<CardholderData>({
     holderName: '',
     holderCpf: ''
   });
@@ -242,15 +248,16 @@ const PlanChangeCheckoutPage = () => {
       [field]: value
     }));
   };
+
+  const handleCardholderChange = (field: keyof CardholderData, value: string) => {
+    setCardholderData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
   const validateCreditCard = (): boolean => {
-    const {
-      number,
-      expiryMonth,
-      expiryYear,
-      ccv,
-      holderName,
-      holderCpf
-    } = creditCardData;
+    const { number, expiryMonth, expiryYear, ccv } = creditCardData;
+    const { holderName, holderCpf } = cardholderData;
     if (!number || !expiryMonth || !expiryYear || !ccv || !holderName || !holderCpf) {
       toast({
         title: "Campos obrigatórios",
@@ -355,7 +362,10 @@ const PlanChangeCheckoutPage = () => {
 
       // Add payment method data
       if (useNewCard) {
-        body.creditCard = creditCardData;
+        body.creditCard = {
+          ...creditCardData,
+          ...cardholderData
+        };
       } else {
         body.savedCardToken = selectedCardToken;
       }
@@ -457,7 +467,13 @@ const PlanChangeCheckoutPage = () => {
                       <CardTitle>Dados do Novo Cartão</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <CreditCardForm data={creditCardData} onChange={handleCreditCardChange} disabled={loading} />
+                      <CreditCardForm 
+                        data={creditCardData} 
+                        onChange={handleCreditCardChange} 
+                        cardholderData={cardholderData}
+                        onCardholderChange={handleCardholderChange}
+                        disabled={loading} 
+                      />
                     </CardContent>
                   </Card>}
                 
@@ -482,9 +498,9 @@ const PlanChangeCheckoutPage = () => {
                       <p className="text-sm text-muted-foreground">
                         •••• •••• •••• {creditCardData.number.slice(-4)}
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        {creditCardData.holderName}
-                      </p>
+                       <p className="text-sm text-muted-foreground">
+                         {cardholderData.holderName}
+                       </p>
                     </div>
                     
                     <div className="flex gap-4">

@@ -80,18 +80,63 @@ const CheckoutPage = () => {
           .eq('id', user.id)
           .single();
         
-        setUserData(userProfile);
+        let finalUserProfile = userProfile;
+        
+        // Fallback: Create user profile from auth metadata if it doesn't exist
+        if (!userProfile) {
+          console.log('CheckoutPage: No user profile found, attempting to create from auth metadata');
+          
+          try {
+            if (user?.user_metadata) {
+              const profileData = {
+                name: user.user_metadata.full_name || user.user_metadata.name || user.email?.split('@')[0] || '',
+                phone: user.user_metadata.phone || user.user_metadata.whatsapp || '',
+                cep: user.user_metadata.cep || '',
+                street: user.user_metadata.address?.street || '',
+                number: user.user_metadata.address?.number || '',
+                complement: user.user_metadata.address?.complement || '',
+                neighborhood: user.user_metadata.address?.neighborhood || '',
+                city: user.user_metadata.address?.city || '',
+                state: user.user_metadata.address?.state || '',
+                ibge: user.user_metadata.address?.ibge || '',
+                ddd: user.user_metadata.address?.ddd || ''
+              };
+              
+              // Try to create the profile
+              const { data: newProfile, error } = await supabase
+                .from('poupeja_users')
+                .insert([{
+                  id: user.id,
+                  email: user.email,
+                  ...profileData
+                }])
+                .select()
+                .single();
+                
+              if (!error && newProfile) {
+                finalUserProfile = newProfile;
+                console.log('CheckoutPage: Successfully created fallback user profile');
+              } else {
+                console.error('CheckoutPage: Error creating fallback profile:', error);
+              }
+            }
+          } catch (fallbackError) {
+            console.error('CheckoutPage: Error in fallback profile creation:', fallbackError);
+          }
+        }
+        
+        setUserData(finalUserProfile);
         
         // Check if profile is complete for payment
-        const hasRequiredData = userProfile && 
-          userProfile.name && 
-          userProfile.phone && 
-          userProfile.cep && 
-          userProfile.street && 
-          userProfile.number && 
-          userProfile.neighborhood && 
-          userProfile.city && 
-          userProfile.state;
+        const hasRequiredData = finalUserProfile && 
+          finalUserProfile.name && 
+          finalUserProfile.phone && 
+          finalUserProfile.cep && 
+          finalUserProfile.street && 
+          finalUserProfile.number && 
+          finalUserProfile.neighborhood && 
+          finalUserProfile.city && 
+          finalUserProfile.state;
         
         setNeedsProfileCompletion(!hasRequiredData);
         

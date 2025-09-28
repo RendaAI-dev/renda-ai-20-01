@@ -12,8 +12,12 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     hmr: {
-      port: 8080,
+      clientPort: 443,
+      protocol: 'wss',
     }
+  },
+  preview: {
+    allowedHosts: ["rendaai.com.br"],
   },
   build: {
     outDir: 'dist',
@@ -44,6 +48,9 @@ export default defineConfig(({ mode }) => ({
     target: 'es2020',
     cssCodeSplit: true,
     assetsInlineLimit: 4096
+  },
+  define: {
+    __WS_TOKEN__: JSON.stringify(''),
   },
   plugins: [
     react(),

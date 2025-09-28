@@ -11,15 +11,24 @@ interface CreditCardData {
   ccv: string;
 }
 
+interface CardholderData {
+  holderName: string;
+  holderCpf: string;
+}
+
 interface CreditCardFormProps {
   data: CreditCardData;
   onChange: (field: keyof CreditCardData, value: string) => void;
+  cardholderData?: CardholderData;
+  onCardholderChange?: (field: keyof CardholderData, value: string) => void;
   disabled?: boolean;
 }
 
 export const CreditCardForm: React.FC<CreditCardFormProps> = ({
   data,
   onChange,
+  cardholderData,
+  onCardholderChange,
   disabled = false
 }) => {
 
@@ -61,6 +70,11 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
   const formatCCV = (value: string) => {
     const v = value.replace(/\D/g, '');
     return v.substring(0, 4);
+  };
+
+  const formatCPF = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
   };
 
 
@@ -129,6 +143,15 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
     onChange('ccv', formatted);
   };
 
+  const handleHolderNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onCardholderChange?.('holderName', e.target.value);
+  };
+
+  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCPF(e.target.value);
+    onCardholderChange?.('holderCpf', formatted);
+  };
+
 
   return (
     <div className="space-y-4">
@@ -158,6 +181,40 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
         </div>
       </div>
 
+      {cardholderData && onCardholderChange && (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="holderName">Nome completo do titular *</Label>
+            <Input
+              id="holderName"
+              type="text"
+              placeholder="Nome como está no cartão"
+              value={cardholderData.holderName}
+              onChange={handleHolderNameChange}
+              disabled={disabled}
+            />
+            <p className="text-xs text-muted-foreground">
+              Digite o nome exatamente como está no cartão
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="holderCpf">CPF do titular *</Label>
+            <Input
+              id="holderCpf"
+              type="text"
+              placeholder="000.000.000-00"
+              value={cardholderData.holderCpf}
+              onChange={handleCpfChange}
+              disabled={disabled}
+              maxLength={14}
+            />
+            <p className="text-xs text-muted-foreground">
+              CPF da pessoa que é titular do cartão
+            </p>
+          </div>
+        </>
+      )}
 
       <div className="grid grid-cols-4 gap-4">
         <div className="space-y-2">

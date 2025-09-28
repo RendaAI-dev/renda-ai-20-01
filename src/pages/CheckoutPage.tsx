@@ -552,26 +552,20 @@ const CheckoutPage = () => {
                       <CardTitle>Dados do Cartão e Titular</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      <div>
-                        <h4 className="text-sm font-medium mb-3">Dados do Cartão</h4>
-                        <CreditCardForm
-                          data={creditCardData}
-                          onChange={handleCreditCardChange}
-                          disabled={loading}
-                        />
-                      </div>
+                      <CreditCardForm
+                        data={creditCardData}
+                        onChange={handleCreditCardChange}
+                        cardholderData={cardholderData}
+                        onCardholderChange={handleCardholderDataChange}
+                        disabled={loading}
+                      />
                       
-                      <Separator />
-                      
-                      <div>
-                        <h4 className="text-sm font-medium mb-3">Dados do Titular</h4>
-                        <CardholderDataForm
-                          data={cardholderData}
-                          onChange={handleCardholderDataChange}
-                          disabled={loading}
-                          userData={userData}
-                        />
-                      </div>
+                      {userData && (
+                        <>
+                          <Separator />
+                          <CardholderDataForm userData={userData} />
+                        </>
+                      )}
                     </CardContent>
                   </Card>
                 )}

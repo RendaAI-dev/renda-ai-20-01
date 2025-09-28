@@ -33,7 +33,22 @@ serve(async (req) => {
       throw new Error('Usuário não autenticado');
     }
 
-    const { newPlanType, currentPlanType, creditCard, savedCardToken } = await req.json();
+    // Parse request body safely
+    const payload = await req.json().catch(() => ({}));
+
+    // Handle healthcheck requests
+    if (payload?.test === true || payload?.healthcheck === true) {
+      console.log('[CHANGE-PLAN-CHECKOUT] Healthcheck recebido');
+      return new Response(JSON.stringify({ 
+        success: true, 
+        status: 'ok', 
+        message: 'change-plan-checkout function is available' 
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    const { newPlanType, currentPlanType, creditCard, savedCardToken } = payload;
     console.log('[CHANGE-PLAN-CHECKOUT] Dados recebidos:', { 
       user: user.email, 
       newPlanType, 
@@ -44,6 +59,7 @@ serve(async (req) => {
 
     // Validar entrada
     if (!newPlanType || !currentPlanType || !['monthly', 'annual'].includes(newPlanType) || !['monthly', 'annual'].includes(currentPlanType)) {
+      console.log('[CHANGE-PLAN-CHECKOUT] ❌ Erro: Tipos de plano inválidos');
       throw new Error('Tipos de plano inválidos');
     }
 

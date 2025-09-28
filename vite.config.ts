@@ -12,7 +12,6 @@ export default defineConfig(({ mode }) => ({
     host: "rendaai.com.br",
     port: 4173,
     strictPort: true,
-    allowedHosts: true,
     hmr: {
       host: "rendaai.com.br",
     },
@@ -21,7 +20,7 @@ export default defineConfig(({ mode }) => ({
     host: "rendaai.com.br",
     port: 4173,
     strictPort: true,
-    allowedHosts: true,
+    allowedHosts: ["rendaai.com.br", "localhost", "127.0.0.1"],
   },
   build: {
     outDir: 'dist',

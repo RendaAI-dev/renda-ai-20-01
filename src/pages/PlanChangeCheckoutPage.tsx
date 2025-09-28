@@ -330,6 +330,42 @@ const PlanChangeCheckoutPage = () => {
     }
   };
   const handleProcessPayment = async () => {
+    console.log('[PLAN-CHANGE-CHECKOUT] Iniciando processamento...');
+    console.log('[PLAN-CHANGE-CHECKOUT] Estado atual:', { checkoutData, config });
+    
+    // Verificar se checkoutData está disponível
+    if (!checkoutData) {
+      console.error('[PLAN-CHANGE-CHECKOUT] checkoutData não disponível');
+      toast({
+        title: "Erro de dados",
+        description: "Dados da mudança de plano não estão disponíveis. Tente novamente.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validar se os tipos de plano estão definidos
+    if (!checkoutData.newPlan?.type || !checkoutData.currentPlan?.type) {
+      console.error('[PLAN-CHANGE-CHECKOUT] Tipos de plano inválidos:', {
+        newPlanType: checkoutData.newPlan?.type,
+        currentPlanType: checkoutData.currentPlan?.type
+      });
+      
+      // Fallback: tentar obter diretamente dos searchParams
+      const newPlanType = searchParams.get('newPlan');
+      const currentPlanType = searchParams.get('currentPlan');
+      
+      if (!newPlanType || !currentPlanType) {
+        toast({
+          title: "Erro nos parâmetros",
+          description: "Parâmetros de mudança de plano inválidos. Redirecionando...",
+          variant: "destructive"
+        });
+        navigate('/plans');
+        return;
+      }
+    }
+
     // Verificar disponibilidade da função antes de processar
     const isAvailable = await checkFunctionAvailability();
     if (!isAvailable) {
@@ -351,13 +387,23 @@ const PlanChangeCheckoutPage = () => {
       });
       return;
     }
+    
     setLoading(true);
     setStep(3); // Processing step
 
     try {
+      // Usar fallback para os tipos de plano se necessário
+      const newPlanType = checkoutData.newPlan?.type || searchParams.get('newPlan');
+      const currentPlanType = checkoutData.currentPlan?.type || searchParams.get('currentPlan');
+      
+      console.log('[PLAN-CHANGE-CHECKOUT] Tipos de plano finais:', {
+        newPlanType,
+        currentPlanType
+      });
+
       const body: any = {
-        newPlanType: checkoutData.newPlan.type,
-        currentPlanType: checkoutData.currentPlan.type
+        newPlanType,
+        currentPlanType
       };
 
       // Add payment method data

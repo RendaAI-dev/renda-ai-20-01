@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => ({
     strictPort: true,
     allowedHosts: true,
     hmr: {
-      host: "localhost",
+      host: "rendaai.com.br",
     },
   },
   preview: {

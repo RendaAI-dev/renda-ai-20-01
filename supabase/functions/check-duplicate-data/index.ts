@@ -50,16 +50,26 @@ serve(async (req) => {
 
     // Check CPF duplicate
     if (cpf && cpf.trim()) {
+      const cleanCpf = cpf.replace(/\D/g, ''); // Remove all non-digits
+      const formattedCpf = cleanCpf.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4'); // Format as 000.000.000-00
+      
+      console.log('CPF duplicate check:', { 
+        original: cpf, 
+        clean: cleanCpf, 
+        formatted: formattedCpf 
+      });
+
       const { data: cpfData, error: cpfError } = await supabaseClient
         .from('poupeja_users')
         .select('id')
-        .eq('cpf', cpf.trim())
+        .in('cpf', [cleanCpf, formattedCpf])
         .limit(1);
       
       if (cpfError) {
         console.error('Error checking CPF duplicate:', cpfError);
       } else {
         duplicates.cpf = cpfData && cpfData.length > 0;
+        console.log('CPF check result:', { found: duplicates.cpf, count: cpfData?.length || 0 });
       }
     }
 

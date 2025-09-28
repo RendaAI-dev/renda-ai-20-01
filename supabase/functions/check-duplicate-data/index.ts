@@ -19,13 +19,18 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { phone, cpf } = await req.json();
+    const { phone, cpf, email } = await req.json();
     
-    console.log('Checking duplicates for:', { phone: phone ? 'provided' : 'null', cpf: cpf ? 'provided' : 'null' });
+    console.log('Checking duplicates for:', { 
+      phone: phone ? 'provided' : 'null', 
+      cpf: cpf ? 'provided' : 'null',
+      email: email ? 'provided' : 'null'
+    });
 
     const duplicates = {
       phone: false,
-      cpf: false
+      cpf: false,
+      email: false
     };
 
     // Check phone duplicate
@@ -58,6 +63,18 @@ serve(async (req) => {
       }
     }
 
+    // Check email duplicate in auth.users
+    if (email && email.trim()) {
+      const { data: authData, error: authError } = await supabaseClient.auth.admin.listUsers();
+      
+      if (authError) {
+        console.error('Error checking email duplicate:', authError);
+      } else {
+        const emailExists = authData.users.some(user => user.email === email.trim());
+        duplicates.email = emailExists;
+      }
+    }
+
     console.log('Duplicate check results:', duplicates);
 
     return new Response(JSON.stringify({ duplicates }), {
@@ -66,7 +83,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in check-duplicate-data function:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error', duplicates: { phone: false, cpf: false } }),
+      JSON.stringify({ error: 'Internal server error', duplicates: { phone: false, cpf: false, email: false } }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

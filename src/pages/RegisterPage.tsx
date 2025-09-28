@@ -14,6 +14,7 @@ import { WhatsAppInput } from '@/components/common/WhatsAppInput';
 import { CEPInput } from '@/components/common/CEPInput';
 import { AddressDisplay } from '@/components/common/AddressDisplay';
 import { EnhancedDatePicker } from '@/components/ui/enhanced-date-picker';
+import { EmailInput } from '@/components/common/EmailInput';
 import { ArrowLeft } from 'lucide-react';
 import type { Address } from '@/services/viacepService';
 
@@ -469,20 +470,11 @@ const RegisterPage = () => {
             />
           </div>
 
-          <div>
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              placeholder="seuemail@exemplo.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1"
-            />
-          </div>
+          <EmailInput
+            value={email}
+            onChange={setEmail}
+            required
+          />
 
           <WhatsAppInput
             value={whatsapp}

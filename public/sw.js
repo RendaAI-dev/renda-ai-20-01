@@ -1,27 +1,27 @@
-// Simple Service Worker para Renda AI
-// Simplified to avoid conflicts with Workbox in production
+// Service Worker para Renda AI
+// Gerado automaticamente pelo sistema de branding
 
-const CACHE_NAME = 'renda-ai-simple-v1.0.1';
+const CACHE_NAME = 'renda-ai-v1.0.1';
+const urlsToCache = [
+  '/',
+  '/index.html',
+  '/src/main.tsx',
+  '/src/App.css',
+  '/src/index.css'
+];
 
-// Minimal caching for offline support
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(urlsToCache))
+  );
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
-});
-
-// Simple fetch handler - only cache essentials
 self.addEventListener('fetch', (event) => {
-  // Only handle navigation requests for offline support
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match('/') || caches.match('/index.html');
-      })
-    );
-  }
+  event.respondWith(
+    caches.match(event.request)
+      .then((response) => response || fetch(event.request))
+  );
 });
 
 // Push notification handling

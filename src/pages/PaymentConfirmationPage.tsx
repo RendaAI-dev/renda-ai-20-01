@@ -2,63 +2,22 @@ import React from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, CheckCircle, AlertTriangle, ArrowRight, RefreshCw } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle, ArrowRight } from 'lucide-react';
 import { usePaymentConfirmation } from '@/hooks/usePaymentConfirmation';
 import { useToast } from '@/components/ui/use-toast';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 const PaymentConfirmationPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [isManualSyncing, setIsManualSyncing] = useState(false);
 
   const email = searchParams.get('email') || '';
   const planType = searchParams.get('plan_type') || 'monthly';
   const subscriptionId = searchParams.get('subscription_id') || '';
   const paymentId = searchParams.get('payment_id') || '';
 
-  const { status, subscription, error, verifyPaymentOnAsaas, syncPaymentManually } = usePaymentConfirmation(subscriptionId, paymentId, email);
-
-  const handleManualSync = async () => {
-    if (isManualSyncing) return;
-    
-    setIsManualSyncing(true);
-    try {
-      toast({
-        title: "Sincronizando...",
-        description: "Buscando dados do pagamento no Asaas...",
-      });
-
-      const success = await syncPaymentManually();
-      if (success) {
-        toast({
-          title: "Sincronização concluída!",
-          description: "Verificando status do pagamento...",
-        });
-        
-        // Aguardar 2 segundos e verificar status
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-      } else {
-        toast({
-          title: "Erro na sincronização",
-          description: "Não foi possível sincronizar o pagamento. Tente novamente.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Erro na sincronização manual:', error);
-      toast({
-        title: "Erro na sincronização", 
-        description: "Ocorreu um erro inesperado. Tente novamente.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsManualSyncing(false);
-    }
-  };
+  const { status, subscription, error, verifyPaymentOnAsaas } = usePaymentConfirmation(subscriptionId, paymentId);
 
   useEffect(() => {
     if (status === 'confirmed') {
@@ -88,22 +47,6 @@ const PaymentConfirmationPage = () => {
             <p className="text-muted-foreground">
               Aguarde enquanto processamos seu pagamento. Isso pode levar alguns minutos.
             </p>
-            <div className="mt-6">
-              <Button 
-                onClick={handleManualSync}
-                disabled={isManualSyncing}
-                variant="outline"
-                size="sm"
-                className="flex items-center"
-              >
-                {isManualSyncing ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Forçar Sincronização
-              </Button>
-            </div>
           </div>
         );
       
@@ -127,19 +70,6 @@ const PaymentConfirmationPage = () => {
               O pagamento está demorando mais que o esperado para ser processado.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center mt-4">
-              <Button 
-                onClick={handleManualSync}
-                disabled={isManualSyncing}
-                variant="default"
-                className="flex items-center"
-              >
-                {isManualSyncing ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Forçar Sincronização
-              </Button>
               <Button 
                 onClick={verifyPaymentOnAsaas}
                 variant="outline"

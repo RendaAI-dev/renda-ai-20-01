@@ -375,52 +375,7 @@ const PlanChangeCheckoutPage = () => {
       if (error) {
         console.error('[PLAN-CHANGE-CHECKOUT] Erro na Edge Function:', error);
 
-        // Tratamento específico para erro de cliente Asaas não encontrado
-        if (error.message?.includes('Cliente Asaas não encontrado')) {
-          console.log('[PLAN-CHANGE-CHECKOUT] Tentando sincronizar dados do Asaas...');
-          
-          try {
-            // Tentar sincronizar dados do usuário
-            const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-asaas-payment', {
-              body: { 
-                email: currentUser?.email,
-                subscriptionId: subscription?.asaas_subscription_id 
-              }
-            });
-
-            if (syncError) {
-              console.error('[PLAN-CHANGE-CHECKOUT] Erro na sincronização:', syncError);
-              throw new Error('Não foi possível sincronizar os dados. Tente novamente.');
-            }
-
-            console.log('[PLAN-CHANGE-CHECKOUT] Sincronização concluída, tentando novamente...');
-            
-            // Tentar novamente após sincronização
-            const { data: retryData, error: retryError } = await supabase.functions.invoke('change-plan-checkout', {
-              body
-            });
-
-            if (retryError) {
-              throw new Error(retryError.message || 'Erro após sincronização');
-            }
-
-            if (retryData?.success) {
-              setStep(4);
-              await checkSubscription();
-              toast({
-                title: "Plano alterado com sucesso!",
-                description: "Dados sincronizados e plano alterado."
-              });
-              setTimeout(() => navigate('/plans?success=plan_change'), 1500);
-              return;
-            }
-          } catch (syncError) {
-            console.error('[PLAN-CHANGE-CHECKOUT] Erro na recuperação:', syncError);
-            throw new Error('Falha na sincronização. Entre em contato com o suporte.');
-          }
-        }
-
-        // Tratamento de outros tipos de erro
+        // Tratamento específico para diferentes tipos de erro
         let errorMessage = "Erro ao processar mudança de plano";
         if (error.message?.includes('Failed to fetch') || error.message?.includes('net::ERR_FAILED')) {
           errorMessage = "🚀 A Edge Function não está deployada ou acessível. Acesse o painel do Supabase e execute o deploy da função 'change-plan-checkout'.";
@@ -448,69 +403,8 @@ const PlanChangeCheckoutPage = () => {
           navigate('/plans?success=plan_change');
         }, 1500);
       } else {
-        // Handle structured error responses
-        const errorCode = data?.error;
-        const errorMessage = data?.message || 'Erro desconhecido na alteração do plano';
-        
-        console.error('[PLAN-CHANGE-CHECKOUT] Erro estruturado:', { errorCode, errorMessage, data });
-        
-        // Handle specific error codes
-        if (errorCode === 'INVALID_CARD_TOKEN' && data?.requiresNewCard) {
-          toast({
-            title: "Cartão salvo inválido",
-            description: "Por favor, cadastre um novo cartão de crédito.",
-            variant: "destructive"
-          });
-          setUseNewCard(true);
-          setStep(1); // Back to card input
-          return;
-        }
-        
-        if (errorCode === 'TOKEN_REQUIRED') {
-          toast({
-            title: "Método de pagamento necessário",
-            description: "Por favor, selecione um cartão ou cadastre um novo.",
-            variant: "destructive"
-          });
-          setStep(1); // Back to card input
-          return;
-        }
-        
-        if (errorCode === 'SUBSCRIPTION_CREATION_FAILED') {
-          const detailsStr = String(data?.details || '');
-          if (
-            detailsStr.includes('invalid_creditCard') ||
-            (detailsStr.includes('creditCardToken') && (detailsStr.includes('não encontrado') || detailsStr.includes('not found')))
-          ) {
-            toast({
-              title: "Cartão salvo inválido",
-              description: "Por favor, cadastre um novo cartão de crédito.",
-              variant: "destructive"
-            });
-            setUseNewCard(true);
-            setStep(1);
-            return;
-          }
-          toast({
-            title: "Falha na criação da assinatura",
-            description: "Não foi possível criar a nova assinatura. Verifique os dados do cartão e tente novamente.",
-            variant: "destructive"
-          });
-          setStep(1); // Back to card input
-          return;
-        }
-        
-        if (errorCode === 'DATABASE_UPDATE_FAILED') {
-          toast({
-            title: "Assinatura criada com problemas",
-            description: "A assinatura foi criada no processador, mas houve um problema interno. Entre em contato com o suporte.",
-            variant: "destructive"
-          });
-          setStep(2); // Stay on confirmation but show error
-          return;
-        }
-        
-        // Generic error handling
+        const errorMessage = data?.error || 'Erro desconhecido na alteração do plano';
+        console.error('[PLAN-CHANGE-CHECKOUT] Erro retornado pela função:', errorMessage);
         throw new Error(errorMessage);
       }
     } catch (error) {

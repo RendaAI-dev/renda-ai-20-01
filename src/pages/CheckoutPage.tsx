@@ -11,8 +11,6 @@ import { SavedCardSelector } from '@/components/checkout/SavedCardSelector';
 import { PlanSummary } from '@/components/checkout/PlanSummary';
 import { CheckoutSteps } from '@/components/checkout/CheckoutSteps';
 import { CheckoutSummary } from '@/components/checkout/CheckoutSummary';
-import { CardholderDataForm } from '@/components/checkout/CardholderDataForm';
-import { logError, logSilent } from '@/utils/consoleOptimizer';
 
 interface CreditCardData {
   number: string;
@@ -21,19 +19,6 @@ interface CreditCardData {
   ccv: string;
   holderName: string;
   holderCpf: string;
-}
-
-interface CardholderData {
-  name: string;
-  cpf: string;
-  cep: string;
-  street: string;
-  number: string;
-  complement: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  phone: string;
 }
 
 interface CheckoutState {
@@ -64,64 +49,23 @@ const CheckoutPage = () => {
     holderName: '',
     holderCpf: ''
   });
-  
-  const [cardholderData, setCardholderData] = useState<CardholderData>({
-    name: '',
-    cpf: '',
-    cep: '',
-    street: '',
-    number: '',
-    complement: '',
-    neighborhood: '',
-    city: '',
-    state: '',
-    phone: ''
-  });
 
-  // Get current user on mount and populate cardholder data
+  // Get current user on mount
   useEffect(() => {
     const getCurrentUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUser(user);
-      
-      if (user?.id) {
-        // Get user data from poupeja_users to pre-fill cardholder information
-        try {
-          const { data: userData, error } = await supabase
-            .from('poupeja_users')
-            .select('name, phone, cep, street, number, complement, neighborhood, city, state')
-            .eq('id', user.id)
-            .maybeSingle();
-            
-          if (!error && userData) {
-            setCardholderData(prev => ({
-              ...prev,
-              // NOTE: name and cpf are NOT pre-filled - they come from credit card form
-              phone: userData.phone || '',
-              cep: userData.cep || '',
-              street: userData.street || '',
-              number: userData.number || '',
-              complement: userData.complement || '',
-              neighborhood: userData.neighborhood || '',
-              city: userData.city || '',
-              state: userData.state || ''
-            }));
-          }
-        } catch (error) {
-          logError('Error fetching user data for cardholder info:', error);
-        }
-      }
     };
     getCurrentUser();
   }, []);
 
   // Estado do checkout passado via location, localStorage ou URL params
   const getCheckoutState = (): CheckoutState | null => {
-    logSilent('[Checkout Page] Iniciando busca por dados de checkout...');
+    console.log('[Checkout Page] Iniciando busca por dados de checkout...');
     
     // 1. Primeiro tenta obter do state da navegação
     if (location.state) {
-      logSilent('[Checkout Page] ✅ Dados obtidos via location.state:', location.state);
+      console.log('[Checkout Page] ✅ Dados obtidos via location.state:', location.state);
       return location.state as CheckoutState;
     }
     
@@ -130,12 +74,12 @@ const CheckoutPage = () => {
     if (storedState) {
       try {
         const parsed = JSON.parse(storedState);
-        logSilent('[Checkout Page] ✅ Dados obtidos via localStorage:', parsed);
+        console.log('[Checkout Page] ✅ Dados obtidos via localStorage:', parsed);
         // Limpar após uso
         localStorage.removeItem('checkoutState');
         return parsed;
       } catch (error) {
-        logError('[Checkout Page] ❌ Erro ao parsear dados do localStorage:', error);
+        console.error('[Checkout Page] ❌ Erro ao parsear dados do localStorage:', error);
       }
     }
     
@@ -144,10 +88,10 @@ const CheckoutPage = () => {
     const emailParam = searchParams.get('email');
     
     if (planTypeParam && (planTypeParam === 'monthly' || planTypeParam === 'annual')) {
-      logSilent('[Checkout Page] 🔄 Tentando construir dados a partir da URL:', { planTypeParam, emailParam });
+      console.log('[Checkout Page] 🔄 Tentando construir dados a partir da URL:', { planTypeParam, emailParam });
       
       if (!config || configLoading) {
-        logSilent('[Checkout Page] ⏳ Aguardando configuração de planos...');
+        console.log('[Checkout Page] ⏳ Aguardando configuração de planos...');
         return null; // Retorna null para mostrar loading
       }
       
@@ -168,14 +112,14 @@ const CheckoutPage = () => {
           isUpgrade: false
         };
         
-        logSilent('[Checkout Page] ✅ Dados reconstruídos a partir da URL:', reconstructedState);
+        console.log('[Checkout Page] ✅ Dados reconstruídos a partir da URL:', reconstructedState);
         return reconstructedState;
       } else {
-        logSilent('[Checkout Page] ❌ Não foi possível encontrar plano correspondente na configuração');
+        console.log('[Checkout Page] ❌ Não foi possível encontrar plano correspondente na configuração');
       }
     }
     
-    logSilent('[Checkout Page] ❌ Nenhum dado de checkout encontrado em nenhuma fonte');
+    console.log('[Checkout Page] ❌ Nenhum dado de checkout encontrado em nenhuma fonte');
     return null;
   };
   
@@ -184,11 +128,11 @@ const CheckoutPage = () => {
   
   useEffect(() => {
     const loadCheckoutData = () => {
-      logSilent('[Checkout Page] Carregando dados de checkout...');
+      console.log('[Checkout Page] Carregando dados de checkout...');
       const data = getCheckoutState();
       
       if (!data && !configLoading) {
-        logSilent('[Checkout Page] ❌ Dados do checkout não encontrados após carregar configuração, redirecionando para /plans');
+        console.log('[Checkout Page] ❌ Dados do checkout não encontrados após carregar configuração, redirecionando para /plans');
         toast({
           title: "Erro no checkout",
           description: "Dados do plano não encontrados. Redirecionando...",
@@ -199,7 +143,7 @@ const CheckoutPage = () => {
       }
       
       if (data) {
-        logSilent('[Checkout Page] ✅ Checkout inicializado com dados:', data);
+        console.log('[Checkout Page] ✅ Checkout inicializado com dados:', data);
         setCheckoutData(data);
       }
       
@@ -208,7 +152,7 @@ const CheckoutPage = () => {
 
     // Se a configuração ainda está carregando, aguardar
     if (configLoading) {
-      logSilent('[Checkout Page] ⏳ Aguardando configuração carregar...');
+      console.log('[Checkout Page] ⏳ Aguardando configuração carregar...');
       return;
     }
 
@@ -229,27 +173,6 @@ const CheckoutPage = () => {
 
   const handleCreditCardChange = (field: keyof CreditCardData, value: string) => {
     setCreditCardData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-
-    // Auto-sync name and CPF from credit card to cardholder data
-    if (field === 'holderName') {
-      setCardholderData(prev => ({
-        ...prev,
-        name: value
-      }));
-    }
-    if (field === 'holderCpf') {
-      setCardholderData(prev => ({
-        ...prev,
-        cpf: value
-      }));
-    }
-  };
-
-  const handleCardholderDataChange = (field: keyof CardholderData, value: string) => {
-    setCardholderData(prev => ({
       ...prev,
       [field]: value
     }));
@@ -333,69 +256,12 @@ const CheckoutPage = () => {
     return true;
   };
 
-  const validateCardholderData = (): boolean => {
-    const { name, cpf, cep, street, number, neighborhood, city, state, phone } = cardholderData;
-    
-    // Name and CPF come from credit card data, so check those first
-    if (!creditCardData.holderName || !creditCardData.holderCpf) {
-      toast({
-        title: "Dados do cartão incompletos",
-        description: "Por favor, preencha o nome e CPF do titular do cartão",
-        variant: "destructive"
-      });
-      return false;
-    }
-
-    if (!cep || !street || !number || !neighborhood || !city || !state || !phone) {
-      toast({
-        title: "Dados de endereço incompletos",
-        description: "Alguns dados do seu cadastro estão faltando. Atualize seu perfil primeiro.",
-        variant: "destructive"
-      });
-      return false;
-    }
-
-    // Validate CPF from credit card
-    if (!validateCPF(creditCardData.holderCpf)) {
-      toast({
-        title: "CPF inválido",
-        description: "Por favor, digite um CPF válido no cartão de crédito",
-        variant: "destructive"
-      });
-      return false;
-    }
-
-    // Validate CEP format
-    const cleanCep = cep.replace(/\D/g, '');
-    if (cleanCep.length !== 8 || /^0{8}$/.test(cleanCep)) {
-      toast({
-        title: "CEP inválido",
-        description: "CEP do seu cadastro é inválido. Atualize seu perfil.",
-        variant: "destructive"
-      });
-      return false;
-    }
-
-    // Validate phone
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.length < 10 || cleanPhone.length > 11) {
-      toast({
-        title: "Telefone inválido",
-        description: "Telefone do seu cadastro é inválido. Atualize seu perfil.",
-        variant: "destructive"
-      });
-      return false;
-    }
-
-    return true;
-  };
-
   const handleNext = () => {
     if (step === 1) {
       // If using saved card, skip validation
       if (selectedCardToken && !useNewCard) {
         setStep(2);
-      } else if (validateCreditCard() && validateCardholderData()) {
+      } else if (validateCreditCard()) {
         setStep(2);
       }
     }
@@ -421,7 +287,7 @@ const CheckoutPage = () => {
 
   const handleProcessPayment = async () => {
     // Validate based on payment method
-    if (useNewCard && (!validateCreditCard() || !validateCardholderData())) return;
+    if (useNewCard && !validateCreditCard()) return;
     if (!useNewCard && !selectedCardToken) {
       toast({
         title: "Erro de validação",
@@ -444,7 +310,6 @@ const CheckoutPage = () => {
       // Add payment method data
       if (useNewCard) {
         body.creditCard = creditCardData;
-        body.cardholderData = cardholderData; // Include complete cardholder information
       } else {
         body.savedCardToken = selectedCardToken;
       }
@@ -495,7 +360,7 @@ const CheckoutPage = () => {
         throw new Error(data.error || 'Erro no processamento do pagamento');
       }
     } catch (error) {
-      logError('Checkout error:', error);
+      console.error('Checkout error:', error);
       
       // Parse error message to provide more specific feedback
       let errorTitle = "Erro no pagamento";
@@ -555,29 +420,19 @@ const CheckoutPage = () => {
                 />
                 
                 {useNewCard && (
-                  <div className="space-y-6">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Dados do Novo Cartão</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <CreditCardForm
-                          data={creditCardData}
-                          onChange={handleCreditCardChange}
-                          disabled={loading}
-                          currentUser={currentUser}
-                        />
-                      </CardContent>
-                    </Card>
-                    
-                    <CardholderDataForm
-                      data={cardholderData}
-                      onChange={handleCardholderDataChange}
-                      disabled={loading}
-                      creditCardHolderName={creditCardData.holderName}
-                      creditCardHolderCpf={creditCardData.holderCpf}
-                    />
-                  </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Dados do Novo Cartão</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <CreditCardForm
+                        data={creditCardData}
+                        onChange={handleCreditCardChange}
+                        disabled={loading}
+                        currentUser={currentUser}
+                      />
+                    </CardContent>
+                  </Card>
                 )}
                 
                 <div className="flex gap-4">

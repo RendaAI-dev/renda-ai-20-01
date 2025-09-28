@@ -7,7 +7,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useAppContext } from '@/contexts/AppContext';
 import { Mail, Key, Loader2 } from 'lucide-react';
-import { logConfig, logError } from '@/utils/consoleOptimizer';
 
 const AdminProfileConfig = () => {
   const { user, updateUserProfile } = useAppContext();
@@ -25,24 +24,24 @@ const AdminProfileConfig = () => {
     setUpdatingProfile(true);
     
     try {
-      logConfig('AdminProfileConfig: Updating profile...');
+      console.log('AdminProfileConfig: Updating profile...');
       
       // Update name using the context method
       if (name !== user?.name) {
-        logConfig('AdminProfileConfig: Updating name from', user?.name, 'to', name);
+        console.log('AdminProfileConfig: Updating name from', user?.name, 'to', name);
         await updateUserProfile({ name });
       }
       
       // Update email if changed using admin function (no confirmation required)
       if (email !== user?.email) {
-        logConfig('AdminProfileConfig: Updating admin email');
+        console.log('AdminProfileConfig: Updating admin email');
         
         const { data, error } = await supabase.functions.invoke('update-admin-email', {
           body: { email: email }
         });
 
         if (error) {
-          logError('AdminProfileConfig: Email update error:', error);
+          console.error('AdminProfileConfig: Email update error:', error);
           toast({
             title: 'Erro',
             description: error.message || 'Erro ao atualizar email',
@@ -51,7 +50,7 @@ const AdminProfileConfig = () => {
           return;
         }
         
-        logConfig('AdminProfileConfig: Email update success');
+        console.log('AdminProfileConfig: Email update success');
         toast({
           title: 'Sucesso',
           description: 'Email atualizado com sucesso sem necessidade de confirmação.',
@@ -64,10 +63,10 @@ const AdminProfileConfig = () => {
       });
       
       setIsEditing(false);
-      logConfig('AdminProfileConfig: Profile update completed successfully');
+      console.log('AdminProfileConfig: Profile update completed successfully');
       
     } catch (error) {
-      logError("AdminProfileConfig: Error updating profile:", error);
+      console.error("AdminProfileConfig: Error updating profile:", error);
       toast({
         title: 'Erro',
         description: 'Erro ao atualizar perfil',
@@ -106,7 +105,7 @@ const AdminProfileConfig = () => {
       setConfirmPassword('');
       
     } catch (error) {
-      logError('Error updating password:', error);
+      console.error('Error updating password:', error);
       toast({
         title: 'Erro',
         description: 'Erro ao alterar senha',

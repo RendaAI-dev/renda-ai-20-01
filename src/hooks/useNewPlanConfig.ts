@@ -93,6 +93,9 @@ export const useNewPlanConfig = (): PlanConfigResponse => {
     // Verificar cache primeiro
     const now = Date.now();
     if (cachedConfig && cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION) {
+      if (import.meta.env.DEV) {
+        console.log('[useNewPlanConfig] Usando dados do cache');
+      }
       return cachedConfig;
     }
 
@@ -100,6 +103,9 @@ export const useNewPlanConfig = (): PlanConfigResponse => {
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
     try {
+      if (import.meta.env.DEV) {
+        console.log('[useNewPlanConfig] Iniciando busca de configurações...');
+      }
       
       // Promise race para timeout
       const fetchWithTimeout = async () => {
@@ -121,16 +127,29 @@ export const useNewPlanConfig = (): PlanConfigResponse => {
         let plansData = null;
         if (plansResponse.status === 'fulfilled' && !plansResponse.value.error) {
           plansData = plansResponse.value.data;
+        } else {
+          if (import.meta.env.DEV) {
+            console.warn('[useNewPlanConfig] Erro ao buscar planos, usando fallback:', 
+              plansResponse.status === 'rejected' ? plansResponse.reason : plansResponse.value.error);
+          }
         }
 
         // Processar resposta das configurações públicas
         let publicData = null;
         if (publicResponse.status === 'fulfilled' && !publicResponse.value.error) {
           publicData = publicResponse.value.data;
+        } else {
+          if (import.meta.env.DEV) {
+            console.warn('[useNewPlanConfig] Erro ao buscar configurações públicas:', 
+              publicResponse.status === 'rejected' ? publicResponse.reason : publicResponse.value.error);
+          }
         }
 
         // Se não temos dados dos planos, usar fallback
         if (!plansData?.success || !plansData?.plans?.length) {
+          if (import.meta.env.DEV) {
+            console.log('[useNewPlanConfig] Usando planos de fallback');
+          }
           const contactPhone = publicData?.success && publicData?.settings?.contact_phone?.value 
             ? publicData.settings.contact_phone.value 
             : '';
@@ -190,16 +209,27 @@ export const useNewPlanConfig = (): PlanConfigResponse => {
       cachedConfig = result;
       cacheTimestamp = now;
       
+      if (import.meta.env.DEV) {
+        console.log('[useNewPlanConfig] Config carregada com sucesso');
+      }
       return result;
 
     } catch (err) {
       clearTimeout(timeoutId);
+      if (import.meta.env.DEV) {
+        console.error('[useNewPlanConfig] Erro ao carregar configurações:', err);
+      }
       
       // Em caso de erro, usar fallback completo
-      return {
+      const fallbackConfig = {
         plans: fallbackPlans,
         contact: { phone: '' }
       };
+      
+      if (import.meta.env.DEV) {
+        console.log('[useNewPlanConfig] Usando configuração de fallback completa');
+      }
+      return fallbackConfig;
     }
   };
 

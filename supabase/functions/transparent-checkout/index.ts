@@ -1,40 +1,24 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// Credit card data interface
 interface CreditCardData {
-  holderName: string;
   number: string;
   expiryMonth: string;
   expiryYear: string;
   ccv: string;
+  holderName: string;
   holderCpf: string;
 }
 
-// Cardholder data interface
-interface CardholderData {
-  name: string;
-  cpf: string;
-  cep: string;
-  street: string;
-  number: string;
-  complement: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  phone: string;
-}
-
-// Request body interface
 interface CheckoutRequest {
   planType: 'monthly' | 'annual';
   creditCard?: CreditCardData;
-  cardholderData?: CardholderData;
   savedCardToken?: string;
   isUpgrade?: boolean;
   currentSubscriptionId?: string;
@@ -64,119 +48,169 @@ serve(async (req) => {
   try {
     console.log('[TRANSPARENT-CHECKOUT] Iniciando processamento...');
     
-    // Get user from JWT token
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Authenticate user
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('Authorization header missing');
     }
 
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
+    const { data: { user }, error: userError } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
     );
 
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) {
       throw new Error('User not authenticated');
     }
 
     console.log('[TRANSPARENT-CHECKOUT] Usuário autenticado:', user.id);
-    
-    // Parse request body
-    const body = await req.json() as CheckoutRequest;
-    const { 
-      planType, 
-      creditCard, 
-      cardholderData,
-      savedCardToken, 
-      isUpgrade, 
-      currentSubscriptionId 
-    } = body;
 
-    const remoteIp = req.headers.get('cf-connecting-ip') || 
-                     req.headers.get('x-forwarded-for') || 
-                     req.headers.get('x-real-ip') || 
-                     'unknown';
+    // Parse request body
+    const requestBody: CheckoutRequest = await req.json();
+    const { planType, creditCard, savedCardToken, isUpgrade, currentSubscriptionId } = requestBody;
     
-    console.log('[TRANSPARENT-CHECKOUT] remoteIp:', remoteIp);
-    
-    console.log('[TRANSPARENT-CHECKOUT] Dados recebidos:', {
-      planType,
+    console.log('[TRANSPARENT-CHECKOUT] Dados recebidos:', { 
+      planType, 
       hasNewCard: !!creditCard,
-      hasCardholderData: !!cardholderData,
       hasSavedToken: !!savedCardToken,
-      isUpgrade: !!isUpgrade
+      isUpgrade 
     });
 
-    // Get Asaas configuration
+    // Extract client IP to help Asaas risk analysis confirm payments faster
+    const forwardedFor = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+    const realIp = req.headers.get('x-real-ip') || req.headers.get('cf-connecting-ip');
+    const remoteIp = forwardedFor || realIp || '';
+    console.log('[TRANSPARENT-CHECKOUT] remoteIp:', remoteIp || 'N/A');
+    // Get Asaas configuration directly from settings table (using service role)
     console.log('[TRANSPARENT-CHECKOUT] Buscando configurações do Asaas...');
     
-    const { data: asaasConfig, error: configError } = await supabaseClient.functions.invoke('get-asaas-config');
-    if (configError || !asaasConfig?.success) {
-      throw new Error('Erro ao buscar configurações de pagamento');
+    const { data: asaasSettings, error: settingsError } = await supabase
+      .from('poupeja_settings')
+      .select('key, value')
+      .eq('category', 'asaas')
+      .in('key', ['api_key', 'environment']);
+
+    if (settingsError) {
+      console.error('[TRANSPARENT-CHECKOUT] Erro ao buscar configurações:', settingsError);
+      throw new Error('Failed to get Asaas configuration');
     }
 
-    const { asaasApiKey, asaasBaseUrl } = asaasConfig.data;
+    if (!asaasSettings || asaasSettings.length === 0) {
+      throw new Error('Asaas configuration not found');
+    }
 
-    // Get user data
+    const asaasApiKey = asaasSettings.find(s => s.key === 'api_key')?.value;
+    const asaasEnvironment = asaasSettings.find(s => s.key === 'environment')?.value || 'sandbox';
+    
+    if (!asaasApiKey) {
+      throw new Error('Asaas API key not configured');
+    }
+
+    const asaasBaseUrl = asaasEnvironment === 'production' 
+      ? 'https://api.asaas.com/v3' 
+      : 'https://sandbox.asaas.com/api/v3';
+
+    // Get user data - try poupeja_users first, fallback to auth metadata
     console.log('[TRANSPARENT-CHECKOUT] Buscando dados do usuário...');
-    const { data: userData, error: userDataError } = await supabaseClient
+    
+    let userData: any = null;
+    
+    const { data: userProfile, error: userDataError } = await supabase
       .from('poupeja_users')
       .select('*')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (userDataError) {
-      throw new Error('Usuário não encontrado na base de dados');
+    if (userProfile) {
+      userData = userProfile;
+      console.log('[TRANSPARENT-CHECKOUT] Dados encontrados na tabela poupeja_users');
+    } else {
+      // Fallback to user metadata if poupeja_users doesn't exist or has no data
+      console.log('[TRANSPARENT-CHECKOUT] Usando dados do metadata do usuário');
+      userData = {
+        id: user.id,
+        email: user.email,
+        name: user.user_metadata?.full_name || user.user_metadata?.name || 'Cliente',
+        phone: user.user_metadata?.phone || '',
+        cpf: user.user_metadata?.cpf || '',
+        cep: user.user_metadata?.cep || '',
+        street: user.user_metadata?.address?.street || '',
+        number: user.user_metadata?.address?.number || '',
+        complement: user.user_metadata?.address?.complement || '',
+        neighborhood: user.user_metadata?.address?.neighborhood || '',
+        city: user.user_metadata?.address?.city || '',
+        state: user.user_metadata?.address?.state || ''
+      };
     }
-    
-    console.log('[TRANSPARENT-CHECKOUT] Dados encontrados na tabela poupeja_users');
 
-    // Get plan configuration
+    // Get plan data from database with proper asaas_price_id
     console.log('[TRANSPARENT-CHECKOUT] Buscando dados do plano no banco...');
-    const { data: planData, error: planError } = await supabaseClient
+    
+    const { data: planData, error: planError } = await supabase
       .from('poupeja_plans')
-      .select('*')
+      .select('id, name, price, asaas_price_id, plan_period')
       .eq('plan_period', planType)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
-    if (planError || !planData) {
-      throw new Error('Plano não encontrado ou inativo');
+    if (planError) {
+      console.error('[TRANSPARENT-CHECKOUT] Erro ao buscar plano:', planError);
+      throw new Error('Erro interno: Falha ao buscar dados do plano');
     }
 
-    console.log('[TRANSPARENT-CHECKOUT] Dados do plano:', {
-      planType,
-      planPrice: planData.price,
-      asaasPriceId: planData.asaas_price_id,
-      planName: planData.name
+    if (!planData) {
+      console.error('[TRANSPARENT-CHECKOUT] Plano não encontrado:', { planType });
+      throw new Error(`Plano ${planType === 'monthly' ? 'mensal' : 'anual'} não encontrado. Verifique as configurações dos planos.`);
+    }
+
+    if (!planData.asaas_price_id) {
+      console.error('[TRANSPARENT-CHECKOUT] Price ID do Asaas não configurado:', planData);
+      throw new Error('Configuração de pagamento incompleta. Entre em contato com o suporte.');
+    }
+
+    const planPrice = planData.price;
+    const asaasPriceId = planData.asaas_price_id;
+
+    console.log('[TRANSPARENT-CHECKOUT] Dados do plano:', { 
+      planType, 
+      planPrice, 
+      asaasPriceId,
+      planName: planData.name 
     });
 
-    // Check if customer already exists in Asaas
-    console.log('[TRANSPARENT-CHECKOUT] Verificando cliente Asaas existente...');
-    const { data: existingCustomer } = await supabaseClient
+    // Get or create Asaas customer
+    let asaasCustomerId: string;
+    
+    const { data: existingCustomer } = await supabase
       .from('poupeja_asaas_customers')
       .select('asaas_customer_id')
       .eq('user_id', user.id)
-      .maybeSingle();
+      .single();
 
-    let asaasCustomerId = existingCustomer?.asaas_customer_id;
-    
-    if (asaasCustomerId) {
+    if (existingCustomer) {
+      asaasCustomerId = existingCustomer.asaas_customer_id;
       console.log('[TRANSPARENT-CHECKOUT] Cliente Asaas existente:', asaasCustomerId);
     } else {
-      // Create new customer in Asaas
-      const customerPayload = {
-        name: userData.name || user.email?.split('@')[0] || 'Usuário',
-        email: userData.email || user.email,
+      // Create new Asaas customer
+      const customerData = {
+        name: userData.name || 'Cliente',
+        email: userData.email,
         phone: userData.phone || '',
-        cpfCnpj: userData.cpf || ''
+        cpfCnpj: userData.cpf || '',
+        postalCode: userData.cep || '',
+        address: userData.street || '',
+        addressNumber: userData.number || '',
+        complement: userData.complement || '',
+        province: userData.neighborhood || '',
+        city: userData.city || '',
+        state: userData.state || ''
       };
+
+      console.log('[TRANSPARENT-CHECKOUT] Criando cliente Asaas:', customerData);
 
       const customerResponse = await fetch(`${asaasBaseUrl}/customers`, {
         method: 'POST',
@@ -184,281 +218,91 @@ serve(async (req) => {
           'Content-Type': 'application/json',
           'access_token': asaasApiKey,
         },
-        body: JSON.stringify(customerPayload)
+        body: JSON.stringify(customerData)
       });
 
       if (!customerResponse.ok) {
-        const customerError = await customerResponse.text();
-        console.error('[TRANSPARENT-CHECKOUT] Erro ao criar cliente:', customerError);
-        throw new Error('Falha ao criar cliente no sistema de pagamento');
+        const error = await customerResponse.text();
+        throw new Error(`Failed to create Asaas customer: ${error}`);
       }
 
-      const customerData = await customerResponse.json();
-      asaasCustomerId = customerData.id;
-      
-      // Save customer in database
-      await supabaseClient
-        .from('poupeja_asaas_customers')
-        .insert({
-          user_id: user.id,
-          asaas_customer_id: asaasCustomerId,
-          email: userData.email || user.email,
-          phone: userData.phone || '',
-          cpf: userData.cpf || '',
-          name: userData.name || user.email?.split('@')[0] || 'Usuário'
-        });
+      const customer = await customerResponse.json();
+      asaasCustomerId = customer.id;
 
-      console.log('[TRANSPARENT-CHECKOUT] ✅ Novo cliente criado no Asaas:', asaasCustomerId);
+      // Save customer in database
+      await supabase.from('poupeja_asaas_customers').insert({
+        user_id: user.id,
+        asaas_customer_id: asaasCustomerId,
+        email: userData.email,
+        name: userData.name,
+        phone: userData.phone,
+        cpf: userData.cpf
+      });
+
+      console.log('[TRANSPARENT-CHECKOUT] Cliente Asaas criado:', asaasCustomerId);
     }
 
-    // Handle payment method (saved card vs new card)
-    let tokenData: any = null;
+    // Step 1: Handle card tokenization
+    let tokenData;
     let shouldSaveCard = false;
     
     if (savedCardToken) {
-      console.log('[TRANSPARENT-CHECKOUT] Validando token de cartão salvo:', savedCardToken.substring(0, 8) + '...');
-      
-      try {
-        // Validate saved card token by checking with Asaas
-        const validateResponse = await fetch(`${asaasBaseUrl}/customers/${asaasCustomerId}/creditCards`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'access_token': asaasApiKey,
-          }
-        });
-        
-        if (!validateResponse.ok) {
-          console.error('[TRANSPARENT-CHECKOUT] Erro ao validar cartão:', validateResponse.status);
-          
-          if (validateResponse.status === 404) {
-            console.log('[TRANSPARENT-CHECKOUT] Cliente não possui cartões salvos no Asaas');
-            
-            const { error: updateError } = await supabaseClient
-              .from('poupeja_tokenized_cards')
-              .update({ is_active: false })
-              .eq('credit_card_token', savedCardToken)
-              .eq('user_id', user.id);
-              
-            if (!creditCard) {
-              console.log('[TRANSPARENT-CHECKOUT] ❌ Cliente sem cartões salvos e sem novo cartão fornecido');
-              return new Response(JSON.stringify({
-                error: 'INVALID_SAVED_CARD',
-                message: 'Não encontramos cartões salvos para este cliente. Por favor, selecione "Usar novo cartão" e preencha os dados.',
-                code: 'NO_SAVED_CARDS_AVAILABLE'
-              }), {
-                status: 400,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-              });
-            }
-            
-            console.log('[TRANSPARENT-CHECKOUT] Prosseguindo com tokenização de novo cartão...');
-          } else {
-            // Outros erros do Asaas
-            if (!creditCard) {
-              throw new Error('Erro ao consultar cartões no Asaas. Tente novamente.');
-            }
-            console.log('[TRANSPARENT-CHECKOUT] Erro na consulta, prosseguindo com novo cartão...');
-          }
-        } else {
-          const cardsData = await validateResponse.json();
-          console.log('[TRANSPARENT-CHECKOUT] Cartões encontrados no Asaas:', cardsData.data?.length || 0);
-          
-          const validTokens = cardsData.data?.map((card: any) => card.creditCardToken) || [];
-          console.log('[TRANSPARENT-CHECKOUT] Tokens válidos:', validTokens.map((t: string) => t.substring(0, 8) + '...'));
-          console.log('[TRANSPARENT-CHECKOUT] Token sendo validado:', savedCardToken.substring(0, 8) + '...');
-          
-          if (!validTokens.includes(savedCardToken)) {
-            console.error('[TRANSPARENT-CHECKOUT] Token não encontrado na lista de cartões válidos');
-            console.log('[TRANSPARENT-CHECKOUT] ⚠️ Token inválido, marcando cartão como inativo e forçando novo cartão');
-            
-            // Mark card as inactive in database
-            await supabaseClient
-              .from('poupeja_tokenized_cards')
-              .update({ is_active: false })
-              .eq('credit_card_token', savedCardToken)
-              .eq('user_id', user.id);
-              
-            // Force new card usage by clearing savedCardToken
-            if (!creditCard) {
-              console.log('[TRANSPARENT-CHECKOUT] ❌ Cartão salvo inválido e sem novo cartão fornecido');
-              return new Response(JSON.stringify({
-                error: 'INVALID_SAVED_CARD',
-                message: 'O cartão selecionado não é válido. Por favor, selecione outro cartão salvo ou adicione um novo cartão.',
-                code: 'SAVED_CARD_INVALID',
-                action: 'SELECT_OTHER_OR_ADD_NEW'
-              }), {
-                status: 400,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-              });
-            }
-            
-            // Continue to new card tokenization below
-            console.log('[TRANSPARENT-CHECKOUT] Prosseguindo com tokenização de novo cartão...');
-          } else {
-            console.log('[TRANSPARENT-CHECKOUT] ✅ Token válido encontrado na lista do Asaas');
-            tokenData = { creditCardToken: savedCardToken };
-          }
-        }
-      } catch (tokenValidationError) {
-        console.error('[TRANSPARENT-CHECKOUT] Erro ao validar token:', tokenValidationError);
-        
-        if (!creditCard) {
-          console.log('[TRANSPARENT-CHECKOUT] ❌ Erro na validação de cartão e sem novo cartão fornecido');
-          return new Response(JSON.stringify({
-            error: 'VALIDATION_FAILED',
-            message: 'Erro ao validar o cartão selecionado. Por favor, tente outro cartão salvo ou adicione um novo cartão.',
-            code: 'CARD_VALIDATION_ERROR',
-            action: 'SELECT_OTHER_OR_ADD_NEW'
-          }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-        
-        // Continue to new card tokenization below
-        console.log('[TRANSPARENT-CHECKOUT] Erro na validação, prosseguindo com novo cartão...');
-      }
-    }
-    
-    if (!tokenData && creditCard) {
-      // Validate that we have complete cardholder data for new card tokenization
-      if (!cardholderData) {
-        console.log('[TRANSPARENT-CHECKOUT] ❌ Dados do portador não fornecidos para novo cartão');
-        return new Response(JSON.stringify({
-          error: 'MISSING_CARDHOLDER_DATA',
-          message: 'Dados do portador do cartão são obrigatórios para novos cartões.',
-          code: 'CARDHOLDER_DATA_REQUIRED'
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Validate required cardholder fields
-      const requiredFields = ['name', 'cpf', 'cep', 'street', 'number', 'neighborhood', 'city', 'state', 'phone'];
-      const missingFields = requiredFields.filter(field => !cardholderData[field as keyof CardholderData]);
-      
-      if (missingFields.length > 0) {
-        console.log('[TRANSPARENT-CHECKOUT] ❌ Campos obrigatórios do portador ausentes:', missingFields);
-        return new Response(JSON.stringify({
-          error: 'INCOMPLETE_CARDHOLDER_DATA',
-          message: `Os seguintes dados do portador são obrigatórios: ${missingFields.join(', ')}`,
-          code: 'MISSING_REQUIRED_FIELDS',
-          missingFields
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Validate CEP format
-      const cleanCep = cardholderData.cep.replace(/\D/g, '');
-      if (cleanCep.length !== 8 || /^0{8}$/.test(cleanCep)) {
-        console.log('[TRANSPARENT-CHECKOUT] ❌ CEP inválido fornecido:', cardholderData.cep);
-        return new Response(JSON.stringify({
-          error: 'INVALID_CEP',
-          message: 'O CEP fornecido é inválido. Por favor, verifique e tente novamente.',
-          code: 'INVALID_POSTAL_CODE'
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Format CEP properly (XXXXX-XXX)
-      const formattedCep = `${cleanCep.substring(0, 5)}-${cleanCep.substring(5)}`;
-
+      // Use existing saved card token
+      console.log('[TRANSPARENT-CHECKOUT] Usando cartão salvo');
+      tokenData = { creditCardToken: savedCardToken };
+    } else if (creditCard) {
       // Tokenize new credit card
       console.log('[TRANSPARENT-CHECKOUT] Tokenizando novo cartão de crédito...');
       shouldSaveCard = true;
     
-      const tokenizeResponse = await fetch(`${asaasBaseUrl}/creditCard/tokenize`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'access_token': asaasApiKey,
+    const tokenizeResponse = await fetch(`${asaasBaseUrl}/creditCard/tokenize`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'access_token': asaasApiKey,
+      },
+      body: JSON.stringify({
+        creditCard: {
+          holderName: creditCard.holderName,
+          number: creditCard.number.replace(/\s/g, ''),
+          expiryMonth: creditCard.expiryMonth,
+          expiryYear: creditCard.expiryYear,
+          ccv: creditCard.ccv
         },
-        body: JSON.stringify({
-          creditCard: {
-            holderName: creditCard.holderName,
-            number: creditCard.number.replace(/\s/g, ''),
-            expiryMonth: creditCard.expiryMonth,
-            expiryYear: creditCard.expiryYear,
-            ccv: creditCard.ccv
-          },
-          creditCardHolderInfo: {
-            name: cardholderData.name,
-            email: userData.email,
-            cpfCnpj: cardholderData.cpf,
-            postalCode: formattedCep,
-            addressNumber: cardholderData.number,
-            addressComplement: cardholderData.complement || '',
-            phone: cardholderData.phone
-          },
-          customer: asaasCustomerId,
-          remoteIp: remoteIp
-        })
+        creditCardHolderInfo: {
+          name: userData.name || creditCard.holderName,
+          email: userData.email,
+          cpfCnpj: creditCard.holderCpf || userData.cpf || '',
+          postalCode: userData.cep || '00000-000',
+          addressNumber: userData.number || 'S/N',
+          addressComplement: userData.complement || '',
+          phone: userData.phone || ''
+        },
+        customer: asaasCustomerId
+      })
       });
 
-      console.log('[TRANSPARENT-CHECKOUT] Status da tokenização:', tokenizeResponse.status);
-      
       if (!tokenizeResponse.ok) {
-        const errorData = await tokenizeResponse.text();
-        console.error('[TRANSPARENT-CHECKOUT] Erro na tokenização:', {
-          status: tokenizeResponse.status,
-          statusText: tokenizeResponse.statusText,
-          error: errorData
-        });
-        
-        // Parse Asaas error response
-        try {
-          const parsedError = JSON.parse(errorData);
-          if (parsedError.errors && parsedError.errors.length > 0) {
-            const firstError = parsedError.errors[0];
-            let userMessage = 'Erro ao processar dados do cartão.';
-            
-            if (firstError.code === 'invalid_holderInfo') {
-              if (firstError.description.includes('CEP')) {
-                userMessage = 'O CEP fornecido é inválido. Verifique e tente novamente.';
-              } else if (firstError.description.includes('CPF')) {
-                userMessage = 'O CPF fornecido é inválido. Verifique e tente novamente.';
-              } else {
-                userMessage = 'Dados do portador inválidos. Verifique todas as informações.';
-              }
-            } else if (firstError.code === 'invalid_creditCard') {
-              userMessage = 'Dados do cartão inválidos. Verifique número, validade e código de segurança.';
-            }
-            
-            throw new Error(userMessage);
-          }
-        } catch (parseError) {
-          // If parsing fails, use the raw error
-          console.error('[TRANSPARENT-CHECKOUT] Erro ao parsear resposta do Asaas:', parseError);
-        }
-        
-        throw new Error(`Falha na tokenização do cartão (${tokenizeResponse.status}): ${errorData}`);
+        const error = await tokenizeResponse.text();
+        console.error('[TRANSPARENT-CHECKOUT] Erro na tokenização:', error);
+        throw new Error(`Failed to tokenize credit card: ${error}`);
       }
 
-      const tokenizeData = await tokenizeResponse.json();
+      tokenData = await tokenizeResponse.json();
       console.log('[TRANSPARENT-CHECKOUT] ✅ Cartão tokenizado com sucesso');
-      
-      tokenData = {
-        creditCardToken: tokenizeData.creditCardToken
-      };
-    } else if (!tokenData) {
+    } else {
       throw new Error('Método de pagamento não especificado');
     }
     
     // Save tokenized card data only for new cards
-    if (shouldSaveCard && creditCard && cardholderData) {
+    if (shouldSaveCard && creditCard) {
       const cardBrand = detectCardBrand(creditCard.number);
       const lastFour = creditCard.number.replace(/\s/g, '').slice(-4);
       const maskedNumber = `****-****-****-${lastFour}`;
       
       try {
         // Check if user already has this card (by last 4 digits and brand)
-        const { data: existingCards } = await supabaseClient
+        const { data: existingCards } = await supabase
           .from('poupeja_tokenized_cards')
           .select('id')
           .eq('user_id', user.id)
@@ -468,14 +312,14 @@ serve(async (req) => {
         // Only save if this card doesn't exist yet
         if (!existingCards || existingCards.length === 0) {
           // Check if this will be the user's first card (make it default)
-          const { data: userCards } = await supabaseClient
+          const { data: userCards } = await supabase
             .from('poupeja_tokenized_cards')
             .select('id')
             .eq('user_id', user.id);
           
           const isFirstCard = !userCards || userCards.length === 0;
           
-          const { error: cardSaveError } = await supabaseClient
+          const { error: cardSaveError } = await supabase
             .from('poupeja_tokenized_cards')
             .insert({
               user_id: user.id,
@@ -484,7 +328,7 @@ serve(async (req) => {
               credit_card_number: maskedNumber,
               credit_card_brand: cardBrand,
               credit_card_last_four: lastFour,
-              holder_name: cardholderData.name, // Use cardholder name
+              holder_name: creditCard.holderName,
               expires_at: `${creditCard.expiryMonth}/${creditCard.expiryYear}`,
               is_default: isFirstCard,
               is_active: true
@@ -499,99 +343,195 @@ serve(async (req) => {
         } else {
           console.log('[TRANSPARENT-CHECKOUT] ℹ️ Cartão já existe, não salvando duplicata');
         }
-      } catch (cardSaveError) {
-        console.error('[TRANSPARENT-CHECKOUT] ⚠️ Erro ao processar salvamento de cartão:', cardSaveError);
-        // Continue - tokenization was successful
+      } catch (error) {
+        console.error('[TRANSPARENT-CHECKOUT] ⚠️ Erro ao verificar/salvar cartão:', error);
+        // Continue with the flow - card saving is not critical
       }
     }
 
-    // Create subscription in Asaas
-    console.log('[TRANSPARENT-CHECKOUT] Criando assinatura no Asaas...');
-    
-    const subscriptionPayload = {
-      customer: asaasCustomerId,
-      billingType: 'CREDIT_CARD',
-      value: planData.price,
-      nextDueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Tomorrow
-      cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
-      description: `Assinatura ${planData.name} - ${planType === 'monthly' ? 'Mensal' : 'Anual'}`,
-      creditCard: {
-        creditCardToken: tokenData.creditCardToken
-      },
-      creditCardHolderInfo: {
-        name: cardholderData?.name || userData.name || user.email?.split('@')[0] || 'Usuário',
-        email: userData.email || user.email,
-        cpfCnpj: cardholderData?.cpf || creditCard?.holderCpf || userData.cpf || '',
-        postalCode: cardholderData?.cep ? `${cardholderData.cep.replace(/\D/g, '').substring(0, 5)}-${cardholderData.cep.replace(/\D/g, '').substring(5)}` : (userData.cep || ''),
-        addressNumber: cardholderData?.number || userData.number || 'S/N',
-        addressComplement: cardholderData?.complement || userData.complement || '',
-        phone: cardholderData?.phone || userData.phone || ''
-      },
-      remoteIp: remoteIp
-    };
+    // Step 2: Handle subscription creation or plan change
+    let result;
 
-    console.log('[TRANSPARENT-CHECKOUT] Payload da assinatura preparado');
+    if (isUpgrade && currentSubscriptionId) {
+      // Handle plan change
+      console.log('[TRANSPARENT-CHECKOUT] Processando mudança de plano...');
+      
+      // CRITICAL: Buscar o asaas_subscription_id correto do banco de dados
+      const { data: subscriptionData, error: subscriptionError } = await supabase
+        .from('poupeja_subscriptions')
+        .select('asaas_subscription_id')
+        .eq('id', currentSubscriptionId)
+        .single();
 
-    const subscriptionResponse = await fetch(`${asaasBaseUrl}/subscriptions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'access_token': asaasApiKey,
-      },
-      body: JSON.stringify(subscriptionPayload)
-    });
+      if (subscriptionError || !subscriptionData?.asaas_subscription_id) {
+        console.error('[TRANSPARENT-CHECKOUT] ❌ Erro ao buscar subscription do Asaas:', subscriptionError);
+        throw new Error(`Subscription não encontrada ou sem asaas_subscription_id: ${currentSubscriptionId}`);
+      }
 
-    if (!subscriptionResponse.ok) {
-      const subscriptionError = await subscriptionResponse.text();
-      console.error('[TRANSPARENT-CHECKOUT] Erro ao criar assinatura:', {
-        status: subscriptionResponse.status,
-        error: subscriptionError
+      const asaasSubscriptionId = subscriptionData.asaas_subscription_id;
+      console.log(`[TRANSPARENT-CHECKOUT] ✅ Asaas subscription ID encontrado: ${asaasSubscriptionId}`);
+      
+      // Validar dados críticos antes da atualização
+      console.log(`[TRANSPARENT-CHECKOUT] 🔍 Validando dados da mudança de plano:`, {
+        asaasSubscriptionId,
+        newPlanType: planType,
+        newPlanPrice: planPrice,
+        cardToken: savedCardToken || 'new_card',
+        userId: user.id
       });
-      throw new Error(`Falha ao criar assinatura: ${subscriptionError}`);
-    }
+      
+      // Create plan change request
+      const { data: planChangeRequest } = await supabase
+        .from('poupeja_plan_change_requests')
+        .insert({
+          user_id: user.id,
+          subscription_id: currentSubscriptionId,
+          current_plan_type: planType === 'monthly' ? 'annual' : 'monthly',
+          new_plan_type: planType,
+          new_plan_value: planPrice,
+          status: 'pending'
+        })
+        .select()
+        .single();
 
-    const subscriptionData = await subscriptionResponse.json();
-    console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura criada no Asaas:', subscriptionData.id);
+      // Preparar dados para atualização da subscription no Asaas
+      const updatePayload = {
+        billingType: 'CREDIT_CARD',
+        value: planPrice,
+        cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
+        creditCard: {
+          creditCardToken: tokenData.creditCardToken,
+        }
+      };
+      
+      console.log(`[TRANSPARENT-CHECKOUT] 📤 Enviando atualização para Asaas:`, {
+        url: `${asaasBaseUrl}/subscriptions/${asaasSubscriptionId}`,
+        payload: updatePayload
+      });
 
-    // Save subscription in database
-    const { error: subscriptionSaveError } = await supabaseClient
-      .from('poupeja_subscriptions')
-      .insert({
+      // Update subscription in Asaas - REMOVENDO chargeNow e updatePendingPayments que podem causar erro
+      const updateResponse = await fetch(`${asaasBaseUrl}/subscriptions/${asaasSubscriptionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'access_token': asaasApiKey,
+        },
+        body: JSON.stringify(updatePayload)
+      });
+
+      if (!updateResponse.ok) {
+        const errorText = await updateResponse.text();
+        console.error('[TRANSPARENT-CHECKOUT] ❌ Erro na atualização da subscription:', {
+          status: updateResponse.status,
+          statusText: updateResponse.statusText,
+          error: errorText,
+          asaasSubscriptionId: asaasSubscriptionId
+        });
+        throw new Error(`Failed to update subscription (${updateResponse.status}): ${errorText}`);
+      }
+
+      const updatedSubscription = await updateResponse.json();
+      
+      // Update plan change request with payment ID
+      if (planChangeRequest && updatedSubscription.id) {
+        await supabase
+          .from('poupeja_plan_change_requests')
+          .update({ 
+            asaas_payment_id: updatedSubscription.id,
+            status: 'processing'
+          })
+          .eq('id', planChangeRequest.id);
+      }
+
+      result = {
+        success: true,
+        type: 'plan_change',
+        subscriptionId: updatedSubscription.id,
+        paymentId: updatedSubscription.id
+      };
+      
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Mudança de plano processada');
+    } else {
+      // Create new subscription
+      console.log('[TRANSPARENT-CHECKOUT] Criando nova assinatura...');
+      
+      const subscriptionResponse = await fetch(`${asaasBaseUrl}/subscriptions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'access_token': asaasApiKey,
+        },
+        body: JSON.stringify({
+          customer: asaasCustomerId,
+          billingType: 'CREDIT_CARD',
+          value: planPrice,
+          nextDueDate: new Date().toISOString().split('T')[0],
+          cycle: planType === 'monthly' ? 'MONTHLY' : 'YEARLY',
+          description: `Assinatura ${planType === 'monthly' ? 'Mensal' : 'Anual'} - Renda AI`,
+          creditCardToken: tokenData.creditCardToken,
+          remoteIp,
+          externalReference: `${user.id}_${planType}_${Date.now()}`
+        })
+      });
+
+      if (!subscriptionResponse.ok) {
+        const error = await subscriptionResponse.text();
+        throw new Error(`Failed to create subscription: ${error}`);
+      }
+
+      const subscription = await subscriptionResponse.json();
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura criada:', subscription.id);
+
+      // Save subscription in database with PENDING status - aguarda webhook PAYMENT_CONFIRMED
+      await supabase.from('poupeja_subscriptions').insert({
         user_id: user.id,
-        asaas_subscription_id: subscriptionData.id,
+        asaas_subscription_id: subscription.id,
         asaas_customer_id: asaasCustomerId,
         plan_type: planType,
-        status: subscriptionData.status || 'active',
+        status: 'pending', // PENDENTE até confirmação via webhook
         current_period_start: new Date().toISOString(),
-        current_period_end: subscriptionData.nextDueDate ? new Date(subscriptionData.nextDueDate).toISOString() : new Date(Date.now() + (planType === 'monthly' ? 30 : 365) * 24 * 60 * 60 * 1000).toISOString(),
-        cancel_at_period_end: false
+        current_period_end: subscription.nextDueDate,
+        payment_processor: 'asaas'
       });
 
-    if (subscriptionSaveError) {
-      console.error('[TRANSPARENT-CHECKOUT] Erro ao salvar assinatura no banco:', subscriptionSaveError);
-      throw new Error('Falha ao registrar assinatura no sistema');
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura PENDENTE criada - aguarda confirmação');
+
+      result = {
+        success: true,
+        type: 'new_subscription',
+        subscriptionId: subscription.id,
+        status: 'pending',
+        paymentId: subscription.id
+      };
+      
+      console.log('[TRANSPARENT-CHECKOUT] ✅ Nova assinatura processada');
     }
 
-    console.log('[TRANSPARENT-CHECKOUT] ✅ Assinatura salva no banco de dados');
+    console.log('[TRANSPARENT-CHECKOUT] ✅ Checkout transparente concluído com sucesso');
 
-    return new Response(JSON.stringify({
-      success: true,
-      subscriptionId: subscriptionData.id,
-      status: subscriptionData.status,
-      message: 'Assinatura criada com sucesso!'
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    // Return success with session information for redirect
+    const successResult = {
+      ...result,
+      sessionId: `${user.id}_${planType}_${Date.now()}`,
+      redirectTo: '/payment-success'
+    };
+
+    return new Response(JSON.stringify(successResult), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
     console.error('[TRANSPARENT-CHECKOUT] ❌ Erro:', error);
     
-    return new Response(JSON.stringify({
-      success: false,
-      error: error instanceof Error ? error.message : 'Erro interno do servidor'
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : String(error),
+        success: false 
+      }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 });

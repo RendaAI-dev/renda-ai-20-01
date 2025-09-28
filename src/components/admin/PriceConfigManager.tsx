@@ -7,7 +7,6 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Save, RefreshCw, Loader2, AlertTriangle, CheckCircle, Shield, UserCheck, Settings } from 'lucide-react';
 import { usePlanConfig } from '@/hooks/usePlanConfig';
-import { logConfig, logError } from '@/utils/consoleOptimizer';
 
 // ... manter o início do arquivo até a linha ~20
 
@@ -51,19 +50,19 @@ const PriceConfigManager: React.FC = () => {
     try {
       setIsGrantingAdmin(true);
       
-      logConfig('PriceConfigManager: Granting admin access...');
+      console.log('PriceConfigManager: Granting admin access...');
       
       const { data, error } = await supabase.functions.invoke('grant-admin-access');
 
-      logConfig('PriceConfigManager: Grant admin response:', { data, error });
+      console.log('PriceConfigManager: Grant admin response:', { data, error });
 
       if (error) {
-        logError('PriceConfigManager: Error granting admin access:', error);
+        console.error('PriceConfigManager: Error granting admin access:', error);
         throw error;
       }
 
       if (data?.success) {
-        logConfig('PriceConfigManager: Admin access granted successfully');
+        console.log('PriceConfigManager: Admin access granted successfully');
         toast({
           title: "Acesso concedido",
           description: "Você agora tem permissões de administrador",
@@ -89,8 +88,8 @@ const PriceConfigManager: React.FC = () => {
     try {
       setIsUpdating(true);
       
-      logConfig('PriceConfigManager: Starting save process');
-      logConfig('PriceConfigManager: Form data:', formData);
+      console.log('PriceConfigManager: Starting save process');
+      console.log('PriceConfigManager: Form data:', formData);
       
       const { data, error } = await supabase.functions.invoke('update-plan-config', {
         body: {
@@ -104,15 +103,15 @@ const PriceConfigManager: React.FC = () => {
         }
       });
 
-      logConfig('PriceConfigManager: Function response:', { data, error });
+      console.log('PriceConfigManager: Function response:', { data, error });
 
       if (error) {
-        logError('PriceConfigManager: Error from edge function:', error);
+        console.error('PriceConfigManager: Error from edge function:', error);
         throw error;
       }
 
       if (data?.success) {
-        logConfig('PriceConfigManager: Success response:', data);
+        console.log('PriceConfigManager: Success response:', data);
         
         const isProduction = data.environment === 'production';
         
@@ -122,23 +121,23 @@ const PriceConfigManager: React.FC = () => {
         });
 
         if (data.updatedSecrets && data.updatedSecrets.length > 0) {
-          logConfig('PriceConfigManager: Updated secrets:', data.updatedSecrets);
+          console.log('PriceConfigManager: Updated secrets:', data.updatedSecrets);
         }
 
         if (data.note) {
-          logConfig('PriceConfigManager: Note from server:', data.note);
+          console.log('PriceConfigManager: Note from server:', data.note);
         }
 
         if (data.nextSteps && data.nextSteps.length > 0) {
-          logConfig('PriceConfigManager: Next steps:', data.nextSteps);
+          console.log('PriceConfigManager: Next steps:', data.nextSteps);
         }
       } else {
-        logError('PriceConfigManager: Function returned error:', data);
+        console.error('PriceConfigManager: Function returned error:', data);
         throw new Error(data?.error || 'Erro desconhecido');
       }
       
     } catch (error: any) {
-      logError('PriceConfigManager: Error saving config:', error);
+      console.error('PriceConfigManager: Error saving config:', error);
       
       let errorMessage = error.message || 'Não foi possível salvar as configurações.';
       

@@ -9,7 +9,6 @@ interface Subscription {
   plan_type: string;
   current_period_end: string | null;
   cancel_at_period_end: boolean | null;
-  asaas_subscription_id?: string | null;
 }
 
 interface SubscriptionContextType {
@@ -46,7 +45,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         // Fallback: tentar busca direta na tabela
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('poupeja_subscriptions')
-          .select('id, status, plan_type, current_period_end, cancel_at_period_end, asaas_subscription_id')
+          .select('*')
           .eq('user_id', user.id)
           .eq('status', 'active')
           .single();

@@ -3,7 +3,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { logError, logSilent } from '@/utils/consoleOptimizer';
 
 interface CreditCardData {
   number: string;
@@ -12,19 +11,6 @@ interface CreditCardData {
   ccv: string;
   holderName: string;
   holderCpf: string;
-}
-
-interface CardholderData {
-  name: string;
-  cpf: string;
-  cep: string;
-  street: string;
-  number: string;
-  complement: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  phone: string;
 }
 
 interface CreditCardFormProps {
@@ -41,6 +27,7 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
   currentUser
 }) => {
   const { toast } = useToast();
+  const [userData, setUserData] = useState<any>(null);
 
   // Buscar dados do usuário logado para pré-preenchimento
   useEffect(() => {
@@ -52,28 +39,26 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
           .from('poupeja_users')
           .select('name, cpf')
           .eq('id', currentUser.id)
-          .maybeSingle();
+          .single();
           
         if (error) {
-          logError('Erro ao buscar dados do usuário:', error);
+          console.error('Erro ao buscar dados do usuário:', error);
           return;
         }
         
-        // Pré-preencher apenas se user existe e campos estão vazios
-        if (user && user.name && !data.holderName) {
+        setUserData(user);
+        
+        // Pré-preencher apenas o nome se estiver vazio
+        if (user.name && !data.holderName) {
           onChange('holderName', user.name.toUpperCase());
         }
-        
-        if (user && user.cpf && !data.holderCpf) {
-          onChange('holderCpf', user.cpf.replace(/\D/g, ''));
-        }
       } catch (error) {
-        logError('Erro ao buscar dados do usuário:', error);
+        console.error('Erro ao buscar dados do usuário:', error);
       }
     };
 
     fetchUserData();
-  }, [currentUser?.id, data.holderName, data.holderCpf]);
+  }, [currentUser, data.holderName, data.holderCpf]);
   
   const formatCardNumber = (value: string) => {
     // Remove all non-digits
@@ -193,13 +178,13 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
         
         if (validation.isValidTestCard && validation.expectedResult === 'approved') {
           // Cartão será aprovado automaticamente
-          logSilent('✅ Cartão de teste válido - será aprovado automaticamente');
+          console.log('✅ Cartão de teste válido - será aprovado automaticamente');
         } else if (validation.isTestCard && validation.expectedResult === 'pending') {
-          logSilent('⚠️ Cartão pode ficar pendente - considere usar um cartão aprovado automaticamente');
+          console.warn('⚠️ Cartão pode ficar pendente - considere usar um cartão aprovado automaticamente');
         }
       }
     } catch (error) {
-      logError('Erro ao validar cartão de teste:', error);
+      console.error('Erro ao validar cartão de teste:', error);
     }
   };
 

@@ -96,20 +96,7 @@ const UpdateCardCancelOverdueModal: React.FC<UpdateCardCancelOverdueModalProps> 
       }
 
       if (!data.success) {
-        // Se é erro de cartão inválido, trocar para novo cartão
-        if (data.code === 'INVALID_CARD_TOKEN') {
-          setUseNewCard(true);
-          setSelectedCardToken(null);
-          toast.error(data.message || 'Cartão inválido. Por favor, adicione um novo cartão.');
-          return;
-        }
-        // Se é erro de CEP inválido, orientar usuário
-        if (data.code === 'INVALID_POSTAL_CODE') {
-          toast.error('CEP inválido. Por favor, atualize seus dados no perfil primeiro.');
-          onOpenChange(false);
-          return;
-        }
-        throw new Error(data.error || data.message || 'Erro ao atualizar cartão');
+        throw new Error(data.error || 'Erro ao atualizar cartão');
       }
 
       toast.success(data.message || 'Cartão atualizado e dívidas canceladas!');

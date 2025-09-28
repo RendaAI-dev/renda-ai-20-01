@@ -68,7 +68,18 @@ serve(async (req) => {
       throw new Error('Nenhuma assinatura ativa encontrada');
     }
 
-    // Buscar configurações do Asaas PRIMEIRO
+    // Buscar cliente Asaas
+    const { data: asaasCustomer } = await supabase
+      .from('poupeja_asaas_customers')
+      .select('asaas_customer_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!asaasCustomer) {
+      throw new Error('Cliente Asaas não encontrado');
+    }
+
+    // Buscar configurações do Asaas
     console.log('[CHANGE-PLAN-CHECKOUT] Buscando configurações do Asaas...');
     const { data: settings, error: settingsError } = await supabase
       .from('poupeja_settings')
@@ -104,176 +115,6 @@ serve(async (req) => {
       ? 'https://www.asaas.com/api/v3' 
       : 'https://sandbox.asaas.com/api/v3';
 
-    // Determinar o asaasCustomerId com prioridade adequada
-    let asaasCustomerId: string | undefined = undefined;
-    let asaasCustomerIdSource: 'token' | 'subscription' | 'card' | 'mapping' | 'created' | 'unknown' = 'unknown';
-
-    // Se estiver usando cartão salvo, forçar o cliente vinculado ao token
-    if (savedCardToken) {
-      const { data: tokenRow, error: tokenLookupError } = await supabase
-        .from('poupeja_tokenized_cards')
-        .select('asaas_customer_id, is_active')
-        .eq('user_id', user.id)
-        .eq('credit_card_token', savedCardToken)
-        .maybeSingle();
-
-      if (tokenLookupError) {
-        console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Erro ao buscar cartão tokenizado por token:', tokenLookupError);
-      }
-
-      if (tokenRow?.asaas_customer_id) {
-        asaasCustomerId = tokenRow.asaas_customer_id;
-        asaasCustomerIdSource = 'token';
-        console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id definido a partir do token do cartão:', asaasCustomerId);
-      } else {
-        console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Token salvo não localizado no banco para este usuário');
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'INVALID_CARD_TOKEN',
-          message: 'Cartão salvo inválido. Por favor, cadastre um novo cartão.',
-          requiresNewCard: true
-        }), {
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
-      }
-    }
-
-    // Se ainda não houver ID (sem token salvo), usar prioridade: assinatura -> cartão padrão -> mapeamento
-    if (!asaasCustomerId) {
-      asaasCustomerId = currentSubscription.asaas_customer_id || undefined;
-      if (asaasCustomerId) {
-        asaasCustomerIdSource = 'subscription';
-      }
-      console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id inicial (assinatura):', asaasCustomerId);
-
-      if (!asaasCustomerId) {
-        // Tentar via cartão tokenizado ativo (priorizando default)
-        const { data: cardCustomer } = await supabase
-          .from('poupeja_tokenized_cards')
-          .select('asaas_customer_id')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .order('is_default', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (cardCustomer?.asaas_customer_id) {
-          asaasCustomerId = cardCustomer.asaas_customer_id;
-          asaasCustomerIdSource = 'card';
-        }
-        console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id após cartão tokenizado:', asaasCustomerId);
-      }
-
-      if (!asaasCustomerId) {
-        // Buscar cliente Asaas do mapeamento
-        const { data: asaasCustomer } = await supabase
-          .from('poupeja_asaas_customers')
-          .select('asaas_customer_id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (asaasCustomer?.asaas_customer_id) {
-          asaasCustomerId = asaasCustomer.asaas_customer_id;
-          asaasCustomerIdSource = 'mapping';
-        }
-        console.log('[CHANGE-PLAN-CHECKOUT] asaas_customer_id após mapeamento local:', asaasCustomerId);
-      }
-    }
-
-    // Se ainda não existe cliente Asaas, criar um (apenas quando não for cartão salvo)
-    if (!asaasCustomerId) {
-      console.log('[CHANGE-PLAN-CHECKOUT] Cliente Asaas não encontrado em nenhuma fonte, criando novo...');
-      
-      // Buscar dados do usuário
-      const { data: userData } = await supabase
-        .from('poupeja_users')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      // Merge inteligente dos dados do usuário
-      const rawUserData = {
-        name: userData?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente',
-        email: user.email,
-        phone: userData?.phone || user.user_metadata?.phone || '',
-        cpf: userData?.cpf || user.user_metadata?.cpf || '',
-        cep: userData?.cep || user.user_metadata?.cep || user.user_metadata?.address?.cep || '',
-        street: userData?.street || user.user_metadata?.address?.street || 'Endereço não informado',
-        number: userData?.number || user.user_metadata?.address?.number || '123',
-        complement: userData?.complement || user.user_metadata?.address?.complement || '',
-        neighborhood: userData?.neighborhood || user.user_metadata?.address?.neighborhood || 'Centro',
-        city: userData?.city || user.user_metadata?.address?.city || 'Cidade',
-        state: userData?.state || user.user_metadata?.address?.state || 'SP'
-      };
-
-      // Validar CEP antes de criar cliente
-      if (!isValidCEP(rawUserData.cep)) {
-        console.log('[CHANGE-PLAN-CHECKOUT] CEP inválido para criação de cliente:', rawUserData.cep);
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'INVALID_POSTAL_CODE',
-          message: 'CEP inválido. Por favor, atualize seus dados no perfil com um CEP válido.',
-          requiresNewCard: true
-        }), {
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
-      }
-
-      const customerData = {
-        name: rawUserData.name,
-        email: rawUserData.email,
-        phone: sanitizePhone(rawUserData.phone) || '11999999999',
-        cpfCnpj: sanitizeCPF(rawUserData.cpf) || '00000000000',
-        postalCode: sanitizeCEP(rawUserData.cep),
-        address: rawUserData.street,
-        addressNumber: rawUserData.number,
-        complement: rawUserData.complement,
-        province: rawUserData.neighborhood,
-        city: rawUserData.city,
-        state: rawUserData.state
-      };
-
-      console.log('[CHANGE-PLAN-CHECKOUT] Criando cliente Asaas:', customerData);
-
-      // Criar cliente no Asaas
-      const createCustomerResponse = await fetch(`${asaasUrl}/customers`, {
-        method: 'POST',
-        headers: {
-          'access_token': apiKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(customerData)
-      });
-
-      if (!createCustomerResponse.ok) {
-        const createError = await createCustomerResponse.text();
-        console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao criar cliente Asaas:', createError);
-        throw new Error(`Erro ao criar cliente Asaas: ${createError}`);
-      }
-
-      const newCustomer = await createCustomerResponse.json();
-      asaasCustomerId = newCustomer.id;
-      asaasCustomerIdSource = 'created';
-
-      console.log('[CHANGE-PLAN-CHECKOUT] Cliente Asaas criado:', asaasCustomerId);
-
-      // Salvar cliente no banco
-      await supabase
-        .from('poupeja_asaas_customers')
-        .insert({
-          user_id: user.id,
-          asaas_customer_id: asaasCustomerId,
-          email: user.email,
-          phone: customerData.phone,
-          cpf: customerData.cpfCnpj,
-          name: customerData.name
-        });
-
-      console.log('[CHANGE-PLAN-CHECKOUT] ✅ Cliente Asaas salvo no banco');
-    }
-
-    console.log('[CHANGE-PLAN-CHECKOUT] asaasCustomerIdSource:', asaasCustomerIdSource);
-
     // Buscar preços das configurações públicas
     console.log('[CHANGE-PLAN-CHECKOUT] Buscando configurações de preço...');
     const { data: priceData, error: priceError } = await supabase.functions.invoke('get-public-settings', {
@@ -301,85 +142,29 @@ serve(async (req) => {
       precosMapeados: { monthlyPrice, annualPrice }
     });
 
-    // PASSO 1: Cancelar assinatura atual no Asaas (tolerante a erros)
-    console.log('[CHANGE-PLAN-CHECKOUT] Verificando status da assinatura atual:', currentSubscription.asaas_subscription_id);
+    // PASSO 1: Cancelar assinatura atual no Asaas
+    console.log('[CHANGE-PLAN-CHECKOUT] Cancelando assinatura atual:', currentSubscription.asaas_subscription_id);
     
-    try {
-      // Primeiro verificar se a assinatura ainda existe
-      const statusResponse = await fetch(`${asaasUrl}/subscriptions/${currentSubscription.asaas_subscription_id}`, {
-        method: 'GET',
-        headers: {
-          'access_token': apiKey,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (statusResponse.ok) {
-        const subscriptionData = await statusResponse.json();
-        console.log('[CHANGE-PLAN-CHECKOUT] Status atual da assinatura:', subscriptionData.status);
-        
-        // Só tentar cancelar se ainda estiver ativa
-        if (subscriptionData.status === 'ACTIVE') {
-          const cancelResponse = await fetch(`${asaasUrl}/subscriptions/${currentSubscription.asaas_subscription_id}`, {
-            method: 'DELETE',
-            headers: {
-              'access_token': apiKey,
-              'Content-Type': 'application/json'  
-            }
-          });
-
-          if (cancelResponse.ok) {
-            console.log('[CHANGE-PLAN-CHECKOUT] ✅ Assinatura atual cancelada');
-          } else {
-            const cancelError = await cancelResponse.text();
-            console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Assinatura não pôde ser cancelada (pode já estar cancelada):', cancelError);
-          }
-        } else {
-          console.log('[CHANGE-PLAN-CHECKOUT] ✅ Assinatura já estava cancelada/inativa');
-        }
-      } else if (statusResponse.status === 404 || statusResponse.status === 410) {
-        console.log('[CHANGE-PLAN-CHECKOUT] ✅ Assinatura não existe mais no Asaas (já cancelada)');
-      } else {
-        console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Não foi possível verificar status da assinatura, continuando...');
+    const cancelResponse = await fetch(`${asaasUrl}/subscriptions/${currentSubscription.asaas_subscription_id}`, {
+      method: 'DELETE',
+      headers: {
+        'access_token': apiKey,
+        'Content-Type': 'application/json'
       }
-    } catch (cancelError) {
-      console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Erro ao cancelar assinatura, continuando:', cancelError);
+    });
+
+    if (!cancelResponse.ok) {
+      const cancelError = await cancelResponse.text();
+      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao cancelar assinatura:', cancelError);
+      throw new Error(`Erro ao cancelar assinatura atual: ${cancelError}`);
     }
+
+    console.log('[CHANGE-PLAN-CHECKOUT] ✅ Assinatura atual cancelada');
 
     // PASSO 2: Processar método de pagamento (tokenizar cartão se necessário)
     let paymentData: any = {};
     
     if (creditCard) {
-      // Buscar dados do usuário para tokenização
-      const { data: userProfile } = await supabase
-        .from('poupeja_users')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      // Merge inteligente para tokenização
-      const rawTokenData = {
-        name: userProfile?.name || user.user_metadata?.full_name || creditCard.holderName,
-        phone: userProfile?.phone || user.user_metadata?.phone || '',
-        cep: userProfile?.cep || user.user_metadata?.cep || user.user_metadata?.address?.cep || '',
-        number: userProfile?.number || user.user_metadata?.address?.number || '123'
-      };
-
-      // Validar CEP para tokenização
-      if (!isValidCEP(rawTokenData.cep)) {
-        console.log('[CHANGE-PLAN-CHECKOUT] CEP inválido para tokenização:', rawTokenData.cep);
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'INVALID_POSTAL_CODE',
-          message: 'CEP inválido. Por favor, atualize seus dados no perfil com um CEP válido.',
-          requiresNewCard: true
-        }), {
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
-      }
-
-      console.log('[CHANGE-PLAN-CHECKOUT] postalCodeUsed para tokenização:', sanitizeCEP(rawTokenData.cep));
-
       // Tokenizar novo cartão
       const tokenizeResponse = await fetch(`${asaasUrl}/creditCard/tokenize`, {
         method: 'POST',
@@ -388,7 +173,7 @@ serve(async (req) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          customer: asaasCustomerId,
+          customer: asaasCustomer.asaas_customer_id,
           creditCard: {
             holderName: creditCard.holderName,
             number: creditCard.number.replace(/\s/g, ''),
@@ -397,11 +182,11 @@ serve(async (req) => {
             ccv: creditCard.ccv
           },
           creditCardHolderInfo: {
-            name: rawTokenData.name,
-            cpfCnpj: sanitizeCPF(creditCard.holderCpf) || sanitizeCPF(userProfile?.cpf || user.user_metadata?.cpf || ''),
-            postalCode: sanitizeCEP(rawTokenData.cep),
-            addressNumber: rawTokenData.number,
-            phone: sanitizePhone(rawTokenData.phone) || '11999999999'
+            name: creditCard.holderName,
+            cpfCnpj: creditCard.holderCpf.replace(/\D/g, ''),
+            postalCode: '00000000',
+            addressNumber: '123',
+            phone: '11999999999'
           }
         })
       });
@@ -417,228 +202,36 @@ serve(async (req) => {
       
       console.log('[CHANGE-PLAN-CHECKOUT] ✅ Cartão tokenizado');
     } else {
-      // Usar cartão salvo - validar se token existe no Asaas
-      if (!savedCardToken) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'TOKEN_REQUIRED',
-          message: 'Token do cartão salvo não fornecido'
-        }), {
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
-      }
-
-      // Verificar se o token é válido consultando cartões do cliente
-      try {
-        const cardsResponse = await fetch(`${asaasUrl}/customers/${asaasCustomerId}/creditCard`, {
-          method: 'GET',
-          headers: {
-            'access_token': apiKey,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (cardsResponse.ok) {
-          const cardsData = await cardsResponse.json();
-          const validCard = cardsData.data?.find((card: any) => card.creditCardToken === savedCardToken);
-          
-          if (!validCard) {
-            console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Token do cartão salvo inválido, solicitando novo cartão');
-            return new Response(JSON.stringify({
-              success: false,
-              error: 'INVALID_CARD_TOKEN',
-              message: 'Cartão salvo inválido. Por favor, cadastre um novo cartão.',
-              requiresNewCard: true
-            }), {
-              headers: { 'Content-Type': 'application/json', ...corsHeaders }
-            });
-          }
-          console.log('[CHANGE-PLAN-CHECKOUT] ✅ Token do cartão salvo validado');
-        }
-      } catch (tokenValidationError) {
-        console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Não foi possível validar token, tentando continuar...');
-      }
-      
+      // Usar cartão salvo
       paymentData.creditCardToken = savedCardToken;
       console.log('[CHANGE-PLAN-CHECKOUT] ✅ Usando cartão salvo');
     }
 
-    // PASSO 3: Criar nova assinatura no Asaas (com retry se cliente não encontrado)
+    // PASSO 3: Criar nova assinatura no Asaas
     console.log('[CHANGE-PLAN-CHECKOUT] Criando nova assinatura...');
     
-    let createSubscriptionResponse: Response | undefined;
-    let retryCount = 0;
-    const maxRetries = 2;
+    const createSubscriptionResponse = await fetch(`${asaasUrl}/subscriptions`, {
+      method: 'POST',
+      headers: {
+        'access_token': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        customer: asaasCustomer.asaas_customer_id,
+        billingType: 'CREDIT_CARD',
+        value: newPlanPrice,
+        nextDueDate: new Date().toISOString().split('T')[0], // Cobrança hoje
+        cycle: newPlanCycle,
+        description: `Nova Assinatura ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'} - Mudança de Plano`,
+        creditCardToken: paymentData.creditCardToken,
+        externalReference: `${user.id}_change_${newPlanType}_${Date.now()}`
+      })
+    });
 
-    while (retryCount <= maxRetries) {
-      createSubscriptionResponse = await fetch(`${asaasUrl}/subscriptions`, {
-        method: 'POST',
-        headers: {
-          'access_token': apiKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          customer: asaasCustomerId,
-          billingType: 'CREDIT_CARD',
-          value: newPlanPrice,
-          nextDueDate: new Date().toISOString().split('T')[0], // Cobrança hoje
-          cycle: newPlanCycle,
-          description: `Nova Assinatura ${newPlanType === 'monthly' ? 'Mensal' : 'Anual'} - Mudança de Plano`,
-          creditCardToken: paymentData.creditCardToken,
-          externalReference: `${user.id}_change_${newPlanType}_${Date.now()}`
-        })
-      });
-
-      if (createSubscriptionResponse.ok) {
-        break; // Sucesso, sair do loop
-      }
-
+    if (!createSubscriptionResponse.ok) {
       const createError = await createSubscriptionResponse.text();
-      console.log(`[CHANGE-PLAN-CHECKOUT] Tentativa ${retryCount + 1} falhou:`, createError);
-
-      // Se erro é de token de cartão inválido, retornar instrução para novo cartão
-      if (
-        createError.includes('invalid_creditCard') ||
-        (createError.includes('creditCardToken') && (createError.includes('não encontrado') || createError.includes('not found')))
-      ) {
-        console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Token de cartão inválido/inexistente para este cliente');
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'INVALID_CARD_TOKEN',
-          message: 'Cartão salvo inválido. Por favor, cadastre um novo cartão.',
-          requiresNewCard: true,
-          details: createError
-        }), {
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
-      }
-
-      // Se erro é de cliente não encontrado
-      if (createError.includes('customer') && createError.includes('not found')) {
-        // Se estiver usando cartão salvo, não adianta recriar cliente (token pertence a outro cliente)
-        if (!creditCard && savedCardToken) {
-          console.log('[CHANGE-PLAN-CHECKOUT] ⚠️ Cliente não encontrado e uso de cartão salvo detectado — solicitando novo cartão');
-          return new Response(JSON.stringify({
-            success: false,
-            error: 'INVALID_CARD_TOKEN',
-            message: 'Não foi possível localizar o cliente do Asaas vinculado ao cartão salvo. Por favor, cadastre um novo cartão.',
-            requiresNewCard: true,
-            details: createError
-          }), {
-            headers: { 'Content-Type': 'application/json', ...corsHeaders }
-          });
-        }
-
-        // Caso esteja tokenizando um novo cartão, podemos recriar o cliente e tentar novamente
-        if (retryCount < maxRetries) {
-          console.log('[CHANGE-PLAN-CHECKOUT] Cliente não encontrado, forçando recriação...');
-          
-          // Remover cliente do cache local e recriar
-          await supabase
-            .from('poupeja_asaas_customers')
-            .delete()
-            .eq('user_id', user.id);
-          
-          // Recriar cliente com dados sanitizados
-          const { data: userData } = await supabase
-            .from('poupeja_users')
-            .select('*')
-            .eq('id', user.id)
-            .maybeSingle();
-
-          // Merge inteligente para recriação do cliente
-          const rawRecreateData = {
-            name: userData?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente',
-            phone: userData?.phone || user.user_metadata?.phone || '',
-            cpf: userData?.cpf || user.user_metadata?.cpf || '',
-            cep: userData?.cep || user.user_metadata?.cep || user.user_metadata?.address?.cep || '',
-            street: userData?.street || user.user_metadata?.address?.street || 'Endereço não informado',
-            number: userData?.number || user.user_metadata?.address?.number || '123',
-            complement: userData?.complement || user.user_metadata?.address?.complement || '',
-            neighborhood: userData?.neighborhood || user.user_metadata?.address?.neighborhood || 'Centro',
-            city: userData?.city || user.user_metadata?.address?.city || 'Cidade',
-            state: userData?.state || user.user_metadata?.address?.state || 'SP'
-          };
-
-          // Validar CEP antes de recriar cliente
-          if (!isValidCEP(rawRecreateData.cep)) {
-            console.log('[CHANGE-PLAN-CHECKOUT] CEP inválido para recriação de cliente:', rawRecreateData.cep);
-            return new Response(JSON.stringify({
-              success: false,
-              error: 'INVALID_POSTAL_CODE',
-              message: 'CEP inválido. Por favor, atualize seus dados no perfil com um CEP válido.',
-              requiresNewCard: true
-            }), {
-              headers: { 'Content-Type': 'application/json', ...corsHeaders }
-            });
-          }
-
-          const customerData = {
-            name: rawRecreateData.name,
-            email: user.email,
-            phone: sanitizePhone(rawRecreateData.phone) || '11999999999',
-            cpfCnpj: sanitizeCPF(rawRecreateData.cpf) || '00000000000',
-            postalCode: sanitizeCEP(rawRecreateData.cep),
-            address: rawRecreateData.street,
-            addressNumber: rawRecreateData.number,
-            complement: rawRecreateData.complement,
-            province: rawRecreateData.neighborhood,
-            city: rawRecreateData.city,
-            state: rawRecreateData.state
-          };
-
-          const recreateResponse = await fetch(`${asaasUrl}/customers`, {
-            method: 'POST',
-            headers: {
-              'access_token': apiKey,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(customerData)
-          });
-
-          if (recreateResponse.ok) {
-            const newCustomer = await recreateResponse.json();
-            asaasCustomerId = newCustomer.id;
-            
-            await supabase
-              .from('poupeja_asaas_customers')
-              .insert({
-                user_id: user.id,
-                asaas_customer_id: asaasCustomerId,
-                email: user.email,
-                phone: customerData.phone,
-                cpf: customerData.cpfCnpj,
-                name: customerData.name
-              });
-            
-            console.log('[CHANGE-PLAN-CHECKOUT] Cliente recriado:', asaasCustomerId);
-          }
-        }
-      }
-
-      retryCount++;
-      
-      if (retryCount > maxRetries) {
-        console.error('[CHANGE-PLAN-CHECKOUT] ❌ Todas as tentativas falharam:', createError);
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'SUBSCRIPTION_CREATION_FAILED',
-          message: 'Não foi possível criar a nova assinatura. Tente novamente.',
-          details: createError
-        }), {
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
-      }
-    }
-
-    if (!createSubscriptionResponse?.ok) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'SUBSCRIPTION_CREATION_FAILED',
-        message: 'Falha na criação da assinatura'
-      }), {
-        headers: { 'Content-Type': 'application/json', ...corsHeaders }
-      });
+      console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro ao criar nova assinatura:', createError);
+      throw new Error(`Erro ao criar nova assinatura: ${createError}`);
     }
 
     const newSubscription = await createSubscriptionResponse.json();
@@ -711,15 +304,22 @@ serve(async (req) => {
         hint: updateError.hint
       });
       
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'DATABASE_UPDATE_FAILED',
-        message: 'Assinatura criada no Asaas mas não foi possível atualizar no banco. Entre em contato com o suporte.',
-        details: updateError.message,
-        newSubscriptionId: newSubscription.id
-      }), {
-        headers: { 'Content-Type': 'application/json', ...corsHeaders }
-      });
+      // Tentar rollback - cancelar a nova assinatura criada
+      try {
+        console.log('[CHANGE-PLAN-CHECKOUT] 🔄 Tentando rollback - cancelando nova assinatura...');
+        await fetch(`${asaasUrl}/subscriptions/${newSubscription.id}`, {
+          method: 'DELETE',
+          headers: {
+            'access_token': apiKey,
+            'Content-Type': 'application/json'
+          }
+        });
+        console.log('[CHANGE-PLAN-CHECKOUT] ✅ Rollback concluído');
+      } catch (rollbackError) {
+        console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro no rollback:', rollbackError);
+      }
+      
+      throw new Error(`Erro ao atualizar assinatura: ${updateError.message}`);
     }
 
     console.log('[CHANGE-PLAN-CHECKOUT] ✅ Assinatura atualizada no banco de dados');
@@ -738,48 +338,13 @@ serve(async (req) => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro geral:', errorMessage);
-    
-    // Retornar erro estruturado com status 200 para evitar problemas no frontend
+    console.error('[CHANGE-PLAN-CHECKOUT] ❌ Erro:', errorMessage);
     return new Response(JSON.stringify({
       success: false,
-      error: 'INTERNAL_ERROR',
-      message: 'Erro interno do servidor. Tente novamente em alguns minutos.',
-      details: errorMessage
+      error: errorMessage
     }), {
+      status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
   }
 });
-
-// Utility functions for data sanitization
-function sanitizeCEP(cep: string): string {
-  if (!cep) return '';
-  return cep.replace(/\D/g, ''); // Remove tudo que não for dígito
-}
-
-function sanitizePhone(phone: string): string {
-  if (!phone) return '';
-  return phone.replace(/\D/g, ''); // Remove tudo que não for dígito
-}
-
-function sanitizeCPF(cpf: string): string {
-  if (!cpf) return '';
-  return cpf.replace(/\D/g, ''); // Remove tudo que não for dígito
-}
-
-function isValidCEP(cep: string): boolean {
-  if (!cep) return false;
-  
-  // Sanitizar primeiro
-  const cleanCep = sanitizeCEP(cep);
-  
-  // Verificar se tem 8 dígitos
-  if (!/^\d{8}$/.test(cleanCep)) return false;
-  
-  // Verificar se não é CEP genérico/inválido
-  const invalidCeps = ['00000000', '11111111', '22222222', '33333333', '44444444', '55555555', '66666666', '77777777', '88888888', '99999999'];
-  if (invalidCeps.includes(cleanCep)) return false;
-  
-  return true;
-}

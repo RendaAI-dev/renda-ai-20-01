@@ -34,6 +34,8 @@ self.addEventListener('push', (event) => {
       icon: '/icon-192x192.png',
       badge: '/icon-192x192.png',
       data: data.data,
+      vibrate: [200, 100, 200],
+      requireInteraction: false,
       actions: [
         {
           action: 'view',

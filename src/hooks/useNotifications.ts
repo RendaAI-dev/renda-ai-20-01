@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useNotificationSound } from "./useNotificationSound";
 
 export interface Notification {
   id: string;
@@ -17,6 +18,7 @@ export interface Notification {
 
 export function useNotifications() {
   const queryClient = useQueryClient();
+  const { playNotificationSound } = useNotificationSound();
 
   // Query para buscar notificações
   const notificationsQuery = useQuery({
@@ -143,6 +145,10 @@ export function useNotifications() {
           // Mostrar toast para novas notificações
           if (payload.eventType === 'INSERT' && payload.new) {
             const newNotification = payload.new as Notification;
+            
+            // Tocar som de notificação
+            playNotificationSound();
+            
             toast({
               title: newNotification.title,
               description: newNotification.message,

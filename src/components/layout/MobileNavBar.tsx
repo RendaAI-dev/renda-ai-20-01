@@ -129,6 +129,11 @@ const MobileNavBar: React.FC<MobileNavBarProps> = ({
       href: '/transactions'
     },
     {
+      icon: User,
+      label: t('nav.profile'),
+      href: '/profile'
+    },
+    {
       type: 'quick-actions',
       icon: Plus,
       label: '',

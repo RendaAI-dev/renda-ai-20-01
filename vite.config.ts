@@ -190,7 +190,6 @@ server: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    dedupe: ["react", "react-dom"]
   },
   optimizeDeps: {
     include: ['react', 'react-dom', '@supabase/supabase-js', 'react-is', 'recharts'],

@@ -1,4 +1,4 @@
-import React from "react";
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,7 +11,7 @@ import { BrandingProvider } from "@/contexts/BrandingContext";
 import { AppProvider } from "@/contexts/AppContext";
 import { SupabaseInitializer } from "@/components/common/SupabaseInitializer";
 import { CriticalResourcePreloader } from "@/components/common/CriticalResourcePreloader";
-import { AppInitializer } from "@/components/AppInitializer";
+import { useNotificationInit } from "@/hooks/useNotificationInit";
 import Index from "./pages/Index";
 import OptimizedLandingPage from "./pages/OptimizedLandingPage";
 import LoginPage from "./pages/LoginPage";
@@ -46,18 +46,20 @@ const queryClient = new QueryClient();
 
 
 function App() {
+  // Inicializar notificações automaticamente
+  useNotificationInit();
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <React.Fragment>
+        <TooltipProvider>
           <BrandingProvider>
             <PreferencesProvider>
               <SubscriptionProvider>
                 <AppProvider>
                   <SupabaseInitializer>
-                    <AppInitializer>
-                      <CriticalResourcePreloader />
-                      <BrowserRouter>
+                    <CriticalResourcePreloader />
+                    <BrowserRouter>
                       <Routes>
         <Route path="/" element={<OptimizedLandingPage />} />
         <Route path="/dashboard" element={<Index />} />
@@ -98,13 +100,13 @@ function App() {
                     </BrowserRouter>
                     <Toaster />
                     <Sonner />
-                    </AppInitializer>
+                    
                   </SupabaseInitializer>
                 </AppProvider>
               </SubscriptionProvider>
             </PreferencesProvider>
           </BrandingProvider>
-        </React.Fragment>
+        </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

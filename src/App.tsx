@@ -11,7 +11,7 @@ import { BrandingProvider } from "@/contexts/BrandingContext";
 import { AppProvider } from "@/contexts/AppContext";
 import { SupabaseInitializer } from "@/components/common/SupabaseInitializer";
 import { CriticalResourcePreloader } from "@/components/common/CriticalResourcePreloader";
-import { useNotificationInit } from "@/hooks/useNotificationInit";
+import { AppInitializer } from "@/components/AppInitializer";
 import Index from "./pages/Index";
 import OptimizedLandingPage from "./pages/OptimizedLandingPage";
 import LoginPage from "./pages/LoginPage";
@@ -46,9 +46,6 @@ const queryClient = new QueryClient();
 
 
 function App() {
-  // Inicializar notificações automaticamente
-  useNotificationInit();
-
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
@@ -58,8 +55,9 @@ function App() {
               <SubscriptionProvider>
                 <AppProvider>
                   <SupabaseInitializer>
-                    <CriticalResourcePreloader />
-                    <BrowserRouter>
+                    <AppInitializer>
+                      <CriticalResourcePreloader />
+                      <BrowserRouter>
                       <Routes>
         <Route path="/" element={<OptimizedLandingPage />} />
         <Route path="/dashboard" element={<Index />} />
@@ -100,7 +98,7 @@ function App() {
                     </BrowserRouter>
                     <Toaster />
                     <Sonner />
-                    
+                    </AppInitializer>
                   </SupabaseInitializer>
                 </AppProvider>
               </SubscriptionProvider>

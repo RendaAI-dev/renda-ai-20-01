@@ -190,9 +190,11 @@ server: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
     include: ['react', 'react-dom', '@supabase/supabase-js', 'react-is', 'recharts'],
-    exclude: ['jspdf', 'jspdf-autotable'] // Heavy libs only when needed
+    exclude: ['jspdf', 'jspdf-autotable'], // Heavy libs only when needed
+    dedupe: ['react', 'react-dom']
   },
 }));

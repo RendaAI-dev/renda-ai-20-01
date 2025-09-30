@@ -72,6 +72,9 @@ class NotificationService {
         return;
       }
 
+      // Importar configuração Firebase
+      const { getFCMToken, onFCMMessage } = await import('@/config/firebase');
+
       const registration = await navigator.serviceWorker.ready;
       
       // Request notification permission
@@ -83,33 +86,31 @@ class NotificationService {
         return;
       }
 
-      // Check for existing subscription first
-      const existingSubscription = await registration.pushManager.getSubscription();
+      // Obter FCM token
+      const fcmToken = await getFCMToken();
       
-      if (existingSubscription) {
-        console.log('Using existing web push subscription');
-        await this.saveWebPushSubscription(existingSubscription);
-        return;
+      if (fcmToken) {
+        console.log('FCM Token obtido com sucesso');
+        this.registrationToken = fcmToken;
+        await this.saveDeviceToken(fcmToken);
+      } else {
+        console.warn('Não foi possível obter FCM token');
       }
 
-      // Get VAPID public key from server
-      const { data, error } = await supabase.functions.invoke('get-vapid-public-key');
-      
-      if (error || !data?.publicKey) {
-        console.error('Failed to get VAPID public key:', error);
-        return;
-      }
-
-      console.log('VAPID public key obtained from server');
-      
-      // Subscribe to push notifications with real VAPID key
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: this.urlBase64ToUint8Array(data.publicKey)
+      // Listener para mensagens em foreground
+      onFCMMessage((payload) => {
+        console.log('Mensagem FCM recebida:', payload);
+        
+        // Mostrar notificação
+        if (payload.notification) {
+          this.showWebNotification({
+            title: payload.notification.title || 'Nova Notificação',
+            body: payload.notification.body || '',
+            type: payload.data?.type || 'system',
+            data: payload.data
+          });
+        }
       });
-
-      console.log('New web push subscription created');
-      await this.saveWebPushSubscription(subscription);
     } catch (error) {
       console.error('Error initializing web notifications:', error);
     }

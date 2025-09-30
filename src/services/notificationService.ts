@@ -20,6 +20,13 @@ class NotificationService {
     } else {
       await this.initializeWeb();
     }
+
+    // Listen for auth changes to save subscriptions
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session && !this.isNative) {
+        await this.saveExistingWebSubscription();
+      }
+    });
   }
 
   private async initializeNative() {
@@ -60,28 +67,88 @@ class NotificationService {
 
   private async initializeWeb() {
     try {
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
-        const registration = await navigator.serviceWorker.ready;
-        
-        // Request notification permission
-        const permission = await Notification.requestPermission();
-        
-        if (permission === 'granted') {
-          // Get VAPID public key from environment or use a placeholder for development
-          const vapidPublicKey = import.meta.env?.VITE_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa40HI0L5HyDX4VbXcZgN4b6F8H3M6LdE1l8R9xQ4ZX6J7Z8K4HdM3L5P2N6V9X';
-          
-          // Subscribe to push notifications
-          const subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: this.urlBase64ToUint8Array(vapidPublicKey)
-          });
-
-          console.log('Web push subscription:', subscription);
-          this.saveWebPushSubscription(subscription);
-        }
+      if (!('serviceWorker' in navigator && 'PushManager' in window)) {
+        console.log('Push notifications not supported');
+        return;
       }
+
+      const registration = await navigator.serviceWorker.ready;
+      
+      // Request notification permission
+      const permission = await Notification.requestPermission();
+      console.log('Notification permission:', permission);
+      
+      if (permission !== 'granted') {
+        console.log('Notification permission not granted');
+        return;
+      }
+
+      // Check for existing subscription first
+      const existingSubscription = await registration.pushManager.getSubscription();
+      
+      if (existingSubscription) {
+        console.log('Using existing web push subscription');
+        await this.saveWebPushSubscription(existingSubscription);
+        return;
+      }
+
+      // Get VAPID public key from server
+      const { data, error } = await supabase.functions.invoke('get-vapid-public-key');
+      
+      if (error || !data?.publicKey) {
+        console.error('Failed to get VAPID public key:', error);
+        return;
+      }
+
+      console.log('VAPID public key obtained from server');
+      
+      // Subscribe to push notifications with real VAPID key
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: this.urlBase64ToUint8Array(data.publicKey)
+      });
+
+      console.log('New web push subscription created');
+      await this.saveWebPushSubscription(subscription);
     } catch (error) {
       console.error('Error initializing web notifications:', error);
+    }
+  }
+
+  private async saveExistingWebSubscription() {
+    try {
+      if (!('serviceWorker' in navigator && 'PushManager' in window)) return;
+
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      
+      if (subscription) {
+        console.log('Saving existing subscription after login');
+        await this.saveWebPushSubscription(subscription);
+      }
+    } catch (error) {
+      console.error('Error saving existing subscription:', error);
+    }
+  }
+
+  async getSubscriptionStatus() {
+    try {
+      if (!('serviceWorker' in navigator && 'PushManager' in window)) {
+        return { supported: false, permission: 'default', subscribed: false };
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      
+      return {
+        supported: true,
+        permission: Notification.permission,
+        subscribed: !!subscription,
+        endpoint: subscription?.endpoint
+      };
+    } catch (error) {
+      console.error('Error getting subscription status:', error);
+      return { supported: false, permission: 'default', subscribed: false };
     }
   }
 

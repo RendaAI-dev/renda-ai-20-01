@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import webpush from 'https://esm.sh/web-push@3.6.6'
+import webpush from 'npm:web-push@3.6.6'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -88,10 +88,13 @@ serve(async (req) => {
     
     if (vapidPublicKey && vapidPrivateKey) {
       webpush.setVapidDetails(
-        'https://4d231c4d-6668-4329-9646-544656a66e35.lovableproject.com',
+        'mailto:admin@rendaai.com.br',
         vapidPublicKey,
         vapidPrivateKey
       );
+      console.log('VAPID configured successfully');
+    } else {
+      console.warn('VAPID keys not configured - web push will be skipped');
     }
 
     // Send to web browsers (using Web Push Protocol)
@@ -108,8 +111,11 @@ serve(async (req) => {
         });
 
         if (vapidPublicKey && vapidPrivateKey) {
-          await webpush.sendNotification(subscription, payload);
-          console.log('Web push notification sent successfully to:', subscription.endpoint);
+          const pushResult = await webpush.sendNotification(subscription, payload);
+          console.log('Web push sent:', {
+            endpoint: subscription.endpoint.substring(0, 50) + '...',
+            statusCode: pushResult.statusCode
+          });
           
           results.push({
             platform: 'web',
@@ -125,8 +131,22 @@ serve(async (req) => {
             error: 'VAPID keys not configured'
           });
         }
-      } catch (error) {
-        console.error('Error sending web push:', error);
+      } catch (error: any) {
+        console.error('Web push error:', {
+          message: error.message,
+          statusCode: error.statusCode,
+          endpoint: sub.subscription?.endpoint?.substring(0, 50)
+        });
+        
+        // Remove invalid subscriptions (410 Gone or 404 Not Found)
+        if (error.statusCode === 410 || error.statusCode === 404) {
+          console.log('Removing invalid subscription:', sub.id);
+          await supabase
+            .from('poupeja_web_push_subscriptions')
+            .delete()
+            .eq('id', sub.id);
+        }
+        
         results.push({
           platform: 'web',
           status: 'failed',

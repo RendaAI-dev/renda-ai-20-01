@@ -32,11 +32,26 @@ export function NotificationSettings() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'default'>('default');
+  const [subscriptionStatus, setSubscriptionStatus] = useState({
+    permission: 'default',
+    subscribed: false,
+    endpoint: ''
+  });
 
   useEffect(() => {
     loadPreferences();
     initializeNotifications();
+    loadSubscriptionStatus();
   }, []);
+
+  const loadSubscriptionStatus = async () => {
+    const status = await notificationService.getSubscriptionStatus();
+    setSubscriptionStatus({
+      permission: status.permission,
+      subscribed: status.subscribed,
+      endpoint: status.endpoint?.substring(0, 50) + '...' || ''
+    });
+  };
 
   const initializeNotifications = async () => {
     try {
@@ -160,8 +175,11 @@ export function NotificationSettings() {
       
       toast({
         title: 'Teste enviado',
-        description: 'Verifique o sino para ver a notificação'
+        description: 'Verifique o sino e o navegador para ver a notificação'
       });
+
+      // Atualizar status da subscrição
+      await loadSubscriptionStatus();
     } catch (error) {
       console.error('Error sending test notification:', error);
       toast({
@@ -318,6 +336,26 @@ export function NotificationSettings() {
               <Bell className="mr-2 h-4 w-4" />
               Enviar Notificação de Teste
             </Button>
+
+            <div className="mt-6 p-4 bg-muted rounded-lg space-y-2 text-sm">
+              <div className="font-medium">Status das Notificações Push:</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>Permissão:</div>
+                <div className={subscriptionStatus.permission === 'granted' ? 'text-green-600' : 'text-yellow-600'}>
+                  {subscriptionStatus.permission === 'granted' ? '✓ Concedida' : '⚠ ' + subscriptionStatus.permission}
+                </div>
+                <div>Inscrito:</div>
+                <div className={subscriptionStatus.subscribed ? 'text-green-600' : 'text-red-600'}>
+                  {subscriptionStatus.subscribed ? '✓ Sim' : '✗ Não'}
+                </div>
+                {subscriptionStatus.endpoint && (
+                  <>
+                    <div>Endpoint:</div>
+                    <div className="text-xs truncate">{subscriptionStatus.endpoint}</div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

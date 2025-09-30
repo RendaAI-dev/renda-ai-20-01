@@ -209,25 +209,31 @@ class NotificationService {
   private async saveDeviceToken(token: string) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.warn('[NotificationService] Usuário não autenticado, token não salvo');
+        return;
+      }
+
+      console.log('[NotificationService] Salvando token FCM para usuário:', user.id);
 
       const { error } = await supabase
         .from('poupeja_device_tokens')
         .upsert({
           user_id: user.id,
           token: token,
-          platform: Capacitor.getPlatform()
+          platform: this.isNative ? Capacitor.getPlatform() : 'web',
+          updated_at: new Date().toISOString()
         }, {
-          onConflict: 'user_id,platform'
+          onConflict: 'user_id,token'
         });
 
       if (error) {
-        console.error('Error saving device token:', error);
+        console.error('[NotificationService] Erro ao salvar device token:', error);
       } else {
-        console.log('Device token saved successfully');
+        console.log('[NotificationService] Device token salvo com sucesso');
       }
     } catch (error) {
-      console.error('Error saving device token:', error);
+      console.error('[NotificationService] Erro ao salvar device token:', error);
     }
   }
 

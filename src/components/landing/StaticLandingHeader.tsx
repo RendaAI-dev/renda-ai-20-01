@@ -19,8 +19,11 @@ const StaticLandingHeader: React.FC<StaticLandingHeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b w-full">
-      <div className="w-full px-4 py-4 flex items-center justify-between max-w-none">
+    <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b w-full" style={{ paddingTop: 'var(--safe-area-inset-top, 0px)' }}>
+      <div className="w-full px-4 py-4 flex items-center justify-between max-w-none" style={{ 
+        paddingLeft: 'max(1rem, var(--safe-area-inset-left, 0px))', 
+        paddingRight: 'max(1rem, var(--safe-area-inset-right, 0px))' 
+      }}>
         <div className="flex items-center space-x-3">
           {logoUrl && (
             <img 

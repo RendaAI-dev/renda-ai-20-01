@@ -10,8 +10,9 @@ export function MobileAppInitializer() {
       if (Capacitor.isNativePlatform()) {
         try {
           // Configure Status Bar
-          await StatusBar.setStyle({ style: Style.Light });
+          await StatusBar.setStyle({ style: Style.Dark });
           await StatusBar.setBackgroundColor({ color: '#4ECDC4' });
+          await StatusBar.setOverlaysWebView({ overlay: false });
           
           // Initialize notification service
           await notificationService.initialize();

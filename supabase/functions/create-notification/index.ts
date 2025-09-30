@@ -100,6 +100,33 @@ serve(async (req) => {
     // Log the notification creation
     console.log(`Notification created: ${notificationId} for user: ${targetUserId}`);
 
+    // Tentar enviar push notification também
+    try {
+      const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: targetUserId,
+          title,
+          body: message,
+          data: {
+            notificationId,
+            type,
+            category,
+            ...data
+          }
+        }
+      });
+
+      if (pushError) {
+        console.warn('Failed to send push notification:', pushError);
+        // Não falhar a criação da notificação se o push falhar
+      } else {
+        console.log('Push notification sent successfully');
+      }
+    } catch (pushError) {
+      console.warn('Error sending push notification:', pushError);
+      // Não falhar a criação da notificação se o push falhar
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 

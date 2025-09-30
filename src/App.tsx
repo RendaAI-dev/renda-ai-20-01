@@ -11,6 +11,7 @@ import { BrandingProvider } from "@/contexts/BrandingContext";
 import { AppProvider } from "@/contexts/AppContext";
 import { SupabaseInitializer } from "@/components/common/SupabaseInitializer";
 import { CriticalResourcePreloader } from "@/components/common/CriticalResourcePreloader";
+import { useNotificationInit } from "@/hooks/useNotificationInit";
 import Index from "./pages/Index";
 import OptimizedLandingPage from "./pages/OptimizedLandingPage";
 import LoginPage from "./pages/LoginPage";
@@ -45,6 +46,9 @@ const queryClient = new QueryClient();
 
 
 function App() {
+  // Inicializar notificações automaticamente
+  useNotificationInit();
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>

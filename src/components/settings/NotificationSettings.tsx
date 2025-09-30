@@ -31,12 +31,26 @@ export function NotificationSettings() {
     reminder_days_before: 1
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [hasPermission, setHasPermission] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'default'>('default');
 
   useEffect(() => {
     loadPreferences();
-    checkNotificationPermission();
+    initializeNotifications();
   }, []);
+
+  const initializeNotifications = async () => {
+    try {
+      // Inicializar o serviço de notificações automaticamente
+      await notificationService.initialize();
+      
+      // Verificar permissão atual
+      if ('Notification' in window) {
+        setPermissionStatus(Notification.permission);
+      }
+    } catch (error) {
+      console.error('Erro ao inicializar notificações:', error);
+    }
+  };
 
   const loadPreferences = async () => {
     try {
@@ -69,32 +83,6 @@ export function NotificationSettings() {
     }
   };
 
-  const checkNotificationPermission = async () => {
-    if ('Notification' in window) {
-      setHasPermission(Notification.permission === 'granted');
-    }
-  };
-
-  const requestPermission = async () => {
-    try {
-      await notificationService.initialize();
-      setHasPermission(Notification.permission === 'granted');
-      
-      if (Notification.permission === 'granted') {
-        toast({
-          title: 'Permissão concedida',
-          description: 'Notificações ativadas com sucesso!'
-        });
-      }
-    } catch (error) {
-      console.error('Error requesting permission:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível ativar as notificações',
-        variant: 'destructive'
-      });
-    }
-  };
 
   const savePreferences = async (newPreferences: NotificationPreferences) => {
     setIsLoading(true);
@@ -181,19 +169,17 @@ export function NotificationSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {!hasPermission && (
-            <div className="p-4 bg-muted rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium">Ativar Notificações</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Permita que o app envie notificações para você
-                  </p>
-                </div>
-                <Button onClick={requestPermission}>
-                  Ativar
-                </Button>
+          {permissionStatus !== 'granted' && (
+            <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+              <div className="flex items-center gap-2 mb-2">
+                <Bell className="h-4 w-4 text-primary" />
+                <h4 className="font-medium text-primary">Status das Notificações</h4>
               </div>
+              <p className="text-sm text-muted-foreground">
+                {permissionStatus === 'denied' 
+                  ? 'As notificações estão bloqueadas. Para receber alertas, habilite nas configurações do navegador.'
+                  : 'As notificações serão solicitadas automaticamente quando necessário. Você pode continuar configurando suas preferências abaixo.'}
+              </p>
             </div>
           )}
 
@@ -207,7 +193,7 @@ export function NotificationSettings() {
                 id="expense-reminders"
                 checked={preferences.expense_reminders}
                 onCheckedChange={(value) => handlePreferenceChange('expense_reminders', value)}
-                disabled={!hasPermission || isLoading}
+                disabled={isLoading}
               />
             </div>
 
@@ -220,7 +206,7 @@ export function NotificationSettings() {
                 id="goal-deadlines"
                 checked={preferences.goal_deadlines}
                 onCheckedChange={(value) => handlePreferenceChange('goal_deadlines', value)}
-                disabled={!hasPermission || isLoading}
+                disabled={isLoading}
               />
             </div>
 
@@ -233,7 +219,7 @@ export function NotificationSettings() {
                 id="scheduled-transactions"
                 checked={preferences.scheduled_transactions}
                 onCheckedChange={(value) => handlePreferenceChange('scheduled_transactions', value)}
-                disabled={!hasPermission || isLoading}
+                disabled={isLoading}
               />
             </div>
 
@@ -246,7 +232,7 @@ export function NotificationSettings() {
                 id="security-alerts"
                 checked={preferences.security_alerts}
                 onCheckedChange={(value) => handlePreferenceChange('security_alerts', value)}
-                disabled={!hasPermission || isLoading}
+                disabled={isLoading}
               />
             </div>
 
@@ -259,7 +245,7 @@ export function NotificationSettings() {
                 id="marketing"
                 checked={preferences.marketing}
                 onCheckedChange={(value) => handlePreferenceChange('marketing', value)}
-                disabled={!hasPermission || isLoading}
+                disabled={isLoading}
               />
             </div>
           </div>
@@ -271,7 +257,7 @@ export function NotificationSettings() {
                 <Select
                   value={preferences.reminder_time}
                   onValueChange={(value) => handlePreferenceChange('reminder_time', value)}
-                  disabled={!hasPermission || isLoading}
+                  disabled={isLoading}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -292,7 +278,7 @@ export function NotificationSettings() {
                 <Select
                   value={preferences.reminder_days_before.toString()}
                   onValueChange={(value) => handlePreferenceChange('reminder_days_before', parseInt(value))}
-                  disabled={!hasPermission || isLoading}
+                  disabled={isLoading}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -307,15 +293,15 @@ export function NotificationSettings() {
               </div>
             </div>
 
-            {hasPermission && (
-              <Button 
-                variant="outline" 
-                onClick={testNotification}
-                className="w-full"
-              >
-                Enviar Notificação de Teste
-              </Button>
-            )}
+            <Button 
+              variant="outline" 
+              onClick={testNotification}
+              className="w-full"
+              disabled={isLoading}
+            >
+              <Bell className="mr-2 h-4 w-4" />
+              Enviar Notificação de Teste
+            </Button>
           </div>
         </CardContent>
       </Card>

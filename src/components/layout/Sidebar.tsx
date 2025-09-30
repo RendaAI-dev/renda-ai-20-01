@@ -7,7 +7,7 @@ import { usePreferences } from '@/contexts/PreferencesContext';
 import { useUserRole } from '@/hooks/useUserRole';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
-import { NotificationBell } from '@/components/common/NotificationBell';
+
 import { 
   LayoutDashboard, 
   Receipt, 
@@ -184,10 +184,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onProfileClick, onConfigClick }) => {
     <div className="hidden md:flex h-screen w-64 lg:w-64 xl:w-72 flex-col bg-background border-r overflow-hidden">
       {/* Logo/Header */}
       <div className="p-6 border-b flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <BrandLogo size="md" showCompanyName={true} />
-          <NotificationBell />
-        </div>
+        <BrandLogo size="md" showCompanyName={true} />
       </div>
 
       {/* Navigation - Scrollable content */}

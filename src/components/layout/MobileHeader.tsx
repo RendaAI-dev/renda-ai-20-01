@@ -7,7 +7,7 @@ import { usePreferences } from '@/contexts/PreferencesContext';
 import { useAppContext } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
 import { BrandLogo } from '@/components/common/BrandLogo';
-import { NotificationBell } from '@/components/common/NotificationBell';
+
 
 interface MobileHeaderProps {
   hideValues: boolean;
@@ -48,8 +48,6 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({
         >
           {hideValues ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
         </Button>
-        
-        <NotificationBell />
         
         <ThemeToggle variant="ghost" size="icon" />
         

@@ -11,7 +11,7 @@ import { BrandingProvider } from "@/contexts/BrandingContext";
 import { AppProvider } from "@/contexts/AppContext";
 import { SupabaseInitializer } from "@/components/common/SupabaseInitializer";
 import { CriticalResourcePreloader } from "@/components/common/CriticalResourcePreloader";
-import { useNotificationInit } from "@/hooks/useNotificationInit";
+
 import Index from "./pages/Index";
 import OptimizedLandingPage from "./pages/OptimizedLandingPage";
 import LoginPage from "./pages/LoginPage";
@@ -38,7 +38,7 @@ import AchievementsPage from "./pages/AchievementsPage";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import NotFound from "./pages/NotFound";
-import NotificationsPage from "./pages/NotificationsPage";
+
 import AdminRoute from "./components/admin/AdminRoute";
 import "./App.css";
 
@@ -46,9 +46,6 @@ const queryClient = new QueryClient();
 
 
 function App() {
-  // Inicializar notificações automaticamente
-  useNotificationInit();
-
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
@@ -79,7 +76,6 @@ function App() {
                         <Route path="/categories" element={<CategoriesPage />} />
             <Route path="/plans" element={<PlansPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
                         <Route path="/checkout/change-plan" element={<PlanChangeCheckoutPage />} />
                         <Route path="/payment-confirmation" element={<PaymentConfirmationPage />} />
                         <Route path="/payment-success" element={<PaymentSuccessPage />} />

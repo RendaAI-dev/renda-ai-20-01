@@ -228,33 +228,6 @@ export type Database = {
         }
         Relationships: []
       }
-      poupeja_device_tokens: {
-        Row: {
-          created_at: string
-          id: string
-          platform: string
-          token: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          platform: string
-          token: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          platform?: string
-          token?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       poupeja_goals: {
         Row: {
           color: string | null
@@ -294,84 +267,6 @@ export type Database = {
           target_amount?: number
           updated_at?: string | null
           user_id?: string | null
-        }
-        Relationships: []
-      }
-      poupeja_notification_logs: {
-        Row: {
-          body: string
-          created_at: string
-          data: Json | null
-          id: string
-          results: Json | null
-          sent_at: string
-          title: string
-          type: string
-          user_id: string
-        }
-        Insert: {
-          body: string
-          created_at?: string
-          data?: Json | null
-          id?: string
-          results?: Json | null
-          sent_at?: string
-          title: string
-          type: string
-          user_id: string
-        }
-        Update: {
-          body?: string
-          created_at?: string
-          data?: Json | null
-          id?: string
-          results?: Json | null
-          sent_at?: string
-          title?: string
-          type?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      poupeja_notifications: {
-        Row: {
-          category: string | null
-          created_at: string
-          data: Json | null
-          expires_at: string | null
-          id: string
-          is_read: boolean
-          message: string
-          read_at: string | null
-          title: string
-          type: string
-          user_id: string
-        }
-        Insert: {
-          category?: string | null
-          created_at?: string
-          data?: Json | null
-          expires_at?: string | null
-          id?: string
-          is_read?: boolean
-          message: string
-          read_at?: string | null
-          title: string
-          type?: string
-          user_id: string
-        }
-        Update: {
-          category?: string | null
-          created_at?: string
-          data?: Json | null
-          expires_at?: string | null
-          id?: string
-          is_read?: boolean
-          message?: string
-          read_at?: string | null
-          title?: string
-          type?: string
-          user_id?: string
         }
         Relationships: []
       }
@@ -886,21 +781,18 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          notification_preferences: Json | null
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
-          notification_preferences?: Json | null
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
-          notification_preferences?: Json | null
           updated_at?: string
           user_id?: string
         }
@@ -977,30 +869,6 @@ export type Database = {
           state?: string | null
           street?: string | null
           updated_at?: string | null
-        }
-        Relationships: []
-      }
-      poupeja_web_push_subscriptions: {
-        Row: {
-          created_at: string
-          id: string
-          subscription: Json
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          subscription: Json
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          subscription?: Json
-          updated_at?: string
-          user_id?: string
         }
         Relationships: []
       }
@@ -1086,17 +954,6 @@ export type Database = {
         Args: { admin_email?: string }
         Returns: undefined
       }
-      create_notification: {
-        Args: {
-          p_category?: string
-          p_data?: Json
-          p_message: string
-          p_title: string
-          p_type?: string
-          p_user_id: string
-        }
-        Returns: string
-      }
       create_update_goal_amount_function: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -1135,10 +992,6 @@ export type Database = {
           value_type: string
         }[]
       }
-      get_unread_notifications_count: {
-        Args: { p_user_id?: string }
-        Returns: number
-      }
       get_user_subscription_status: {
         Args: { p_user_id?: string }
         Returns: {
@@ -1166,14 +1019,6 @@ export type Database = {
       }
       is_admin: {
         Args: { user_id?: string }
-        Returns: boolean
-      }
-      mark_all_notifications_read: {
-        Args: { p_user_id?: string }
-        Returns: number
-      }
-      mark_notification_read: {
-        Args: { notification_id: string }
         Returns: boolean
       }
       migrate_existing_auth_users: {

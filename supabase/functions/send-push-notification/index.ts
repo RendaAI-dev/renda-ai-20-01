@@ -30,6 +30,12 @@ serve(async (req) => {
 
     const { userId, notification }: NotificationPayload = await req.json();
 
+    // Validate notification structure
+    if (!notification || !notification.title || !notification.body) {
+      console.error('Invalid notification structure:', { userId, notification });
+      throw new Error('Invalid notification: title and body are required');
+    }
+
     console.log('Sending push notification:', { userId, notification });
 
     // Get user's device tokens

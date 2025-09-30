@@ -62,6 +62,9 @@ server: {
       strategies: 'injectManifest',
       srcDir: 'public',
       filename: 'sw.js',
+      injectManifest: {
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MB
+      },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Renda AI',

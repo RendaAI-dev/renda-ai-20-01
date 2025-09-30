@@ -105,13 +105,15 @@ serve(async (req) => {
       const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
         body: {
           userId: targetUserId,
-          title,
-          body: message,
-          data: {
-            notificationId,
+          notification: {
+            title,
+            body: message,
             type,
-            category,
-            ...data
+            data: {
+              notificationId,
+              category,
+              ...data
+            }
           }
         }
       });

@@ -30,7 +30,7 @@ export const getFirebaseMessaging = () => {
 };
 
 // Obter FCM token
-export const getFCMToken = async (): Promise<string | null> => {
+export const getFCMToken = async (serviceWorkerRegistration?: ServiceWorkerRegistration): Promise<string | null> => {
   try {
     const messaging = getFirebaseMessaging();
     if (!messaging) {
@@ -38,19 +38,22 @@ export const getFCMToken = async (): Promise<string | null> => {
       return null;
     }
 
+    console.log('[FCM] Requesting token with SW registration:', !!serviceWorkerRegistration);
+
     const currentToken = await getToken(messaging, {
-      vapidKey: VAPID_PUBLIC_KEY
+      vapidKey: VAPID_PUBLIC_KEY,
+      serviceWorkerRegistration
     });
 
     if (currentToken) {
-      console.log('FCM Token obtido:', currentToken);
+      console.log('[FCM] ✅ Token obtido com sucesso:', currentToken.substring(0, 20) + '...');
       return currentToken;
     } else {
-      console.log('No registration token available');
+      console.warn('[FCM] ⚠️ Nenhum token disponível. Verifique as permissões.');
       return null;
     }
   } catch (error) {
-    console.error('Erro ao obter FCM token:', error);
+    console.error('[FCM] ❌ Erro ao obter token:', error);
     return null;
   }
 };

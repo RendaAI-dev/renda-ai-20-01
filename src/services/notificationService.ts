@@ -66,40 +66,47 @@ class NotificationService {
   }
 
   private async initializeWeb() {
+    console.log('[NotificationService] 🚀 Inicializando notificações web');
+    
     try {
       if (!('serviceWorker' in navigator && 'PushManager' in window)) {
-        console.log('Push notifications not supported');
+        console.warn('[NotificationService] ⚠️ Push notifications não suportadas neste navegador');
         return;
       }
 
       // Importar configuração Firebase
       const { getFCMToken, onFCMMessage } = await import('@/config/firebase');
 
+      // Aguardar Service Worker estar pronto
+      console.log('[NotificationService] Aguardando Service Worker...');
       const registration = await navigator.serviceWorker.ready;
+      console.log('[NotificationService] ✅ Service Worker pronto:', registration.scope);
       
       // Request notification permission
       const permission = await Notification.requestPermission();
-      console.log('Notification permission:', permission);
+      console.log('[NotificationService] Permissão de notificações:', permission);
       
       if (permission !== 'granted') {
-        console.log('Notification permission not granted');
+        console.warn('[NotificationService] ⚠️ Permissão de notificações negada');
         return;
       }
 
-      // Obter FCM token
-      const fcmToken = await getFCMToken();
+      // Obter FCM token vinculado ao Service Worker
+      console.log('[NotificationService] Obtendo FCM token...');
+      const fcmToken = await getFCMToken(registration);
       
       if (fcmToken) {
-        console.log('FCM Token obtido com sucesso');
+        console.log('[NotificationService] ✅ FCM Token obtido com sucesso');
         this.registrationToken = fcmToken;
         await this.saveDeviceToken(fcmToken);
+        console.log('[NotificationService] ✅ Token salvo no Supabase');
       } else {
-        console.warn('Não foi possível obter FCM token');
+        console.error('[NotificationService] ❌ Falha ao obter FCM token');
       }
 
       // Listener para mensagens em foreground
       onFCMMessage((payload) => {
-        console.log('Mensagem FCM recebida:', payload);
+        console.log('[NotificationService] 📨 Mensagem FCM em foreground:', payload);
         
         // Mostrar notificação
         if (payload.notification) {
@@ -111,8 +118,10 @@ class NotificationService {
           });
         }
       });
+
+      console.log('[NotificationService] ✅ Notificações web inicializadas com sucesso');
     } catch (error) {
-      console.error('Error initializing web notifications:', error);
+      console.error('[NotificationService] ❌ Erro ao inicializar notificações web:', error);
     }
   }
 
@@ -207,33 +216,42 @@ class NotificationService {
   }
 
   private async saveDeviceToken(token: string) {
+    console.log('[NotificationService] 💾 Salvando token FCM...');
+    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        console.warn('[NotificationService] Usuário não autenticado, token não salvo');
+        console.warn('[NotificationService] ⚠️ Usuário não autenticado, token não salvo');
         return;
       }
 
-      console.log('[NotificationService] Salvando token FCM para usuário:', user.id);
+      const platform = this.isNative ? Capacitor.getPlatform() : 'web';
+      console.log('[NotificationService] Salvando token para:', { 
+        userId: user.id, 
+        platform,
+        tokenPrefix: token.substring(0, 20) + '...'
+      });
 
       const { error } = await supabase
         .from('poupeja_device_tokens')
         .upsert({
           user_id: user.id,
           token: token,
-          platform: this.isNative ? Capacitor.getPlatform() : 'web',
+          platform,
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id,token'
         });
 
       if (error) {
-        console.error('[NotificationService] Erro ao salvar device token:', error);
+        console.error('[NotificationService] ❌ Erro ao salvar token:', error);
+        throw error;
       } else {
-        console.log('[NotificationService] Device token salvo com sucesso');
+        console.log('[NotificationService] ✅ Token salvo com sucesso no Supabase');
       }
     } catch (error) {
-      console.error('[NotificationService] Erro ao salvar device token:', error);
+      console.error('[NotificationService] ❌ Erro ao salvar token:', error);
+      throw error;
     }
   }
 

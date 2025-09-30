@@ -49,7 +49,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <TooltipProvider>
+        <React.Fragment>
           <BrandingProvider>
             <PreferencesProvider>
               <SubscriptionProvider>
@@ -104,7 +104,7 @@ function App() {
               </SubscriptionProvider>
             </PreferencesProvider>
           </BrandingProvider>
-        </TooltipProvider>
+        </React.Fragment>
       </ThemeProvider>
     </QueryClientProvider>
   );

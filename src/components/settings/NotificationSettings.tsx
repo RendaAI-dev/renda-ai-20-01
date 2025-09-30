@@ -136,15 +136,31 @@ export function NotificationSettings() {
 
   const testNotification = async () => {
     try {
+      // Enviar notificação local para feedback imediato
       await notificationService.scheduleLocalNotification({
         title: 'Teste de Notificação',
         body: 'Esta é uma notificação de teste do Renda AI!',
         type: 'marketing'
       });
       
+      // Criar notificação no banco (dispara push notification e atualiza o sino)
+      const { error } = await supabase.functions.invoke('create-notification', {
+        body: {
+          title: 'Teste de Notificação',
+          message: 'Esta é uma notificação de teste do sistema. Verifique o sino para ver a notificação.',
+          type: 'system',
+          category: 'test'
+        }
+      });
+
+      if (error) {
+        console.error('Erro ao criar notificação no banco:', error);
+        throw error;
+      }
+      
       toast({
         title: 'Teste enviado',
-        description: 'Verifique se recebeu a notificação'
+        description: 'Verifique o sino para ver a notificação'
       });
     } catch (error) {
       console.error('Error sending test notification:', error);

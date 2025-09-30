@@ -13,6 +13,8 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Zap, Calendar, CreditCard } from 'lucide-react';
+import { useNewPlanConfig } from '@/hooks/useNewPlanConfig';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface PlanChangeDialogProps {
   open: boolean;
@@ -29,7 +31,7 @@ const PlanChangeDialog: React.FC<PlanChangeDialogProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-
+  const { config, isLoading: isLoadingConfig, error } = useNewPlanConfig();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -38,25 +40,50 @@ const PlanChangeDialog: React.FC<PlanChangeDialogProps> = ({
     }).format(value);
   };
 
-  const plans = [
-    {
-      type: 'monthly',
-      name: 'Plano Mensal',
-      price: 49.90,
-      description: 'Cobrança mensal',
-      icon: Calendar,
-      isPopular: false
-    },
-    {
-      type: 'annual',
-      name: 'Plano Anual',
-      price: 538.90,
-      originalPrice: 598.80,
-      description: 'Cobrança anual • Economize 10%',
-      icon: Zap,
-      isPopular: true
-    }
-  ];
+  // Criar array de planos a partir da configuração
+  const plans = React.useMemo(() => {
+    if (!config?.plans || config.plans.length === 0) return [];
+
+    const planList = [];
+
+    // Para cada plano, adicionar os períodos mensal e anual
+    config.plans.forEach(plan => {
+      // Adicionar plano mensal se existir
+      if (plan.pricing.monthly) {
+        planList.push({
+          type: 'monthly',
+          name: 'Plano Mensal',
+          price: plan.pricing.monthly.amount,
+          originalPrice: plan.pricing.monthly.originalPrice 
+            ? parseFloat(plan.pricing.monthly.originalPrice.replace('R$', '').replace('.', '').replace(',', '.').trim())
+            : undefined,
+          description: 'Cobrança mensal',
+          icon: Calendar,
+          isPopular: false,
+          priceId: plan.pricing.monthly.priceId
+        });
+      }
+
+      // Adicionar plano anual se existir
+      if (plan.pricing.annual) {
+        const discount = plan.pricing.annual.discount || '';
+        planList.push({
+          type: 'annual',
+          name: 'Plano Anual',
+          price: plan.pricing.annual.amount,
+          originalPrice: plan.pricing.annual.originalPrice 
+            ? parseFloat(plan.pricing.annual.originalPrice.replace('R$', '').replace('.', '').replace(',', '.').trim())
+            : undefined,
+          description: discount ? `Cobrança anual • Economize ${discount}` : 'Cobrança anual',
+          icon: Zap,
+          isPopular: true,
+          priceId: plan.pricing.annual.priceId
+        });
+      }
+    });
+
+    return planList;
+  }, [config]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -71,7 +98,17 @@ const PlanChangeDialog: React.FC<PlanChangeDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+        {isLoadingConfig ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+            <Skeleton className="h-64" />
+            <Skeleton className="h-64" />
+          </div>
+        ) : error || plans.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Erro ao carregar planos. Tente novamente mais tarde.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
           {plans.map((plan) => {
             const isCurrentPlan = plan.type === currentPlan;
             const Icon = plan.icon;
@@ -141,9 +178,11 @@ const PlanChangeDialog: React.FC<PlanChangeDialogProps> = ({
               </Card>
             );
           })}
-        </div>
+          </div>
+        )}
 
-        <div className="mt-6">
+        {!isLoadingConfig && !error && plans.length > 0 && (
+          <div className="mt-6">
           <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
             <h4 className="font-medium mb-2 flex items-center gap-2 text-primary">
               <CreditCard className="w-4 h-4" />
@@ -155,7 +194,8 @@ const PlanChangeDialog: React.FC<PlanChangeDialogProps> = ({
               <li>• <strong>Processamento:</strong> Checkout seguro com todas as opções</li>
             </ul>
           </div>
-        </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
